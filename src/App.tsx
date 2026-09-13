@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Backdrop } from './components/Backdrop'
 import { Desktop } from './components/Desktop'
+import { WidgetLayer } from './components/widgets/WidgetLayer'
 import { WindowManager } from './components/WindowManager'
 import { TopBar } from './components/TopBar'
 import { CommandBar } from './components/CommandBar'
@@ -67,6 +68,7 @@ export default function App() {
     <div className="relative h-full w-full overflow-hidden">
       <Backdrop />
       <Desktop />
+      <WidgetLayer />
       <WindowManager />
       <TopBar />
       <CommandBar />

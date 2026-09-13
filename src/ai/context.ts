@@ -1,5 +1,6 @@
 import { fs } from '../kernel/fs'
 import { ROOT_ID } from '../kernel/types'
+import { widgets } from '../kernel/widgets'
 import { useWindows } from '../state/windows'
 import { useUi } from '../state/ui'
 import { useSettings } from '../state/settings'
@@ -47,6 +48,7 @@ export async function buildStateSnapshot(): Promise<string> {
   const winLines = windows.map((w) => `- ${w.title} [${w.app}${w.id === top?.id ? ', activa' : ''}${w.minimized ? ', minimizada' : ''}] (id ${w.id})`)
   const selection = useUi.getState().selection
   const selected = (await Promise.all(selection.map((id) => fs.get(id)))).filter((n): n is NonNullable<typeof n> => !!n)
+  const widgetLines = (await widgets.list()).map((w) => `- ${w.title} [${w.type}] (id ${w.id})`)
 
   return [
     '<estado>',
@@ -54,6 +56,8 @@ export async function buildStateSnapshot(): Promise<string> {
     `Tema: ${useSettings.getState().theme}`,
     'Escritorio (id root):',
     ...(desktop.length ? desktop : ['- (vacío)']),
+    'Widgets en el escritorio:',
+    ...(widgetLines.length ? widgetLines : ['- (ninguno)']),
     'Ventanas abiertas:',
     ...(winLines.length ? winLines : ['- (ninguna)']),
     selected.length ? `Selección actual: ${selected.map((n) => `${n.name} (id ${n.id})`).join(', ')}` : 'Selección actual: ninguna',

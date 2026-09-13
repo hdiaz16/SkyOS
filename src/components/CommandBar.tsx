@@ -7,6 +7,7 @@ import {
   FolderOpen,
   FolderPlus,
   Globe,
+  LayoutGrid,
   Loader2,
   Settings2,
   Sparkles,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 import { fs } from '../kernel/fs'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
+import { WIDGET_META, type WidgetType } from '../kernel/widgets'
 import { dispatch, undoLast, useToasts } from '../kernel/commands'
 import { useUi } from '../state/ui'
 import { useWindows } from '../state/windows'
@@ -51,6 +53,14 @@ const ACTIONS: Action[] = [
     run: () => void createFileAndOpen(ROOT_ID, t.id),
   })),
   { id: 'import', title: 'Importar archivos…', hint: 'desde tu computadora', keywords: ['subir', 'importar', 'upload'], icon: Upload, run: () => importInto(ROOT_ID) },
+  ...(['clock', 'note', 'todo', 'timer'] as WidgetType[]).map<Action>((t) => ({
+    id: `widget-${t}`,
+    title: `Añadir widget: ${WIDGET_META[t].label}`,
+    hint: 'en el escritorio',
+    keywords: ['widget', 'añadir', 'agregar', WIDGET_META[t].label.toLowerCase(), t],
+    icon: LayoutGrid,
+    run: () => void dispatch('widgets.create', { type: t }),
+  })),
   { id: 'files', title: 'Abrir Archivos', keywords: ['explorador', 'archivos', 'carpetas', 'escritorio'], icon: FolderOpen, run: () => void dispatch('ui.openFiles') },
   { id: 'browser', title: 'Abrir navegador', hint: 'Google', keywords: ['google', 'web', 'internet', 'navegador'], icon: Globe, run: () => void dispatch('ui.openBrowser') },
   { id: 'trash', title: 'Abrir papelera', keywords: ['papelera', 'basura', 'trash', 'borrados'], icon: Trash2, run: () => void dispatch('ui.openTrash') },

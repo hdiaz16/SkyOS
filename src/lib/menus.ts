@@ -2,6 +2,8 @@ import { dispatch } from '../kernel/commands'
 import type { FsNode } from '../kernel/types'
 import { useUi } from '../state/ui'
 import type { MenuItem } from '../state/ui'
+import { ROOT_ID } from '../kernel/types'
+import { WIDGET_META, type WidgetType } from '../kernel/widgets'
 import { FILE_TYPES } from './fileTypes'
 import { pickFiles } from './pickFiles'
 
@@ -40,8 +42,20 @@ export function fileTypeMenu(parentId: string): MenuItem[] {
   ]
 }
 
-export function folderMenu(parentId: string, at?: Point): MenuItem[] {
+const WIDGET_MENU_TYPES: WidgetType[] = ['clock', 'note', 'todo', 'timer']
+
+export function widgetMenu(): MenuItem[] {
   return [
+    { type: 'label', label: 'Añadir widget' },
+    ...WIDGET_MENU_TYPES.map<MenuItem>((t) => ({
+      label: WIDGET_META[t].label,
+      onSelect: () => void dispatch('widgets.create', { type: t }),
+    })),
+  ]
+}
+
+export function folderMenu(parentId: string, at?: Point): MenuItem[] {
+  const items: MenuItem[] = [
     { label: 'Nueva carpeta', onSelect: () => void createFolderAndRename(parentId) },
     { label: 'Nueva nota', onSelect: () => void createFileAndOpen(parentId, 'note') },
     {
@@ -51,9 +65,12 @@ export function folderMenu(parentId: string, at?: Point): MenuItem[] {
         else void createFileAndOpen(parentId, 'text')
       },
     },
-    { type: 'separator' },
-    { label: 'Importar archivos…', onSelect: () => importInto(parentId) },
   ]
+  if (parentId === ROOT_ID && at) {
+    items.push({ label: 'Añadir widget…', onSelect: () => useUi.getState().openMenu(at.x, at.y, widgetMenu()) })
+  }
+  items.push({ type: 'separator' }, { label: 'Importar archivos…', onSelect: () => importInto(parentId) })
+  return items
 }
 
 export function nodeMenu(node: FsNode, ids: string[]): MenuItem[] {

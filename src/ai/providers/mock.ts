@@ -24,6 +24,10 @@ function planFromPrompt(prompt: string): ToolCallPart | null {
   if (/nota/.test(p)) {
     return { type: 'tool_call', id: nanoid(8), name: 'fs_createFile', input: { type: 'note', name: name(/nota (?:llamada |sobre |para |de )?"?([^"]+?)"?$/i) ?? 'Nota' } }
   }
+  if (/reloj|widget|temporizador|tareas/.test(p)) {
+    const type = /reloj/.test(p) ? 'clock' : /temporizador/.test(p) ? 'timer' : /tareas/.test(p) ? 'todo' : 'note'
+    return { type: 'tool_call', id: nanoid(8), name: 'widgets_create', input: { type } }
+  }
   if (/oscuro|claro|tema/.test(p)) return { type: 'tool_call', id: nanoid(8), name: 'ui_theme', input: { theme: /oscuro|noche/.test(p) ? 'dark' : 'light' } }
   if (/limpia|ordena/.test(p)) return { type: 'tool_call', id: nanoid(8), name: 'ui_cleanDesktop', input: {} }
   if (/cu[aá]ntos|qu[eé] tengo|lista/.test(p)) return { type: 'tool_call', id: nanoid(8), name: 'fs_list', input: { parentId: 'root' } }

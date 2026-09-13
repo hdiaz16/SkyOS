@@ -13,6 +13,8 @@ export interface FsNode {
   updatedAt: number
   /** Set when the node is in the trash. */
   trashedAt: number | null
+  /** Free-form labels, usually suggested by the AI when a file arrives. */
+  tags?: string[]
 }
 
 export const ROOT_ID = 'root'
