@@ -65,7 +65,7 @@ export function WindowFrame({ win, active, children }: Props) {
       }}
     >
       <div
-        className="flex h-10 shrink-0 select-none items-center gap-2 border-b border-line px-3"
+        className="cursor-hand flex h-10 shrink-0 select-none items-center gap-2 border-b border-line px-3"
         onPointerDown={startDrag}
       >
         <div className="group flex items-center gap-1.5">

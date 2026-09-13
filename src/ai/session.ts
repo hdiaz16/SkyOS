@@ -15,19 +15,31 @@ export interface Turn {
   error?: string
 }
 
+/** Something the user picked to send with the next message: a capture, an image, a PDF. */
+export interface PendingAttachment {
+  id: string
+  label: string
+  part: Attachment
+}
+
 interface SessionState {
   open: boolean
   running: boolean
   turns: Turn[]
   history: ChatMessage[]
   controller: AbortController | null
+  pending: PendingAttachment[]
   setOpen: (open: boolean) => void
+  attach: (part: Attachment, label: string) => void
+  detach: (id: string) => void
+  clearPending: () => void
   send: (prompt: string, attachments?: Attachment[]) => Promise<void>
   stop: () => void
   clear: () => void
 }
 
 const MAX_HISTORY_MESSAGES = 24
+const MAX_PENDING = 4
 
 function patchTurn(turns: Turn[], id: string, patch: Partial<Turn> | ((t: Turn) => Partial<Turn>)): Turn[] {
   return turns.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t))
@@ -40,16 +52,22 @@ export const useSession = create<SessionState>((set, get) => ({
   turns: [],
   history: [],
   controller: null,
+  pending: [],
 
   setOpen: (open) => set({ open }),
 
+  attach: (part, label) => set((s) => ({ pending: [...s.pending.slice(-(MAX_PENDING - 1)), { id: nanoid(6), label, part }] })),
+  detach: (id) => set((s) => ({ pending: s.pending.filter((p) => p.id !== id) })),
+  clearPending: () => set({ pending: [] }),
+
   send: async (prompt, attachments) => {
     if (get().running) return
+    const parts = attachments ?? get().pending.map((p) => p.part)
     const controller = new AbortController()
-    const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, attachments, toolEvents: [], status: 'done' }
+    const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, attachments: parts, toolEvents: [], status: 'done' }
     const replyId = nanoid(6)
     const reply: Turn = { id: replyId, role: 'assistant', text: '', toolEvents: [], status: 'streaming' }
-    set((s) => ({ open: true, running: true, controller, turns: [...s.turns, userTurn, reply] }))
+    set((s) => ({ open: true, running: true, controller, pending: [], turns: [...s.turns, userTurn, reply] }))
 
     // Buffer text deltas and flush per animation frame to keep the UI smooth on fast streams.
     let pendingText = ''
@@ -65,7 +83,7 @@ export const useSession = create<SessionState>((set, get) => ({
     try {
       const result = await runAgent({
         prompt,
-        attachments,
+        attachments: parts,
         history: get().history,
         signal: controller.signal,
         onEvent: (e) => {

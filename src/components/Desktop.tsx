@@ -4,7 +4,7 @@ import { fs } from '../kernel/fs'
 import { ROOT_ID } from '../kernel/types'
 import { dispatch } from '../kernel/commands'
 import { useUi } from '../state/ui'
-import { folderMenu } from '../lib/menus'
+import { folderMenu, importFiles } from '../lib/menus'
 import { cn } from '../lib/utils'
 import { IconGrid } from './IconGrid'
 import { NODE_DRAG_TYPE } from './NodeIcon'
@@ -41,8 +41,7 @@ export function Desktop() {
       await dispatch('fs.move', { ids, targetParentId: ROOT_ID })
       return
     }
-    const files = [...e.dataTransfer.files]
-    if (files.length) await dispatch('fs.import', { parentId: ROOT_ID, files })
+    await importFiles(ROOT_ID, [...e.dataTransfer.files])
   }
 
   return (

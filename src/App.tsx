@@ -8,6 +8,7 @@ import { CommandBar } from './components/CommandBar'
 import { ContextMenu } from './components/ContextMenu'
 import { PromptDialog } from './components/PromptDialog'
 import { Toasts } from './components/Toasts'
+import { AiBackground } from './components/AiBackground'
 import { useSettings, applyTheme } from './state/settings'
 import { useUi } from './state/ui'
 import { dispatch, undoLast } from './kernel/commands'
@@ -76,6 +77,7 @@ export default function App() {
       <ContextMenu />
       <PromptDialog />
       <Toasts />
+      <AiBackground />
     </div>
   )
 }

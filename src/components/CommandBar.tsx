@@ -4,17 +4,20 @@ import { AnimatePresence, motion } from 'motion/react'
 import {
   CornerDownLeft,
   FilePlus2,
+  FileText,
   FolderOpen,
   FolderPlus,
   Globe,
   LayoutGrid,
   Loader2,
+  ScanSearch,
   Settings2,
   Sparkles,
   SunMoon,
   Trash2,
   Undo2,
   Upload,
+  X,
 } from 'lucide-react'
 import { fs } from '../kernel/fs'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
@@ -24,6 +27,7 @@ import { useUi } from '../state/ui'
 import { useWindows } from '../state/windows'
 import { useSession } from '../ai/session'
 import { isAiConfigured, useAiSettings } from '../ai/settings'
+import { useSemantic } from '../ai/indexer'
 import { createFileAndOpen, createFolderAndRename, importInto } from '../lib/menus'
 import { FILE_TYPES } from '../lib/fileTypes'
 import { looksLikeUrl } from '../lib/web'
@@ -75,8 +79,11 @@ interface Item {
   hint?: string
   icon: ReactNode
   run: () => void
-  /** Keep the input focused after running (conversational items). */
+  /** Keep the input (and its text) after running: conversational or in-panel items. */
   keepFocus?: boolean
+  keepQuery?: boolean
+  /** Rendered as a section header above the item. */
+  section?: string
 }
 
 const NO_FILES: FsNode[] = []
@@ -105,6 +112,8 @@ export function CommandBar() {
   const chatOpen = useSession((s) => s.open)
   const chatRunning = useSession((s) => s.running)
   const hasTurns = useSession((s) => s.turns.length > 0)
+  const pending = useSession((s) => s.pending)
+  const semantic = useSemantic()
   const aiSettings = useAiSettings()
   const aiReady = isAiConfigured(aiSettings)
 
@@ -123,16 +132,37 @@ export function CommandBar() {
     }
   }
 
+  const query = q.trim()
+  const semanticForQuery = semantic.query === query && query.length > 0 ? semantic : null
+
   const items = useMemo<Item[]>(() => {
-    const query = q.trim()
     if (!query) return []
     const nq = norm(query)
     const isUrl = looksLikeUrl(query)
+    const words = query.split(/\s+/).length
+
+    const semanticItems: Item[] = []
+    if (semanticForQuery?.status === 'done') {
+      const hits = semanticForQuery.result?.hits ?? []
+      if (hits.length === 0) {
+        semanticItems.push({ key: 'sem:none', title: 'Nada coincide por significado', hint: 'Índice', icon: <ScanSearch className="h-[18px] w-[18px] text-ink-3" />, run: () => undefined, section: 'Por significado', keepFocus: true, keepQuery: true })
+      }
+      hits.forEach((h, i) =>
+        semanticItems.push({
+          key: `sem:${h.id}`,
+          title: h.name,
+          hint: h.reason,
+          icon: <ScanSearch className="h-[18px] w-[18px] text-accent" strokeWidth={1.75} />,
+          run: () => void dispatch('ui.open', { id: h.id }),
+          section: i === 0 ? 'Por significado' : undefined,
+        }),
+      )
+    }
 
     const fileItems: Item[] = files.map((n) => ({
       key: `file:${n.id}`,
       title: n.name,
-      hint: n.kind === 'folder' ? 'Carpeta' : 'Archivo',
+      hint: n.kind === 'folder' ? 'Carpeta' : n.tags?.length ? n.tags.map((t) => `#${t}`).join(' ') : 'Archivo',
       icon: <KindIcon kind={fileKind(n)} className="h-6 w-6" />,
       run: () => void dispatch('ui.open', { id: n.id }),
     }))
@@ -159,63 +189,103 @@ export function CommandBar() {
       run: () => askMesa(query),
       keepFocus: aiReady,
     }
+    const meaning: Item | null =
+      aiReady && !isUrl && words >= 2 && semanticForQuery?.status !== 'done'
+        ? {
+            key: 'semantic',
+            title: semanticForQuery?.status === 'running' ? 'Buscando por significado…' : `Buscar por significado: "${query}"`,
+            hint: semanticForQuery?.status === 'running' ? undefined : 'Contenido, no nombre',
+            icon:
+              semanticForQuery?.status === 'running' ? (
+                <Loader2 className="h-[18px] w-[18px] animate-spin text-ink-3" />
+              ) : (
+                <ScanSearch className="h-[18px] w-[18px] text-ink-2" strokeWidth={1.75} />
+              ),
+            run: () => void useSemantic.getState().run(query),
+            keepFocus: true,
+            keepQuery: true,
+          }
+        : null
 
     const strongFile = files.length > 0 && norm(files[0].name).startsWith(nq)
     const strongAction = matched.length > 0 && norm(matched[0].title).startsWith(nq)
-    if (isUrl) return [web, ask, ...fileItems, ...actionItems]
-    if (strongFile || strongAction) return [...fileItems, ...actionItems, ask, web]
-    if (aiReady) return [ask, ...fileItems, ...actionItems, web]
-    return [...fileItems, ...actionItems, web, ask]
+    const tail = meaning ? [meaning, web] : [web]
+    if (isUrl) return [...semanticItems, web, ask, ...fileItems, ...actionItems]
+    if (strongFile || strongAction) return [...semanticItems, ...fileItems, ...actionItems, ask, ...tail]
+    if (aiReady) return [...semanticItems, ask, ...fileItems, ...actionItems, ...tail]
+    return [...semanticItems, ...fileItems, ...actionItems, web, ask]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, q, aiReady])
+  }, [files, query, aiReady, semanticForQuery])
 
-  const resultsOpen = focused && !chatOpen && q.trim().length > 0
+  const resultsOpen = focused && !chatOpen && query.length > 0
 
   useEffect(() => {
-    const el = listRef.current?.children[idx] as HTMLElement | undefined
+    const el = listRef.current?.querySelectorAll('[data-item]')[idx] as HTMLElement | undefined
     el?.scrollIntoView({ block: 'nearest' })
   }, [idx])
 
   const run = (item: Item | undefined) => {
     if (!item) return
     item.run()
-    setQ('')
-    setIdx(0)
+    if (!item.keepQuery) {
+      setQ('')
+      setIdx(0)
+    }
     if (!item.keepFocus) inputRef.current?.blur()
   }
 
   const submit = () => {
-    const text = q.trim()
-    if (chatOpen) {
-      if (!text || chatRunning) return
-      askMesa(text)
+    if (chatOpen || pending.length > 0) {
+      if (!query || chatRunning) return
+      askMesa(query)
       setQ('')
       return
     }
     run(items[idx])
   }
 
-  const placeholder = chatOpen
-    ? chatRunning
-      ? 'Mesa está trabajando…'
-      : 'Responde o pide algo más…'
-    : selectionCount > 0
-      ? `${selectionCount} ${selectionCount === 1 ? 'elemento seleccionado' : 'elementos seleccionados'} · pide algo sobre ellos…`
-      : aiReady
-        ? 'Pide algo a Mesa, busca un archivo o navega…'
-        : 'Busca un archivo, ejecuta una acción o navega…'
+  const placeholder =
+    pending.length > 0
+      ? 'Describe qué hacer con lo adjunto…'
+      : chatOpen
+        ? chatRunning
+          ? 'Mesa está trabajando…'
+          : 'Responde o pide algo más…'
+        : selectionCount > 0
+          ? `${selectionCount} ${selectionCount === 1 ? 'elemento seleccionado' : 'elementos seleccionados'} · pide algo sobre ellos…`
+          : aiReady
+            ? 'Pide algo a Mesa, busca un archivo o navega…'
+            : 'Busca un archivo, ejecuta una acción o navega…'
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-5 z-[100000] flex flex-col items-center gap-2">
       <AnimatePresence initial={false}>
-        {minimized.length > 0 && !chatOpen && (
+        {(minimized.length > 0 || pending.length > 0) && !chatOpen && (
           <motion.div
-            key="minimized"
+            key="chips"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
-            className="pointer-events-auto flex w-[min(800px,94vw)] flex-wrap gap-1.5"
+            className="pointer-events-auto flex w-[min(800px,94vw)] flex-wrap items-center gap-1.5"
           >
+            {pending.map((p) => (
+              <span key={p.id} className="glass flex items-center gap-1.5 rounded-full py-1 pl-1.5 pr-1 text-[12px] text-ink shadow-soft">
+                {p.part.type === 'image' ? (
+                  <img src={`data:${p.part.mediaType};base64,${p.part.data}`} alt="" className="h-6 w-6 rounded-full object-cover" />
+                ) : (
+                  <FileText className="h-4 w-4 text-ink-2" />
+                )}
+                <span className="max-w-[160px] truncate">{p.label}</span>
+                <button
+                  type="button"
+                  aria-label="Quitar adjunto"
+                  onClick={() => useSession.getState().detach(p.id)}
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-ink-3 transition hover:bg-surface-2 hover:text-ink"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
             {minimized.map((w) => (
               <button
                 key={w.id}
@@ -246,8 +316,10 @@ export function CommandBar() {
               <ul ref={listRef} className="scrollbar-thin max-h-[46vh] overflow-y-auto p-2">
                 {items.map((item, i) => (
                   <li key={item.key}>
+                    {item.section && <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-ink-3">{item.section}</div>}
                     <button
                       type="button"
+                      data-item
                       onMouseEnter={() => setIdx(i)}
                       onClick={() => run(item)}
                       className={cn(
@@ -257,7 +329,7 @@ export function CommandBar() {
                     >
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center">{item.icon}</span>
                       <span className="flex-1 truncate text-[14px] text-ink">{item.title}</span>
-                      {item.hint && <span className="shrink-0 text-[12px] text-ink-3">{item.hint}</span>}
+                      {item.hint && <span className="max-w-[45%] shrink-0 truncate text-[12px] text-ink-3">{item.hint}</span>}
                       {i === idx && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-ink-3" />}
                     </button>
                   </li>
@@ -308,6 +380,7 @@ export function CommandBar() {
               } else if (e.key === 'Escape') {
                 e.preventDefault()
                 if (q) setQ('')
+                else if (pending.length) useSession.getState().clearPending()
                 else if (chatOpen) useSession.getState().setOpen(false)
                 else inputRef.current?.blur()
               }
@@ -316,7 +389,7 @@ export function CommandBar() {
             spellCheck={false}
             className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
           />
-          {q.trim() ? (
+          {query ? (
             <button
               type="button"
               aria-label="Enviar"

@@ -72,7 +72,7 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
       onContextMenu={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex h-9 shrink-0 cursor-grab items-center gap-2 px-3 active:cursor-grabbing" onPointerDown={startDrag}>
+      <div className="cursor-hand flex h-9 shrink-0 select-none items-center gap-2 px-3" onPointerDown={startDrag}>
         <Icon className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={2} />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink-2">{widget.title}</span>
         <button

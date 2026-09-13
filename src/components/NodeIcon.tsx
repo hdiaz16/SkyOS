@@ -45,7 +45,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
     const ui = useUi.getState()
     const ids = selected && ui.selection.length > 1 ? ui.selection : [node.id]
     if (!selected) ui.select([node.id])
-    ui.openMenu(e.clientX, e.clientY, nodeMenu(node, ids))
+    ui.openMenu(e.clientX, e.clientY, nodeMenu(node, ids, { x: e.clientX, y: e.clientY }))
   }
 
   const onDragStart = (e: DragEvent) => {
@@ -99,7 +99,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
       onMouseDown={onMouseDown}
       onDoubleClick={open}
       onContextMenu={onContextMenu}
-      title={node.name}
+      title={node.tags?.length ? `${node.name}\n${node.tags.map((t) => `#${t}`).join(' ')}` : node.name}
       data-node={node.id}
       className={cn(
         'group flex w-[104px] cursor-default flex-col items-center gap-1.5 rounded-xl px-2 pb-2 pt-2.5 text-center outline-none transition-colors',

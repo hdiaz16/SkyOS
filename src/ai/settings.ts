@@ -147,6 +147,11 @@ export const useAiSettings = create<AiSettingsState>((set, get) => ({
   },
 }))
 
+/** A quicker, cheaper model for background chores (indexing, classification) when the provider offers one. */
+export function fastModelFor(state: AiSettingsState = useAiSettings.getState()): string | undefined {
+  return state.provider === 'anthropic' ? 'claude-haiku-4-5' : undefined
+}
+
 /** True when the selected provider has what it needs to make a request. */
 export function isAiConfigured(state: AiSettingsState = useAiSettings.getState()): boolean {
   const preset = presetFor(state.provider)

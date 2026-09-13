@@ -56,6 +56,13 @@ export function createMockProvider(): AiProvider {
       const last = req.messages[req.messages.length - 1]
       const hasToolResults = last.parts.some((p) => p.type === 'tool_result')
 
+      // Background jobs ask for JSON only; answer with an empty result so nothing is invented.
+      if (/únicamente con JSON/i.test(req.system) && !req.tools?.length) {
+        yield { type: 'text', delta: '[]' }
+        yield { type: 'done', stopReason: 'end_turn', usage: { inputTokens: 5, outputTokens: 1 }, assistant: { role: 'assistant', parts: [{ type: 'text', text: '[]' }] } }
+        return
+      }
+
       if (hasToolResults) {
         const result = last.parts.find((p) => p.type === 'tool_result')
         const text = result?.type === 'tool_result' && result.isError ? `No pude completarlo: ${result.content}` : 'Listo, ya quedó hecho en tu escritorio.'

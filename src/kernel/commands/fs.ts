@@ -192,3 +192,26 @@ registerCommand<{ id: string; content: string }, void>({
     }
   },
 })
+
+registerCommand<{ id: string; tags: string[] }, string[]>({
+  id: 'fs.setTags',
+  title: 'Etiquetar',
+  description: 'Asigna etiquetas a un archivo o carpeta (palabras clave cortas, en minúsculas). Reemplaza las anteriores.',
+  params: {
+    id: { type: 'string', description: 'Id del elemento.', required: true },
+    tags: { type: 'array', items: { type: 'string', description: 'Etiqueta' }, description: 'Etiquetas nuevas.', required: true },
+  },
+  async run({ id, tags }) {
+    const node = await fs.get(id)
+    if (!node) throw new Error('El elemento ya no existe')
+    const before = node.tags ?? []
+    const after = await fs.setTags(id, tags)
+    return {
+      result: after,
+      label: after.length ? `"${node.name}" etiquetado: ${after.join(', ')}` : `Etiquetas de "${node.name}" eliminadas`,
+      undo: async () => {
+        await fs.setTags(id, before)
+      },
+    }
+  },
+})

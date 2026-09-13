@@ -205,10 +205,19 @@ export const fs = {
     return trashed.length
   },
 
+  /** Replaces a node's tags with a clean, deduplicated, lowercase set (max 8). */
+  async setTags(id: string, tags: string[]): Promise<string[]> {
+    const clean = [...new Set(tags.map((t) => t.trim().toLowerCase()).filter((t) => t && t.length <= 32))].slice(0, 8)
+    await db.nodes.update(id, { tags: clean })
+    return clean
+  },
+
   async search(query: string, limit = 12): Promise<FsNode[]> {
     const q = query.trim().toLowerCase()
     if (!q) return []
-    const rows = await db.nodes.filter((n) => n.trashedAt === null && n.name.toLowerCase().includes(q)).toArray()
+    const rows = await db.nodes
+      .filter((n) => n.trashedAt === null && (n.name.toLowerCase().includes(q) || (n.tags ?? []).some((t) => t.includes(q))))
+      .toArray()
     rows.sort((a, b) => {
       const as = a.name.toLowerCase().startsWith(q) ? 0 : 1
       const bs = b.name.toLowerCase().startsWith(q) ? 0 : 1

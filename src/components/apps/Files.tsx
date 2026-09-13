@@ -6,7 +6,7 @@ import { ROOT_ID } from '../../kernel/types'
 import { dispatch } from '../../kernel/commands'
 import { useWindows, type Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
-import { createFileAndOpen, createFolderAndRename, folderMenu, importInto } from '../../lib/menus'
+import { createFileAndOpen, createFolderAndRename, folderMenu, importFiles, importInto } from '../../lib/menus'
 import { cn } from '../../lib/utils'
 import { IconGrid } from '../IconGrid'
 import { NODE_DRAG_TYPE } from '../NodeIcon'
@@ -26,7 +26,9 @@ export function FilesApp({ win }: { win: Win }) {
   )
   const fresh = view && view.folderId === folderId ? view : undefined
   const path = fresh?.path
-  const selectedCount = useUi((s) => s.selection.length)
+  const selection = useUi((s) => s.selection)
+  const selectedCount = selection.length
+  const selectedNode = useLiveQuery(async () => (selection.length === 1 ? await fs.get(selection[0]) : undefined), [selection])
   const [dragOver, setDragOver] = useState(false)
 
   const navigate = (id: string) => {
@@ -77,8 +79,7 @@ export function FilesApp({ win }: { win: Win }) {
       useUi.getState().clearSelection()
       return
     }
-    const files = [...e.dataTransfer.files]
-    if (files.length) await dispatch('fs.import', { parentId: folderId, files })
+    await importFiles(folderId, [...e.dataTransfer.files])
   }
 
   return (
@@ -142,7 +143,15 @@ export function FilesApp({ win }: { win: Win }) {
 
       <div className="flex h-7 shrink-0 items-center justify-between border-t border-line px-3 text-[11px] text-ink-3">
         <span>{nodes ? `${nodes.length} ${nodes.length === 1 ? 'elemento' : 'elementos'}` : ''}</span>
-        <span>{selectedCount > 0 ? `${selectedCount} ${selectedCount === 1 ? 'seleccionado' : 'seleccionados'}` : ''}</span>
+        <span className="truncate">
+          {selectedCount === 1 && selectedNode
+            ? selectedNode.tags?.length
+              ? selectedNode.tags.map((t) => `#${t}`).join(' ')
+              : selectedNode.name
+            : selectedCount > 1
+              ? `${selectedCount} seleccionados`
+              : ''}
+        </span>
       </div>
     </div>
   )
