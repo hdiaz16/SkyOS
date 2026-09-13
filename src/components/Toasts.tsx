@@ -28,6 +28,18 @@ export function Toasts() {
               )}
             >
               <span className="max-w-[420px] truncate">{t.message}</span>
+              {t.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    t.action?.run()
+                    dismiss(t.id)
+                  }}
+                  className="rounded-full bg-accent px-2.5 py-1 text-[12px] font-medium text-white transition hover:brightness-110"
+                >
+                  {t.action.label}
+                </button>
+              )}
               {canUndo && (
                 <button
                   type="button"

@@ -24,8 +24,20 @@ function planFromPrompt(prompt: string): ToolCallPart | null {
   if (/nota/.test(p)) {
     return { type: 'tool_call', id: nanoid(8), name: 'fs_createFile', input: { type: 'note', name: name(/nota (?:llamada |sobre |para |de )?"?([^"]+?)"?$/i) ?? 'Nota' } }
   }
-  if (/reloj|widget|temporizador|tareas/.test(p)) {
-    const type = /reloj/.test(p) ? 'clock' : /temporizador/.test(p) ? 'timer' : /tareas/.test(p) ? 'todo' : 'note'
+  if (/reloj|widget|temporizador|tareas|clima|divisas|d[oó]lar|recientes/.test(p)) {
+    const type = /clima/.test(p)
+      ? 'weather'
+      : /divisas|d[oó]lar/.test(p)
+        ? 'currency'
+        : /recientes/.test(p)
+          ? 'recent'
+          : /reloj/.test(p)
+            ? 'clock'
+            : /temporizador/.test(p)
+              ? 'timer'
+              : /tareas/.test(p)
+                ? 'todo'
+                : 'note'
     return { type: 'tool_call', id: nanoid(8), name: 'widgets_create', input: { type } }
   }
   if (/oscuro|claro|tema/.test(p)) return { type: 'tool_call', id: nanoid(8), name: 'ui_theme', input: { theme: /oscuro|noche/.test(p) ? 'dark' : 'light' } }

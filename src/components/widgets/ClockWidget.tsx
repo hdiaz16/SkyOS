@@ -1,14 +1,5 @@
-import { useEffect, useState } from 'react'
 import type { ClockZone, Widget } from '../../kernel/widgets'
-
-function useTicker(ms: number): number {
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    const id = window.setInterval(() => setTick((t) => t + 1), ms)
-    return () => window.clearInterval(id)
-  }, [ms])
-  return tick
-}
+import { useClock } from '../../lib/hooks'
 
 function timeIn(zone: string, now: Date): { time: string; dayDelta: number; valid: boolean } {
   try {
@@ -25,28 +16,36 @@ function timeIn(zone: string, now: Date): { time: string; dayDelta: number; vali
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 
 export function ClockWidget({ widget }: { widget: Widget }) {
-  useTicker(15000)
-  const now = new Date()
+  const now = useClock()
   const zones = (Array.isArray(widget.config.zones) ? widget.config.zones : []) as ClockZone[]
+  const local = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  const rawDate = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/\./g, '')
+  const date = rawDate.charAt(0).toUpperCase() + rawDate.slice(1)
 
   return (
-    <ul className="flex h-full flex-col justify-center gap-1.5">
-      {zones.map((z, i) => {
-        const t = timeIn(z.timeZone, now)
-        return (
-          <li key={`${z.timeZone}-${i}`} className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-[13px] text-ink-2">
-              {z.label}
-              {!t.valid && <span className="ml-1 text-[10px] text-danger">zona inválida</span>}
-            </span>
-            <span className="flex items-baseline gap-1.5 tabular-nums">
-              <span className="text-[18px] font-medium text-ink">{t.time}</span>
-              {t.dayDelta !== 0 && <span className="text-[10px] text-ink-3">{t.dayDelta > 0 ? '+1 d' : '-1 d'}</span>}
-            </span>
-          </li>
-        )
-      })}
-      {zones.length === 0 && <li className="text-[12px] text-ink-3">Sin zonas configuradas</li>}
-    </ul>
+    <div className="flex h-full flex-col">
+      <div>
+        <p className="text-[34px] font-medium leading-none tabular-nums text-ink">{local}</p>
+        <p className="mt-1 text-[12px] text-ink-2">{date}</p>
+      </div>
+      <ul className="mt-3 flex flex-1 flex-col justify-end gap-1 border-t border-line pt-2">
+        {zones.map((z, i) => {
+          const t = timeIn(z.timeZone, now)
+          return (
+            <li key={`${z.timeZone}-${i}`} className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-[12px] text-ink-2">
+                {z.label}
+                {!t.valid && <span className="ml-1 text-[10px] text-danger">zona inválida</span>}
+              </span>
+              <span className="flex items-baseline gap-1.5 tabular-nums">
+                <span className="text-[14px] font-medium text-ink">{t.time}</span>
+                {t.dayDelta !== 0 && <span className="text-[10px] text-ink-3">{t.dayDelta > 0 ? '+1 d' : '-1 d'}</span>}
+              </span>
+            </li>
+          )
+        })}
+        {zones.length === 0 && <li className="text-[12px] text-ink-3">Pide a Mesa que agregue ciudades.</li>}
+      </ul>
+    </div>
   )
 }

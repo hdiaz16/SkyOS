@@ -28,6 +28,9 @@ export interface AgentRunOptions {
   serverTools?: ServerTool[]
   /** Skip the desktop snapshot (for pure text tasks like summaries). */
   withoutState?: boolean
+  /** Use a specific model instead of the configured one (e.g. a fast tier for indexing). */
+  model?: string
+  maxTokens?: number
   signal?: AbortSignal
   onEvent?: (event: AgentEvent) => void
 }
@@ -73,12 +76,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     let refusal: string | undefined
 
     for await (const ev of provider.chat({
-      model: settings.model,
+      model: opts.model ?? settings.model,
       system,
       messages,
       tools,
       serverTools: provider.capabilities.serverWebFetch ? opts.serverTools : undefined,
       effort: settings.effort,
+      maxTokens: opts.maxTokens,
       signal: opts.signal,
     })) {
       switch (ev.type) {

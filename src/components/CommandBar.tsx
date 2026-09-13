@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { fs } from '../kernel/fs'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
-import { WIDGET_META, type WidgetType } from '../kernel/widgets'
+import { USER_WIDGET_TYPES, WIDGET_META } from '../kernel/widgets'
 import { dispatch, undoLast, useToasts } from '../kernel/commands'
 import { useUi } from '../state/ui'
 import { useWindows } from '../state/windows'
@@ -53,7 +53,7 @@ const ACTIONS: Action[] = [
     run: () => void createFileAndOpen(ROOT_ID, t.id),
   })),
   { id: 'import', title: 'Importar archivos…', hint: 'desde tu computadora', keywords: ['subir', 'importar', 'upload'], icon: Upload, run: () => importInto(ROOT_ID) },
-  ...(['clock', 'note', 'todo', 'timer'] as WidgetType[]).map<Action>((t) => ({
+  ...USER_WIDGET_TYPES.map<Action>((t) => ({
     id: `widget-${t}`,
     title: `Añadir widget: ${WIDGET_META[t].label}`,
     hint: 'en el escritorio',

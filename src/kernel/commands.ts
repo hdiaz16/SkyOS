@@ -52,6 +52,10 @@ export interface Toast {
   message: string
   kind: 'info' | 'error'
   entryId?: string
+  /** Optional call to action shown as a button (e.g. accept an AI suggestion). */
+  action?: { label: string; run: () => void }
+  /** Milliseconds before auto-dismiss. Defaults to 5200. */
+  duration?: number
 }
 
 type AnyCommand = CommandDef<unknown, unknown>
@@ -94,7 +98,7 @@ export const useToasts = create<ToastState>((set) => ({
   push: (toast) => {
     const id = nanoid(6)
     set((s) => ({ toasts: [...s.toasts.slice(-3), { ...toast, id }] }))
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 5200)
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), toast.duration ?? 5200)
   },
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }))

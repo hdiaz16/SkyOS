@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { X } from 'lucide-react'
 import { widgets as widgetService, type Widget } from '../../kernel/widgets'
@@ -7,8 +7,9 @@ import { cn } from '../../lib/utils'
 
 interface Props {
   widget: Widget
+  icon: ComponentType<{ className?: string; strokeWidth?: number }>
   children: ReactNode
-  /** Tighter body padding for content that manages its own layout (iframes, text areas). */
+  /** No body padding for content that manages its own layout (iframes). */
   flush?: boolean
 }
 
@@ -16,8 +17,8 @@ type Geometry = Pick<Widget, 'x' | 'y' | 'w' | 'h'>
 
 const same = (a: Geometry, b: Geometry) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
 
-/** Draggable, resizable card that hosts a widget on the desktop. Geometry persists on release. */
-export function WidgetFrame({ widget, children, flush }: Props) {
+/** Draggable, resizable tile that hosts a widget on the desktop. Geometry persists on release. */
+export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   const stored: Geometry = { x: widget.x, y: widget.y, w: widget.w, h: widget.h }
   // While dragging we render the live geometry; once the stored one catches up we fall back to it.
   const [dragGeo, setDragGeo] = useState<Geometry | null>(null)
@@ -28,7 +29,7 @@ export function WidgetFrame({ widget, children, flush }: Props) {
   const track =
     (apply: (dx: number, dy: number, start: Geometry) => Geometry, persist: (g: Geometry) => Partial<Geometry>) => (e: PointerEvent) => {
       if (e.button !== 0) return
-      if ((e.target as HTMLElement).closest('button, input, textarea, a')) return
+      if ((e.target as HTMLElement).closest('button, input, textarea, select, a')) return
       e.preventDefault()
       const sx = e.clientX
       const sy = e.clientY
@@ -53,7 +54,7 @@ export function WidgetFrame({ widget, children, flush }: Props) {
     (g) => ({ x: g.x, y: g.y }),
   )
   const startResize = track(
-    (dx, dy, s) => ({ ...s, w: Math.max(180, s.w + dx), h: Math.max(120, s.h + dy) }),
+    (dx, dy, s) => ({ ...s, w: Math.max(220, s.w + dx), h: Math.max(140, s.h + dy) }),
     (g) => ({ w: g.w, h: g.h }),
   )
 
@@ -64,11 +65,15 @@ export function WidgetFrame({ widget, children, flush }: Props) {
       exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.15 } }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       style={{ left: geo.x, top: geo.y, width: geo.w, height: geo.h }}
-      className={cn('glass group pointer-events-auto absolute flex flex-col overflow-hidden rounded-2xl shadow-soft', interacting && 'select-none')}
+      className={cn(
+        'glass group pointer-events-auto absolute flex flex-col overflow-hidden rounded-2xl shadow-soft transition-shadow hover:shadow-win',
+        interacting && 'select-none shadow-win',
+      )}
       onContextMenu={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex h-8 shrink-0 items-center gap-2 px-3" onPointerDown={startDrag}>
+      <div className="flex h-9 shrink-0 cursor-grab items-center gap-2 px-3 active:cursor-grabbing" onPointerDown={startDrag}>
+        <Icon className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={2} />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink-2">{widget.title}</span>
         <button
           type="button"

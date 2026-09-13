@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { db } from './db'
 
-export type WidgetType = 'clock' | 'note' | 'todo' | 'timer' | 'html'
+export type WidgetType = 'weather' | 'currency' | 'recent' | 'clock' | 'todo' | 'note' | 'timer' | 'html'
 
 export interface ClockZone {
   label: string
@@ -16,9 +16,12 @@ export interface TodoItem {
 
 /** Per-type configuration. Components apply defaults for anything missing. */
 export interface WidgetConfigs {
+  weather: { place?: string; lat?: number; lon?: number }
+  currency: { from: string; to: string; amount: number }
+  recent: { limit: number }
   clock: { zones: ClockZone[] }
-  note: { text: string }
   todo: { items: TodoItem[] }
+  note: { text: string }
   timer: { seconds: number; label?: string; endsAt: number | null; remaining?: number }
   html: { html: string }
 }
@@ -38,35 +41,59 @@ export interface Widget {
   updatedAt: number
 }
 
-export const WIDGET_TYPES: WidgetType[] = ['clock', 'note', 'todo', 'timer', 'html']
+/** Order used in menus: most useful first. */
+export const WIDGET_TYPES: WidgetType[] = ['weather', 'currency', 'recent', 'clock', 'todo', 'note', 'timer', 'html']
+
+/** Types a person can add by hand; html is only created by the AI on request. */
+export const USER_WIDGET_TYPES: WidgetType[] = WIDGET_TYPES.filter((t) => t !== 'html')
 
 interface WidgetMeta {
   label: string
+  description: string
   w: number
   h: number
   defaults: () => WidgetConfig
 }
 
-const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-
 export const WIDGET_META: Record<WidgetType, WidgetMeta> = {
+  weather: {
+    label: 'Clima',
+    description: 'Temperatura actual y pronóstico de tres días para tu ubicación o una ciudad.',
+    w: 300,
+    h: 232,
+    defaults: () => ({}),
+  },
+  currency: {
+    label: 'Divisas',
+    description: 'Tipo de cambio del día entre dos monedas, con monto editable.',
+    w: 300,
+    h: 196,
+    defaults: () => ({ from: 'USD', to: 'MXN', amount: 1 }),
+  },
+  recent: {
+    label: 'Recientes',
+    description: 'Los últimos archivos que modificaste, listos para abrir.',
+    w: 300,
+    h: 250,
+    defaults: () => ({ limit: 6 }),
+  },
   clock: {
     label: 'Reloj mundial',
+    description: 'Hora local y en otras zonas horarias.',
     w: 300,
-    h: 190,
+    h: 232,
     defaults: () => ({
       zones: [
-        { label: 'Aquí', timeZone: LOCAL_TZ },
         { label: 'Madrid', timeZone: 'Europe/Madrid' },
         { label: 'Nueva York', timeZone: 'America/New_York' },
         { label: 'Tokio', timeZone: 'Asia/Tokyo' },
       ],
     }),
   },
-  note: { label: 'Nota rápida', w: 260, h: 220, defaults: () => ({ text: '' }) },
-  todo: { label: 'Lista de tareas', w: 280, h: 280, defaults: () => ({ items: [] }) },
-  timer: { label: 'Temporizador', w: 240, h: 190, defaults: () => ({ seconds: 25 * 60, endsAt: null }) },
-  html: { label: 'Widget personalizado', w: 380, h: 300, defaults: () => ({ html: '' }) },
+  todo: { label: 'Tareas', description: 'Lista corta de pendientes.', w: 300, h: 280, defaults: () => ({ items: [] }) },
+  note: { label: 'Nota rápida', description: 'Un espacio para apuntar sin abrir nada.', w: 280, h: 220, defaults: () => ({ text: '' }) },
+  timer: { label: 'Temporizador', description: 'Cuenta regresiva con avisos.', w: 260, h: 224, defaults: () => ({ seconds: 25 * 60, endsAt: null }) },
+  html: { label: 'Widget de Mesa', description: 'Contenido hecho a medida por la IA.', w: 380, h: 300, defaults: () => ({ html: '' }) },
 }
 
 const now = () => Date.now()
@@ -75,19 +102,27 @@ const MARGIN = 28
 const TOP = 64
 const GAP = 16
 const BOTTOM_RESERVED = 140
+const COLUMN = 300
 
-/** Stacks new widgets down the right edge, opening a new column to the left when one fills up. */
+/**
+ * Stacks new widgets down fixed-width columns starting at the right edge, opening a column to the left
+ * when the current one is full. Widgets the user moved elsewhere still count for the column they sit in.
+ */
 function nextPosition(existing: Widget[], w: number, h: number): { x: number; y: number } {
   const maxBottom = window.innerHeight - BOTTOM_RESERVED
-  let columnRight = window.innerWidth - MARGIN
-  for (let col = 0; col < 4; col++) {
-    const x = Math.max(24, columnRight - w)
-    const inColumn = existing.filter((e) => e.x + e.w > x && e.x < x + w)
+  const columns = Math.max(1, Math.floor((window.innerWidth - MARGIN * 2) / (COLUMN + GAP)))
+  for (let col = 0; col < columns; col++) {
+    const right = window.innerWidth - MARGIN - col * (COLUMN + GAP)
+    const left = right - COLUMN
+    const inColumn = existing.filter((e) => {
+      const center = e.x + e.w / 2
+      return center > left - GAP && center <= right + GAP
+    })
     const y = inColumn.reduce((acc, e) => Math.max(acc, e.y + e.h + GAP), TOP)
-    if (y + h <= maxBottom || inColumn.length === 0) return { x, y: Math.min(y, Math.max(TOP, maxBottom - h)) }
-    columnRight = Math.max(200, x - GAP)
+    if (y + h <= maxBottom) return { x: Math.max(24, right - w), y }
   }
-  return { x: 24 + existing.length * 12, y: TOP + existing.length * 12 }
+  const n = existing.length
+  return { x: Math.max(24, window.innerWidth - MARGIN - w - (n % 5) * 24), y: TOP + (n % 5) * 24 }
 }
 
 export const widgets = {

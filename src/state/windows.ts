@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 
-export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'trash' | 'settings'
+export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'result' | 'trash' | 'settings'
 
 export interface WindowProps {
   nodeId?: string
   folderId?: string
   url?: string
+  taskId?: string
 }
 
 export interface Win {
@@ -55,6 +56,7 @@ const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
   image: { w: 760, h: 560, title: 'Imagen' },
   pdf: { w: 840, h: 660, title: 'Documento' },
   browser: { w: 1000, h: 680, title: 'Navegador' },
+  result: { w: 640, h: 540, title: 'Mesa' },
   trash: { w: 640, h: 460, title: 'Papelera' },
   settings: { w: 560, h: 560, title: 'Ajustes' },
 }

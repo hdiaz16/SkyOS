@@ -6,6 +6,7 @@ import { WindowManager } from './components/WindowManager'
 import { TopBar } from './components/TopBar'
 import { CommandBar } from './components/CommandBar'
 import { ContextMenu } from './components/ContextMenu'
+import { PromptDialog } from './components/PromptDialog'
 import { Toasts } from './components/Toasts'
 import { useSettings, applyTheme } from './state/settings'
 import { useUi } from './state/ui'
@@ -73,6 +74,7 @@ export default function App() {
       <TopBar />
       <CommandBar />
       <ContextMenu />
+      <PromptDialog />
       <Toasts />
     </div>
   )

@@ -3,17 +3,29 @@ import { WIDGET_META, WIDGET_TYPES, widgets, type Widget, type WidgetConfig, typ
 
 const TYPE_HELP = [
   'Tipos y su config:',
-  'clock → { zones: [{ label, timeZone }] } con zonas IANA como "America/Mexico_City".',
-  'note → { text }.',
+  'weather → { place } (nombre de ciudad; si se omite usa la ubicación del dispositivo).',
+  'currency → { from, to, amount } con códigos ISO como USD, MXN, EUR.',
+  'recent → { limit } (cuántos archivos recientes mostrar).',
+  'clock → { zones: [{ label, timeZone }] } con zonas IANA como "America/Bogota".',
   'todo → { items: [{ text, done }] }.',
+  'note → { text }.',
   'timer → { seconds, label }.',
-  'html → { html }: documento HTML completo y autocontenido (CSS y JS inline, sin recursos externos) que se muestra en un marco aislado. Puede usar las variables CSS --ink, --ink-2, --ink-3, --accent, --surface, --line y la fuente heredada para integrarse al tema. Úsalo para cualquier widget que no exista como tipo propio (contador, conversor, gráfica, tablero).',
+  'html → { html }: documento HTML completo y autocontenido (CSS y JS inline, sin recursos externos) mostrado en un marco aislado. Puede usar las variables CSS --ink, --ink-2, --ink-3, --accent, --accent-soft, --surface, --line. Úsalo solo cuando ningún tipo propio sirva (una gráfica, un contador específico, un tablero).',
 ].join(' ')
 
 function summarize(w: Widget) {
   const c = w.config
   let detail: unknown
   switch (w.type) {
+    case 'weather':
+      detail = { place: c.place ?? 'ubicación del dispositivo' }
+      break
+    case 'currency':
+      detail = { from: c.from, to: c.to, amount: c.amount }
+      break
+    case 'recent':
+      detail = { limit: c.limit }
+      break
     case 'clock':
       detail = Array.isArray(c.zones) ? c.zones.map((z) => (z as { label: string }).label) : undefined
       break

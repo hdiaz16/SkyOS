@@ -3,7 +3,7 @@ import type { FsNode } from '../kernel/types'
 import { useUi } from '../state/ui'
 import type { MenuItem } from '../state/ui'
 import { ROOT_ID } from '../kernel/types'
-import { WIDGET_META, type WidgetType } from '../kernel/widgets'
+import { USER_WIDGET_TYPES, WIDGET_META } from '../kernel/widgets'
 import { FILE_TYPES } from './fileTypes'
 import { pickFiles } from './pickFiles'
 
@@ -42,12 +42,10 @@ export function fileTypeMenu(parentId: string): MenuItem[] {
   ]
 }
 
-const WIDGET_MENU_TYPES: WidgetType[] = ['clock', 'note', 'todo', 'timer']
-
 export function widgetMenu(): MenuItem[] {
   return [
     { type: 'label', label: 'Añadir widget' },
-    ...WIDGET_MENU_TYPES.map<MenuItem>((t) => ({
+    ...USER_WIDGET_TYPES.map<MenuItem>((t) => ({
       label: WIDGET_META[t].label,
       onSelect: () => void dispatch('widgets.create', { type: t }),
     })),
