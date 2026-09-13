@@ -82,6 +82,17 @@ registerCommand<Record<string, never>, void>({
 })
 
 registerCommand<Record<string, never>, void>({
+  id: 'ui.openTerminal',
+  title: 'Abrir terminal',
+  description: 'Abre la terminal en lenguaje natural de Mesa.',
+  params: {},
+  async run() {
+    useWindows.getState().open('terminal', { singleton: true })
+    return { result: undefined }
+  },
+})
+
+registerCommand<Record<string, never>, void>({
   id: 'ui.openSettings',
   title: 'Abrir ajustes',
   description: 'Muestra los ajustes de Mesa.',

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 
-export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'result' | 'trash' | 'settings'
+export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'result' | 'terminal' | 'trash' | 'settings'
 
 export interface WindowProps {
   nodeId?: string
@@ -57,6 +57,7 @@ const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
   pdf: { w: 840, h: 660, title: 'Documento' },
   browser: { w: 1000, h: 680, title: 'Navegador' },
   result: { w: 640, h: 540, title: 'Mesa' },
+  terminal: { w: 720, h: 440, title: 'Terminal' },
   trash: { w: 640, h: 460, title: 'Papelera' },
   settings: { w: 560, h: 560, title: 'Ajustes' },
 }

@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Bot, CheckCircle2, Eye, EyeOff, HardDrive, Loader2, Monitor, Moon, Palette, Sun, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, EyeOff, HardDrive, Loader2, Monitor, Moon, Palette, Sun, Trash2, XCircle, Zap } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { flows } from '../../kernel/flows'
+import { dispatch } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
 import { isAiConfigured, presetFor, PROVIDERS, useAiSettings, type ProviderId } from '../../ai/settings'
 import { getProvider } from '../../ai/providers'
@@ -40,6 +42,10 @@ export function SettingsApp() {
       <div className="mx-auto flex max-w-[460px] flex-col gap-7">
         <Section icon={<Bot className="h-4 w-4" />} title="Inteligencia">
           <AiSection />
+        </Section>
+
+        <Section icon={<Zap className="h-4 w-4" />} title="Flujos guardados">
+          <FlowsSection />
         </Section>
 
         <Section icon={<Palette className="h-4 w-4" />} title="Apariencia">
@@ -226,6 +232,40 @@ function AiSection() {
         </button>
       </div>
     </div>
+  )
+}
+
+function FlowsSection() {
+  const list = useLiveQuery(() => flows.list(), []) ?? []
+  if (list.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-line-2 p-4 text-[12px] leading-relaxed text-ink-3">
+        Aún no hay flujos. Pídele a Mesa algo como «guarda esto como flujo llamado preparar reunión» y aparecerá aquí; después bastará
+        escribir su nombre en la barra.
+      </p>
+    )
+  }
+  return (
+    <ul className="flex flex-col gap-2">
+      {list.map((f) => (
+        <li key={f.id} className="flex items-start gap-3 rounded-xl border border-line p-3">
+          <Zap className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-medium text-ink">{f.name}</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-ink-2">{f.instructions}</p>
+            <p className="mt-1 text-[11px] text-ink-3">{f.uses === 0 ? 'Sin usar todavía' : `Usado ${f.uses} ${f.uses === 1 ? 'vez' : 'veces'}`}</p>
+          </div>
+          <button
+            type="button"
+            aria-label={`Eliminar flujo ${f.name}`}
+            onClick={() => void dispatch('flows.delete', { name: f.name })}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-3 transition hover:bg-danger/10 hover:text-danger"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 

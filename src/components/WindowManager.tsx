@@ -7,6 +7,7 @@ import { ImageViewer } from './apps/ImageViewer'
 import { PdfViewer } from './apps/PdfViewer'
 import { BrowserApp } from './apps/Browser'
 import { ResultApp } from './apps/Result'
+import { TerminalApp } from './apps/Terminal'
 import { TrashApp } from './apps/Trash'
 import { SettingsApp } from './apps/Settings'
 
@@ -24,6 +25,8 @@ function renderApp(win: Win) {
       return <BrowserApp win={win} />
     case 'result':
       return <ResultApp win={win} />
+    case 'terminal':
+      return <TerminalApp />
     case 'trash':
       return <TrashApp />
     case 'settings':

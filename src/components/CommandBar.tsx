@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNod
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, motion } from 'motion/react'
 import {
+  Calculator,
+  Camera,
   CornerDownLeft,
   FilePlus2,
   FileText,
@@ -13,13 +15,17 @@ import {
   ScanSearch,
   Settings2,
   Sparkles,
+  SquareTerminal,
   SunMoon,
   Trash2,
   Undo2,
   Upload,
   X,
+  Zap,
 } from 'lucide-react'
 import { fs } from '../kernel/fs'
+import { flows } from '../kernel/flows'
+import type { FlowRow } from '../kernel/db'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { USER_WIDGET_TYPES, WIDGET_META } from '../kernel/widgets'
 import { dispatch, undoLast, useToasts } from '../kernel/commands'
@@ -28,8 +34,10 @@ import { useWindows } from '../state/windows'
 import { useSession } from '../ai/session'
 import { isAiConfigured, useAiSettings } from '../ai/settings'
 import { useSemantic } from '../ai/indexer'
+import { captureScreen, useSnap } from '../ai/snap'
 import { createFileAndOpen, createFolderAndRename, importInto } from '../lib/menus'
 import { FILE_TYPES } from '../lib/fileTypes'
+import { calculate } from '../lib/calc'
 import { looksLikeUrl } from '../lib/web'
 import { cn } from '../lib/utils'
 import { KindIcon } from './KindIcon'
@@ -67,6 +75,8 @@ const ACTIONS: Action[] = [
   })),
   { id: 'files', title: 'Abrir Archivos', keywords: ['explorador', 'archivos', 'carpetas', 'escritorio'], icon: FolderOpen, run: () => void dispatch('ui.openFiles') },
   { id: 'browser', title: 'Abrir navegador', hint: 'Google', keywords: ['google', 'web', 'internet', 'navegador'], icon: Globe, run: () => void dispatch('ui.openBrowser') },
+  { id: 'terminal', title: 'Abrir terminal', hint: 'lenguaje natural', keywords: ['terminal', 'consola', 'comandos', 'shell'], icon: SquareTerminal, run: () => void dispatch('ui.openTerminal') },
+  { id: 'snap', title: 'Capturar pantalla para Mesa', hint: 'elige un área', keywords: ['captura', 'pantalla', 'screenshot', 'analizar', 'foto'], icon: Camera, run: () => void snapScreen() },
   { id: 'trash', title: 'Abrir papelera', keywords: ['papelera', 'basura', 'trash', 'borrados'], icon: Trash2, run: () => void dispatch('ui.openTrash') },
   { id: 'settings', title: 'Ajustes', keywords: ['configuracion', 'preferencias', 'settings', 'opciones', 'llave', 'api'], icon: Settings2, run: () => void dispatch('ui.openSettings') },
   { id: 'theme', title: 'Cambiar tema', hint: 'sistema, claro, oscuro', keywords: ['tema', 'oscuro', 'claro', 'dark', 'light', 'modo', 'noche'], icon: SunMoon, run: () => void dispatch('ui.theme') },
@@ -87,8 +97,18 @@ interface Item {
 }
 
 const NO_FILES: FsNode[] = []
+const NO_FLOWS: FlowRow[] = []
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+async function snapScreen(): Promise<void> {
+  try {
+    const shot = await captureScreen()
+    if (shot) useSnap.getState().open(shot.dataUrl, shot.width, shot.height)
+  } catch (err) {
+    useToasts.getState().push({ message: err instanceof Error ? err.message : 'No se pudo capturar la pantalla', kind: 'error' })
+  }
+}
 
 function matchAction(a: Action, q: string): boolean {
   const n = norm(q)
@@ -108,6 +128,7 @@ export function CommandBar() {
   const minimized = windows.filter((w) => w.minimized)
   const trashCount = useLiveQuery(() => fs.listTrash().then((l) => l.length), [], 0)
   const files = useLiveQuery(() => fs.search(q, 6), [q], NO_FILES)
+  const flowMatches = useLiveQuery(() => flows.search(q, 4), [q], NO_FLOWS)
 
   const chatOpen = useSession((s) => s.open)
   const chatRunning = useSession((s) => s.running)
@@ -140,6 +161,35 @@ export function CommandBar() {
     const nq = norm(query)
     const isUrl = looksLikeUrl(query)
     const words = query.split(/\s+/).length
+
+    const calc = calculate(query)
+    const calcItems: Item[] = calc
+      ? [
+          {
+            key: 'calc',
+            title: `= ${calc.display}`,
+            hint: `${calc.detail} · Enter copia`,
+            icon: <Calculator className="h-[18px] w-[18px] text-accent" strokeWidth={1.75} />,
+            run: () => {
+              void navigator.clipboard.writeText(calc.display)
+              useToasts.getState().push({ message: `${calc.display} copiado`, kind: 'info' })
+            },
+            keepFocus: true,
+            keepQuery: true,
+          },
+        ]
+      : []
+
+    const flowItems: Item[] = aiReady
+      ? flowMatches.map((f) => ({
+          key: `flow:${f.id}`,
+          title: `Ejecutar flujo: ${f.name}`,
+          hint: f.instructions.length > 60 ? `${f.instructions.slice(0, 60)}…` : f.instructions,
+          icon: <Zap className="h-[18px] w-[18px] text-accent" strokeWidth={1.75} />,
+          run: () => askMesa(`Ejecuta el flujo "${f.name}". Sus pasos son: ${f.instructions}`),
+          keepFocus: true,
+        }))
+      : []
 
     const semanticItems: Item[] = []
     if (semanticForQuery?.status === 'done') {
@@ -209,13 +259,14 @@ export function CommandBar() {
 
     const strongFile = files.length > 0 && norm(files[0].name).startsWith(nq)
     const strongAction = matched.length > 0 && norm(matched[0].title).startsWith(nq)
+    const head = [...calcItems, ...flowItems, ...semanticItems]
     const tail = meaning ? [meaning, web] : [web]
-    if (isUrl) return [...semanticItems, web, ask, ...fileItems, ...actionItems]
-    if (strongFile || strongAction) return [...semanticItems, ...fileItems, ...actionItems, ask, ...tail]
-    if (aiReady) return [...semanticItems, ask, ...fileItems, ...actionItems, ...tail]
-    return [...semanticItems, ...fileItems, ...actionItems, web, ask]
+    if (isUrl) return [...head, web, ask, ...fileItems, ...actionItems]
+    if (strongFile || strongAction) return [...head, ...fileItems, ...actionItems, ask, ...tail]
+    if (aiReady) return calc ? [...head, ...fileItems, ...actionItems, ask, ...tail] : [...head, ask, ...fileItems, ...actionItems, ...tail]
+    return [...head, ...fileItems, ...actionItems, web, ask]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, query, aiReady, semanticForQuery])
+  }, [files, flowMatches, query, aiReady, semanticForQuery])
 
   const resultsOpen = focused && !chatOpen && query.length > 0
 
@@ -389,6 +440,18 @@ export function CommandBar() {
             spellCheck={false}
             className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
           />
+          {aiReady && !query && (
+            <button
+              type="button"
+              title="Capturar pantalla para Mesa"
+              aria-label="Capturar pantalla"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void snapScreen()}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+            >
+              <Camera className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            </button>
+          )}
           {query ? (
             <button
               type="button"

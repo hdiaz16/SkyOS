@@ -1,16 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import { ExternalLink, House, RotateCw } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { AlertCircle, ExternalLink, House, ListChecks, Loader2, RotateCw, Save, Square, X } from 'lucide-react'
 import { useWindows, type Win } from '../../state/windows'
+import { keyPointsForUrl, useTasks } from '../../ai/tasks'
+import { getProvider } from '../../ai/providers'
+import { isAiConfigured, useAiSettings } from '../../ai/settings'
+import { dispatch, useToasts } from '../../kernel/commands'
+import { ROOT_ID, type FsNode } from '../../kernel/types'
 import { GOOGLE_HOME, titleForUrl, toNavigableUrl } from '../../lib/web'
 import { cn } from '../../lib/utils'
 import { ToolButton } from '../ToolButton'
+import { Markdown } from '../Markdown'
 
 export function BrowserApp({ win }: { win: Win }) {
   const target = win.props.url ?? GOOGLE_HOME
   const [address, setAddress] = useState(target)
   const [loading, setLoading] = useState(true)
   const [nonce, setNonce] = useState(0)
+  const [taskId, setTaskId] = useState<string | null>(null)
   const lastTarget = useRef(target)
+  const aiReady = isAiConfigured(useAiSettings())
 
   // Keep the address bar in sync when another command changes the URL of this window.
   useEffect(() => {
@@ -27,6 +36,14 @@ export function BrowserApp({ win }: { win: Win }) {
     wm.setTitle(win.id, titleForUrl(url))
     setNonce((n) => n + 1)
     setLoading(true)
+  }
+
+  const keyPoints = () => {
+    if (!getProvider()?.capabilities.serverWebFetch) {
+      useToasts.getState().push({ message: 'Los puntos clave requieren Claude (Anthropic) como proveedor: es quien puede leer la página.', kind: 'info' })
+      return
+    }
+    setTaskId(keyPointsForUrl(target))
   }
 
   return (
@@ -63,6 +80,11 @@ export function BrowserApp({ win }: { win: Win }) {
           />
         </form>
 
+        {aiReady && (
+          <ToolButton label="Puntos clave con Mesa" onClick={keyPoints} active={!!taskId}>
+            <ListChecks className="h-4 w-4" />
+          </ToolButton>
+        )}
         <ToolButton label="Abrir en pestaña nueva" onClick={() => window.open(target, '_blank', 'noopener')}>
           <ExternalLink className="h-4 w-4" />
         </ToolButton>
@@ -74,19 +96,81 @@ export function BrowserApp({ win }: { win: Win }) {
         )}
       </div>
 
-      <iframe
-        key={nonce}
-        src={target}
-        title={win.title}
-        onLoad={() => setLoading(false)}
-        className="min-h-0 flex-1 border-0 bg-white"
-        allow="clipboard-write"
-      />
+      <div className="flex min-h-0 flex-1">
+        <iframe
+          key={nonce}
+          src={target}
+          title={win.title}
+          onLoad={() => setLoading(false)}
+          className="min-h-0 min-w-0 flex-1 border-0 bg-white"
+          allow="clipboard-write"
+        />
+        <AnimatePresence>{taskId && <KeyPointsPanel key={taskId} taskId={taskId} onClose={() => setTaskId(null)} />}</AnimatePresence>
+      </div>
 
       <div className="flex h-7 shrink-0 items-center justify-between gap-4 border-t border-line px-3 text-[11px] text-ink-3">
         <span className="truncate">{target}</span>
         <span className="hidden shrink-0 lg:inline">Si un sitio no carga aquí, ábrelo en una pestaña nueva</span>
       </div>
     </div>
+  )
+}
+
+function KeyPointsPanel({ taskId, onClose }: { taskId: string; onClose: () => void }) {
+  const task = useTasks((s) => s.tasks[taskId])
+  const stop = useTasks((s) => s.stop)
+  if (!task) return null
+  const running = task.status === 'running'
+
+  const save = async () => {
+    const name = task.context.saveAs ?? 'Puntos clave.md'
+    const node = await dispatch<FsNode>('fs.createFile', { parentId: ROOT_ID, name, type: 'note', content: `${task.text}\n\nFuente: ${task.context.url ?? ''}` })
+    await dispatch('ui.open', { id: node.id })
+  }
+
+  return (
+    <motion.aside
+      initial={{ width: 0, opacity: 0 }}
+      animate={{ width: 340, opacity: 1 }}
+      exit={{ width: 0, opacity: 0, transition: { duration: 0.15 } }}
+      transition={{ type: 'spring', stiffness: 420, damping: 38 }}
+      className="flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface-solid/70"
+    >
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
+        <ListChecks className="h-4 w-4 text-accent" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">Puntos clave</span>
+        {running && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-3" />}
+        <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-6 w-6 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="scrollbar-thin min-h-0 flex-1 select-text overflow-y-auto px-4 py-3 text-[13.5px] leading-relaxed text-ink">
+        {task.text ? <Markdown text={task.text} /> : running ? <p className="animate-pulse text-ink-3">{task.statusMessage ?? 'Leyendo la página…'}</p> : null}
+        {task.status === 'error' && (
+          <p className="flex items-start gap-1.5 text-[13px] text-danger">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {task.error}
+          </p>
+        )}
+      </div>
+      <div className="flex h-11 shrink-0 items-center justify-end gap-1 border-t border-line px-2">
+        {running ? (
+          <button type="button" onClick={() => stop(task.id)} className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-ink-2 hover:bg-surface-2 hover:text-ink">
+            <Square className="h-3 w-3 fill-current" />
+            Detener
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!task.text.trim()}
+            onClick={() => void save()}
+            className="flex h-8 items-center gap-1.5 rounded-lg bg-accent px-2.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40"
+          >
+            <Save className="h-3.5 w-3.5" />
+            Guardar como nota
+          </button>
+        )}
+      </div>
+    </motion.aside>
   )
 }

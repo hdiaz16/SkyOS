@@ -7,6 +7,7 @@ import { TopBar } from './components/TopBar'
 import { CommandBar } from './components/CommandBar'
 import { ContextMenu } from './components/ContextMenu'
 import { PromptDialog } from './components/PromptDialog'
+import { SnapOverlay } from './components/SnapOverlay'
 import { Toasts } from './components/Toasts'
 import { AiBackground } from './components/AiBackground'
 import { useSettings, applyTheme } from './state/settings'
@@ -76,6 +77,7 @@ export default function App() {
       <CommandBar />
       <ContextMenu />
       <PromptDialog />
+      <SnapOverlay />
       <Toasts />
       <AiBackground />
     </div>

@@ -221,6 +221,26 @@ export async function summarizeFolder(folderId: string): Promise<string> {
   })
 }
 
+/** Asks Claude to read a page on the server side (web_fetch) and return its key points. */
+export function keyPointsForUrl(url: string): string {
+  let host = url
+  try {
+    host = new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    /* keep raw */
+  }
+  return startTask({
+    kind: 'keypoints',
+    title: `Puntos clave · ${host}`,
+    prompt: `Lee esta página con la herramienta web_fetch y extrae lo importante: ${url}`,
+    serverTools: ['web_fetch'],
+    extraSystem:
+      'Tarea: resumir una página web para alguien con prisa. Usa web_fetch para leer la URL. Responde en Markdown: una línea con de qué trata, luego "Puntos clave" con 4 a 7 viñetas concretas (cifras, nombres, fechas si aparecen) y, si aplica, "Para tener en cuenta" con máximo 2 viñetas. Si la página no se pudo leer, dilo en una línea y no inventes.',
+    context: { url, saveAs: `Puntos clave - ${host}.md` },
+    openWindow: false,
+  })
+}
+
 export interface TransformPreset {
   id: string
   label: string

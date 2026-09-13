@@ -71,7 +71,18 @@ export function createMockProvider(): AiProvider {
         return
       }
 
-      const prompt = last.parts.filter((p): p is Extract<Part, { type: 'text' }> => p.type === 'text').map((p) => p.text).join('\n')
+      // The actual request is the last text part; earlier parts carry the desktop snapshot.
+      const texts = last.parts.filter((p): p is Extract<Part, { type: 'text' }> => p.type === 'text')
+      const prompt = texts[texts.length - 1]?.text ?? ''
+
+      // Text-only jobs (transformations, summaries, editor help) get a visibly simulated answer, never a tool call.
+      if (!req.tools?.length) {
+        const text = `Resultado simulado para: ${prompt.replace(/\s+/g, ' ').slice(0, 120)}…\n\nConfigura un proveedor real en Ajustes para obtener texto de verdad.`
+        yield* stream(text)
+        yield { type: 'done', stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 30 }, assistant: { role: 'assistant', parts: [{ type: 'text', text }] } }
+        return
+      }
+
       const call = planFromPrompt(prompt)
       if (!call) {
         const text = `Soy el simulador de Mesa. Entendí: "${prompt.slice(0, 80)}". Configura un proveedor real en Ajustes para respuestas de verdad.`
