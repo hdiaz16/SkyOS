@@ -16,11 +16,12 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(bin)
 }
 
-/** Whether Mesa can look at this file directly (images always; PDFs only with a provider that reads documents). */
+/** Whether Sky can look at this file directly (images always; PDFs only with a provider that reads documents). */
 export function canAttach(node: FsNode): boolean {
   const kind = fileKind(node)
-  if (kind === 'image') return node.size <= MAX_IMAGE_BYTES
-  if (kind === 'pdf') return node.size <= MAX_PDF_BYTES && !!getProvider()?.capabilities.documents
+  const caps = getProvider()?.capabilities
+  if (kind === 'image') return node.size <= MAX_IMAGE_BYTES && !!caps?.vision
+  if (kind === 'pdf') return node.size <= MAX_PDF_BYTES && !!caps?.documents
   return false
 }
 

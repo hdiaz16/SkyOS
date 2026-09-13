@@ -89,7 +89,7 @@ export async function suggestPlacement(created: FsNode[]): Promise<void> {
   const toasts = useToasts.getState()
   if (moves.length > 3) {
     toasts.push({
-      message: `Mesa sugiere ordenar ${moves.length} archivos en sus carpetas`,
+      message: `Sky sugiere ordenar ${moves.length} archivos en sus carpetas`,
       kind: 'info',
       duration: 12000,
       action: {

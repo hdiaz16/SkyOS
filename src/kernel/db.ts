@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { FsNode } from './types'
 import type { Widget } from './widgets'
+import { readSession } from '../system/session'
 
 export interface BlobRow {
   id: string
@@ -35,8 +36,8 @@ export class MesaDB extends Dexie {
   fileIndex!: Table<FileIndexRow, string>
   flows!: Table<FlowRow, string>
 
-  constructor() {
-    super('mesa')
+  constructor(name: string) {
+    super(name)
     this.version(1).stores({
       nodes: 'id, parentId, name, kind, updatedAt',
       blobs: 'id',
@@ -51,4 +52,5 @@ export class MesaDB extends Dexie {
   }
 }
 
-export const db = new MesaDB()
+/** The signed-in user's database. Each account has its own; nothing is shared between them. */
+export const db = new MesaDB(readSession()?.dbName ?? 'mesa')

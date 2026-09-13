@@ -93,7 +93,7 @@ export const WIDGET_META: Record<WidgetType, WidgetMeta> = {
   todo: { label: 'Tareas', description: 'Lista corta de pendientes.', w: 300, h: 280, defaults: () => ({ items: [] }) },
   note: { label: 'Nota rápida', description: 'Un espacio para apuntar sin abrir nada.', w: 280, h: 220, defaults: () => ({ text: '' }) },
   timer: { label: 'Temporizador', description: 'Cuenta regresiva con avisos.', w: 260, h: 224, defaults: () => ({ seconds: 25 * 60, endsAt: null }) },
-  html: { label: 'Widget de Mesa', description: 'Contenido hecho a medida por la IA.', w: 380, h: 300, defaults: () => ({ html: '' }) },
+  html: { label: 'Widget de Sky', description: 'Contenido hecho a medida por la IA.', w: 380, h: 300, defaults: () => ({ html: '' }) },
 }
 
 const now = () => Date.now()

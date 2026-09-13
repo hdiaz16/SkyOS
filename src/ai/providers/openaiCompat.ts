@@ -82,6 +82,18 @@ function safeJson(text: string): Record<string, unknown> {
   }
 }
 
+/** Asks an OpenAI-compatible server which models it serves. Chat-capable ids only, sorted. */
+export async function listModels(baseUrl: string, apiKey?: string): Promise<string[]> {
+  const headers: Record<string, string> = {}
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+  const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, { headers })
+  if (!res.ok) throw new AiError(res.status === 401 ? 'La llave no es válida.' : `El servidor respondió ${res.status}.`)
+  const data = (await res.json()) as { data?: Array<{ id: string }>; models?: Array<{ name: string }> }
+  const ids = data.data?.map((m) => m.id) ?? data.models?.map((m) => m.name) ?? []
+  const skip = /whisper|tts|orpheus|guard|embedding|safeguard|moderation|dall-e|image|audio|realtime|transcri/i
+  return ids.filter((id) => !skip.test(id)).sort()
+}
+
 export function createOpenAICompatProvider(cfg: Config): AiProvider {
   const base = cfg.baseUrl.replace(/\/+$/, '')
 
@@ -95,7 +107,7 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
       if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`
       if (cfg.id === 'openrouter') {
         headers['HTTP-Referer'] = window.location.origin
-        headers['X-Title'] = 'Mesa'
+        headers['X-Title'] = 'Sky'
       }
       const body = {
         model: req.model,

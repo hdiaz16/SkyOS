@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { db, type FlowRow } from './db'
 
-/** Saved routines: a name the user can type in the bar, and the natural-language steps Mesa runs. */
+/** Saved routines: a name the user can type in the bar, and the natural-language steps Sky runs. */
 
 export const slugify = (s: string) =>
   s

@@ -1,14 +1,38 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Bot, CheckCircle2, Eye, EyeOff, HardDrive, Loader2, Monitor, Moon, Palette, Sun, Trash2, XCircle, Zap } from 'lucide-react'
+import {
+  Bot,
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  HardDrive,
+  Loader2,
+  LogOut,
+  Monitor,
+  Moon,
+  Palette,
+  RefreshCw,
+  Sun,
+  Trash2,
+  UserRound,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { flows } from '../../kernel/flows'
-import { dispatch } from '../../kernel/commands'
+import { dispatch, useToasts } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
-import { isAiConfigured, presetFor, PROVIDERS, useAiSettings, type ProviderId } from '../../ai/settings'
+import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, useAiSettings, type ProviderId } from '../../ai/settings'
 import { getProvider } from '../../ai/providers'
+import { listModels } from '../../ai/providers/openaiCompat'
+import { TIER_LABELS } from '../../ai/router'
 import { AiError, type Effort } from '../../ai/types'
+import { useAuth } from '../../system/auth'
+import { users } from '../../system/users'
+import { useDialog } from '../../state/dialog'
 import { cn, formatBytes } from '../../lib/utils'
+import { Avatar } from '../system/Login'
 
 const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'Sistema', icon: Monitor },
@@ -40,6 +64,10 @@ export function SettingsApp() {
   return (
     <div className="scrollbar-thin h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-[460px] flex-col gap-7">
+        <Section icon={<UserRound className="h-4 w-4" />} title="Tu cuenta">
+          <AccountSection />
+        </Section>
+
         <Section icon={<Bot className="h-4 w-4" />} title="Inteligencia">
           <AiSection />
         </Section>
@@ -71,13 +99,59 @@ export function SettingsApp() {
               </div>
             </div>
             <p className="text-[12px] leading-relaxed text-ink-3">
-              Todo se guarda en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita.
+              Cada cuenta tiene su propio espacio en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita.
             </p>
           </div>
         </Section>
 
-        <p className="text-center text-[11px] text-ink-3">Mesa 0.2 · fase 1</p>
+        <p className="text-center text-[11px] text-ink-3">Sky 0.3</p>
       </div>
+    </div>
+  )
+}
+
+function AccountSection() {
+  const user = useAuth((s) => s.current)
+  if (!user) return null
+
+  const changePin = async () => {
+    const pin = await useDialog.getState().ask({
+      title: user.pinHash ? 'Nuevo PIN' : 'Crear un PIN',
+      description: 'Cuatro a seis dígitos. Deja el campo vacío y confirma para quitar el PIN.',
+      placeholder: '••••',
+      confirmLabel: 'Guardar',
+    })
+    if (pin === null) return
+    const digits = pin.replace(/\D/g, '')
+    if (digits && (digits.length < 4 || digits.length > 6)) {
+      useToasts.getState().push({ message: 'El PIN debe tener entre 4 y 6 dígitos.', kind: 'error' })
+      return
+    }
+    await users.setPin(user.id, digits || null)
+    await useAuth.getState().refreshCurrent()
+    useToasts.getState().push({ message: digits ? 'PIN actualizado' : 'PIN eliminado', kind: 'info' })
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-line p-4">
+      <Avatar user={user} size={44} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-medium text-ink">{user.name}</p>
+        <p className="text-[12px] text-ink-3">
+          {user.profile.location?.place ?? 'Sin ubicación'} · {user.pinHash ? 'Con PIN' : 'Sin PIN'}
+        </p>
+      </div>
+      <button type="button" onClick={() => void changePin()} className="rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
+        {user.pinHash ? 'Cambiar PIN' : 'Poner PIN'}
+      </button>
+      <button
+        type="button"
+        onClick={() => useAuth.getState().logout()}
+        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        Salir
+      </button>
     </div>
   )
 }
@@ -88,19 +162,24 @@ function AiSection() {
   const configured = isAiConfigured(ai)
   const [showKey, setShowKey] = useState(false)
   const [test, setTest] = useState<{ state: 'idle' | 'running' | 'ok' | 'fail'; message?: string }>({ state: 'idle' })
+  const [loadingModels, setLoadingModels] = useState(false)
 
   const providers = PROVIDERS.filter((p) => !p.devOnly || import.meta.env.DEV)
   const baseUrl = ai.baseUrls[ai.provider] ?? ''
-  const showBaseUrl = ai.provider !== 'anthropic' && ai.provider !== 'mock'
+  const isCompat = ai.provider !== 'anthropic' && ai.provider !== 'mock'
+  const discovered = ai.discovered[ai.provider] ?? []
+  const knownIds = new Set(preset.models.map((m) => m.id))
+  const extraModels = discovered.filter((id) => !knownIds.has(id))
 
   const runTest = async () => {
     setTest({ state: 'running' })
     try {
       const provider = getProvider(ai)
       if (!provider) throw new AiError('Falta completar la configuración.')
+      const model = ai.model === AUTO_MODEL ? preset.tiers?.fast ?? '' : ai.model
       let out = ''
       for await (const ev of provider.chat({
-        model: ai.model,
+        model,
         system: 'Responde únicamente con la palabra OK.',
         messages: [{ role: 'user', parts: [{ type: 'text', text: 'Prueba de conexión' }] }],
         maxTokens: 2000,
@@ -115,6 +194,19 @@ function AiSection() {
     }
   }
 
+  const refreshModels = async () => {
+    setLoadingModels(true)
+    try {
+      const ids = await listModels(baseUrl || preset.baseUrl || '', ai.keys[ai.provider])
+      ai.setDiscovered(ai.provider, ids)
+      useToasts.getState().push({ message: `${ids.length} modelos disponibles en ${preset.name}`, kind: 'info' })
+    } catch (err) {
+      useToasts.getState().push({ message: err instanceof Error ? err.message : 'No se pudo consultar la lista', kind: 'error' })
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-line p-4">
       <div className="flex items-center justify-between">
@@ -125,7 +217,7 @@ function AiSection() {
         </span>
       </div>
 
-      <Field label="Proveedor">
+      <Field label="Proveedor" hint={preset.tagline}>
         <select
           value={ai.provider}
           onChange={(e) => {
@@ -142,45 +234,33 @@ function AiSection() {
         </select>
       </Field>
 
-      <Field label="Modelo">
-        {preset.models.length > 0 ? (
-          <div className="flex flex-col gap-1.5">
-            {preset.models.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => ai.setModel(m.id)}
-                className={cn(
-                  'flex items-center justify-between rounded-lg border px-3 py-2 text-left text-[13px] transition',
-                  ai.model === m.id ? 'border-accent bg-accent-soft text-ink' : 'border-line text-ink-2 hover:border-line-2 hover:text-ink',
-                )}
-              >
-                <span>{m.label}</span>
-                <span className="text-[11px] uppercase tracking-wide text-ink-3">
-                  {m.tier === 'deep' ? 'más criterio' : m.tier === 'fast' ? 'más rápido' : 'equilibrado'}
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <input
-            value={ai.model}
-            onChange={(e) => ai.setModel(e.target.value)}
-            placeholder={preset.modelHint}
-            spellCheck={false}
-            className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[13px] text-ink outline-none focus:border-accent"
-          />
-        )}
-      </Field>
-
       {preset.needsKey && (
-        <Field label="Llave de API" hint="Se guarda solo en este navegador y viaja únicamente al proveedor.">
+        <Field
+          label="Llave de API"
+          hint={
+            <>
+              Se guarda solo en este navegador, dentro de tu cuenta, y viaja únicamente al proveedor.
+              {preset.keyUrl && (
+                <>
+                  {' '}
+                  <a href={preset.keyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-accent hover:underline">
+                    Crear llave
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </>
+              )}
+            </>
+          }
+        >
           <div className="relative">
             <input
               type={showKey ? 'text' : 'password'}
               value={ai.keys[ai.provider] ?? ''}
-              onChange={(e) => ai.setKey(ai.provider, e.target.value)}
-              placeholder={ai.provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}
+              onChange={(e) => {
+                ai.setKey(ai.provider, e.target.value)
+                setTest({ state: 'idle' })
+              }}
+              placeholder={ai.provider === 'anthropic' ? 'sk-ant-…' : ai.provider === 'groq' ? 'gsk_…' : 'sk-…'}
               spellCheck={false}
               autoComplete="off"
               className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 pr-9 font-mono text-[13px] text-ink outline-none focus:border-accent"
@@ -197,7 +277,7 @@ function AiSection() {
         </Field>
       )}
 
-      {showBaseUrl && (
+      {isCompat && (
         <Field label="URL base" hint={preset.baseUrl ? `Por defecto ${preset.baseUrl}` : 'Endpoint compatible con OpenAI, sin /chat/completions'}>
           <input
             value={baseUrl}
@@ -208,6 +288,66 @@ function AiSection() {
           />
         </Field>
       )}
+
+      <Field
+        label="Modelo"
+        hint={
+          ai.model === AUTO_MODEL && preset.tiers
+            ? `Automático: ${TIER_LABELS.fast} → ${labelOf(preset, preset.tiers.fast)}; ${TIER_LABELS.deep} → ${labelOf(preset, preset.tiers.deep)}. Sky elige según la dificultad de cada petición.`
+            : undefined
+        }
+      >
+        <div className="flex flex-col gap-1.5">
+          {preset.tiers && (
+            <ModelOption selected={ai.model === AUTO_MODEL} onClick={() => ai.setModel(AUTO_MODEL)} label="Automático" hint="según la tarea" recommended />
+          )}
+          {preset.models.map((m) => (
+            <ModelOption
+              key={m.id}
+              selected={ai.model === m.id}
+              onClick={() => ai.setModel(m.id)}
+              label={m.label}
+              hint={m.tier === 'deep' ? 'más criterio' : m.tier === 'fast' ? 'más rápido' : 'equilibrado'}
+            />
+          ))}
+          {extraModels.length > 0 && (
+            <select
+              value={extraModels.includes(ai.model) ? ai.model : ''}
+              onChange={(e) => e.target.value && ai.setModel(e.target.value)}
+              className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12.5px] text-ink outline-none focus:border-accent"
+            >
+              <option value="">Otros modelos del proveedor…</option>
+              {extraModels.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          )}
+          {isCompat && (
+            <div className="flex items-center gap-2">
+              {preset.models.length === 0 && (
+                <input
+                  value={ai.model === AUTO_MODEL ? '' : ai.model}
+                  onChange={(e) => ai.setModel(e.target.value)}
+                  placeholder={preset.modelHint}
+                  spellCheck={false}
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[13px] text-ink outline-none focus:border-accent"
+                />
+              )}
+              <button
+                type="button"
+                disabled={loadingModels || (preset.needsKey && !ai.keys[ai.provider])}
+                onClick={() => void refreshModels()}
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] text-ink-2 transition hover:border-line-2 hover:text-ink disabled:opacity-40"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', loadingModels && 'animate-spin')} />
+                Consultar modelos disponibles
+              </button>
+            </div>
+          )}
+        </div>
+      </Field>
 
       {ai.provider === 'anthropic' && (
         <Field label="Profundidad" hint={EFFORTS.find((e) => e.value === ai.effort)?.hint}>
@@ -235,12 +375,35 @@ function AiSection() {
   )
 }
 
+function labelOf(preset: ReturnType<typeof presetFor>, id: string): string {
+  return preset.models.find((m) => m.id === id)?.label ?? id
+}
+
+function ModelOption({ selected, onClick, label, hint, recommended }: { selected: boolean; onClick: () => void; label: string; hint: string; recommended?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center justify-between rounded-lg border px-3 py-2 text-left text-[13px] transition',
+        selected ? 'border-accent bg-accent-soft text-ink' : 'border-line text-ink-2 hover:border-line-2 hover:text-ink',
+      )}
+    >
+      <span className="flex items-center gap-2">
+        {label}
+        {recommended && <span className="rounded-md bg-accent px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-white">recomendado</span>}
+      </span>
+      <span className="text-[11px] uppercase tracking-wide text-ink-3">{hint}</span>
+    </button>
+  )
+}
+
 function FlowsSection() {
   const list = useLiveQuery(() => flows.list(), []) ?? []
   if (list.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-line-2 p-4 text-[12px] leading-relaxed text-ink-3">
-        Aún no hay flujos. Pídele a Mesa algo como «guarda esto como flujo llamado preparar reunión» y aparecerá aquí; después bastará
+        Aún no hay flujos. Pídele a Sky algo como «guarda esto como flujo llamado preparar reunión» y aparecerá aquí; después bastará
         escribir su nombre en la barra.
       </p>
     )
@@ -298,7 +461,7 @@ function Segmented<T extends string>({
   )
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-ink-2">{label}</span>

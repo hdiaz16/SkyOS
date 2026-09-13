@@ -56,7 +56,7 @@ const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
   image: { w: 760, h: 560, title: 'Imagen' },
   pdf: { w: 840, h: 660, title: 'Documento' },
   browser: { w: 1000, h: 680, title: 'Navegador' },
-  result: { w: 640, h: 540, title: 'Mesa' },
+  result: { w: 640, h: 540, title: 'Sky' },
   terminal: { w: 720, h: 440, title: 'Terminal' },
   trash: { w: 640, h: 460, title: 'Papelera' },
   settings: { w: 560, h: 560, title: 'Ajustes' },

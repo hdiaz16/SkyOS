@@ -85,7 +85,7 @@ export function createMockProvider(): AiProvider {
 
       const call = planFromPrompt(prompt)
       if (!call) {
-        const text = `Soy el simulador de Mesa. Entendí: "${prompt.slice(0, 80)}". Configura un proveedor real en Ajustes para respuestas de verdad.`
+        const text = `Soy el simulador de Sky. Entendí: "${prompt.slice(0, 80)}". Configura un proveedor real en Ajustes para respuestas de verdad.`
         yield* stream(text)
         yield { type: 'done', stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 20 }, assistant: { role: 'assistant', parts: [{ type: 'text', text }] } }
         return

@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid'
 import { getProvider } from './providers'
 import { useAiSettings } from './settings'
-import { buildStateSnapshot, SYSTEM_PROMPT } from './context'
+import { resolveModel, type Tier } from './router'
+import { buildStateSnapshot, buildSystemPrompt } from './context'
 import { commandTools, executeTool, type ToolExecution } from './tools'
 import { AiError, type Attachment, type ChatMessage, type ServerTool, type StopReason, type ToolCallPart } from './types'
 
@@ -11,6 +12,7 @@ export interface ToolEvent {
 }
 
 export type AgentEvent =
+  | { type: 'model'; model: string; tier: Tier | null }
   | { type: 'text'; delta: string }
   | { type: 'tool_start'; call: ToolCallPart }
   | { type: 'tool_end'; call: ToolCallPart; result: ToolExecution }
@@ -30,6 +32,8 @@ export interface AgentRunOptions {
   withoutState?: boolean
   /** Use a specific model instead of the configured one (e.g. a fast tier for indexing). */
   model?: string
+  /** When the model is "auto", force this tier instead of estimating it. */
+  tier?: Tier
   maxTokens?: number
   signal?: AbortSignal
   onEvent?: (event: AgentEvent) => void
@@ -42,6 +46,8 @@ export interface AgentResult {
   /** Full conversation including this exchange, ready to be passed back as history. */
   messages: ChatMessage[]
   toolEvents: ToolEvent[]
+  model: string
+  tier: Tier | null
 }
 
 const MAX_ITERATIONS = 16
@@ -58,7 +64,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   const runId = nanoid(8)
   const emit = (e: AgentEvent) => opts.onEvent?.(e)
   const tools = opts.tools && opts.tools.length === 0 ? [] : commandTools(opts.tools)
-  const system = opts.extraSystem ? `${SYSTEM_PROMPT}\n\n${opts.extraSystem}` : SYSTEM_PROMPT
+  const base = await buildSystemPrompt()
+  const system = opts.extraSystem ? `${base}\n\n${opts.extraSystem}` : base
+
+  const route = opts.model
+    ? { model: opts.model, tier: null, auto: false }
+    : resolveModel(settings, { prompt: opts.prompt, attachments: opts.attachments, historyLength: opts.history?.length, textOnly: opts.withoutState }, opts.tier)
+  emit({ type: 'model', model: route.model, tier: route.tier })
 
   const userParts: ChatMessage['parts'] = []
   if (!opts.withoutState) userParts.push({ type: 'text', text: await buildStateSnapshot() })
@@ -76,7 +88,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     let refusal: string | undefined
 
     for await (const ev of provider.chat({
-      model: opts.model ?? settings.model,
+      model: route.model,
       system,
       messages,
       tools,
@@ -135,10 +147,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
       break
     }
     messages.push({ role: 'user', parts: results })
-    if (text) {
-      text += '\n\n'
-    }
+    if (text) text += '\n\n'
   }
 
-  return { runId, text: text.trim(), stopReason, messages, toolEvents }
+  return { runId, text: text.trim(), stopReason, messages, toolEvents, model: route.model, tier: route.tier }
 }

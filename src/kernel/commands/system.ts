@@ -3,6 +3,7 @@ import { fs } from '../fs'
 import { useWindows, type Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
 import { useSettings } from '../../state/settings'
+import { endSession } from '../../system/session'
 
 interface WindowSummary {
   id: string
@@ -179,6 +180,17 @@ registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
         }
       },
     }
+  },
+})
+
+registerCommand<Record<string, never>, void>({
+  id: 'system.logout',
+  title: 'Cerrar sesión',
+  description: 'Cierra la sesión de la persona actual y vuelve a la pantalla de inicio. Sus archivos se conservan.',
+  params: {},
+  async run() {
+    endSession()
+    return { result: undefined }
   },
 })
 

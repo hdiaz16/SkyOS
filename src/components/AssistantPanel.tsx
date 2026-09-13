@@ -3,6 +3,8 @@ import { motion } from 'motion/react'
 import { AlertCircle, Check, Loader2, Sparkles, Square, Trash2, Undo2, X, FileText } from 'lucide-react'
 import { useSession, type Turn } from '../ai/session'
 import { commandIdForTool } from '../ai/tools'
+import { modelLabel, TIER_LABELS, type Tier } from '../ai/router'
+import { useAiSettings } from '../ai/settings'
 import type { ToolEvent } from '../ai/agent'
 import { getCommand, undoEntry, undoRun, useJournal } from '../kernel/commands'
 import { cn } from '../lib/utils'
@@ -50,7 +52,7 @@ export function AssistantPanel() {
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         <Sparkles className="h-4 w-4 text-accent" strokeWidth={2} />
-        <span className="text-[13px] font-medium text-ink">Mesa</span>
+        <span className="text-[13px] font-medium text-ink">Sky</span>
         {running && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-3" />}
         <div className="flex-1" />
         {running ? (
@@ -143,7 +145,18 @@ function TurnView({ turn }: { turn: Turn }) {
       )}
       {turn.status === 'stopped' && <p className="mt-1 text-[12px] text-ink-3">Detenido.</p>}
       {turn.runId && turn.status !== 'streaming' && <UndoAll runId={turn.runId} />}
+      {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} />}
     </div>
+  )
+}
+
+function ModelTag({ model, tier }: { model: string; tier: Tier | null }) {
+  const settings = useAiSettings()
+  return (
+    <p className="mt-1.5 text-[11px] text-ink-3">
+      {modelLabel(settings, model)}
+      {tier ? ` · ${TIER_LABELS[tier]}` : ''}
+    </p>
   )
 }
 

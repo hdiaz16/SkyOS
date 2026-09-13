@@ -13,7 +13,7 @@ import { AiBackground } from './components/AiBackground'
 import { useSettings, applyTheme } from './state/settings'
 import { useUi } from './state/ui'
 import { dispatch, undoLast } from './kernel/commands'
-import { seedIfEmpty } from './kernel/seed'
+import { firstBoot } from './system/firstBoot'
 import { isEditableTarget } from './lib/utils'
 
 export default function App() {
@@ -28,7 +28,7 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
-    void seedIfEmpty()
+    void firstBoot()
     navigator.storage?.persist?.().catch(() => undefined)
   }, [])
 

@@ -23,7 +23,10 @@ export function getProvider(state: AiSettingsState = useAiSettings.getState()): 
       provider = import.meta.env.DEV ? createMockProvider() : null
       break
     default:
-      provider = baseUrl && (!preset.needsKey || apiKey) ? createOpenAICompatProvider({ id: state.provider, name: preset.name, baseUrl, apiKey: apiKey || undefined }) : null
+      provider =
+        baseUrl && (!preset.needsKey || apiKey)
+          ? createOpenAICompatProvider({ id: state.provider, name: preset.name, baseUrl, apiKey: apiKey || undefined, vision: preset.vision })
+          : null
   }
   cache = provider ? { key, provider } : null
   return provider

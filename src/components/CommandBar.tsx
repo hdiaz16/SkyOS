@@ -12,6 +12,8 @@ import {
   Globe,
   LayoutGrid,
   Loader2,
+  LogOut,
+  Mic,
   ScanSearch,
   Settings2,
   Sparkles,
@@ -35,6 +37,8 @@ import { useSession } from '../ai/session'
 import { isAiConfigured, useAiSettings } from '../ai/settings'
 import { useSemantic } from '../ai/indexer'
 import { captureScreen, useSnap } from '../ai/snap'
+import { getProvider } from '../ai/providers'
+import { dictationAvailable, Recorder, transcribe } from '../ai/voice'
 import { createFileAndOpen, createFolderAndRename, importInto } from '../lib/menus'
 import { FILE_TYPES } from '../lib/fileTypes'
 import { calculate } from '../lib/calc'
@@ -76,7 +80,8 @@ const ACTIONS: Action[] = [
   { id: 'files', title: 'Abrir Archivos', keywords: ['explorador', 'archivos', 'carpetas', 'escritorio'], icon: FolderOpen, run: () => void dispatch('ui.openFiles') },
   { id: 'browser', title: 'Abrir navegador', hint: 'Google', keywords: ['google', 'web', 'internet', 'navegador'], icon: Globe, run: () => void dispatch('ui.openBrowser') },
   { id: 'terminal', title: 'Abrir terminal', hint: 'lenguaje natural', keywords: ['terminal', 'consola', 'comandos', 'shell'], icon: SquareTerminal, run: () => void dispatch('ui.openTerminal') },
-  { id: 'snap', title: 'Capturar pantalla para Mesa', hint: 'elige un área', keywords: ['captura', 'pantalla', 'screenshot', 'analizar', 'foto'], icon: Camera, run: () => void snapScreen() },
+  { id: 'snap', title: 'Capturar pantalla para Sky', hint: 'elige un área', keywords: ['captura', 'pantalla', 'screenshot', 'analizar', 'foto'], icon: Camera, run: () => void snapScreen() },
+  { id: 'logout', title: 'Cerrar sesión', hint: 'vuelve al inicio', keywords: ['salir', 'sesion', 'sesión', 'cambiar usuario', 'logout'], icon: LogOut, run: () => void dispatch('system.logout') },
   { id: 'trash', title: 'Abrir papelera', keywords: ['papelera', 'basura', 'trash', 'borrados'], icon: Trash2, run: () => void dispatch('ui.openTrash') },
   { id: 'settings', title: 'Ajustes', keywords: ['configuracion', 'preferencias', 'settings', 'opciones', 'llave', 'api'], icon: Settings2, run: () => void dispatch('ui.openSettings') },
   { id: 'theme', title: 'Cambiar tema', hint: 'sistema, claro, oscuro', keywords: ['tema', 'oscuro', 'claro', 'dark', 'light', 'modo', 'noche'], icon: SunMoon, run: () => void dispatch('ui.theme') },
@@ -110,6 +115,55 @@ async function snapScreen(): Promise<void> {
   }
 }
 
+type DictationState = 'idle' | 'recording' | 'transcribing'
+
+/** Toggle-to-talk: one click starts the microphone, the next one transcribes and drops the text in the bar. */
+function useDictation(onText: (text: string) => void) {
+  const [state, setState] = useState<DictationState>('idle')
+  const recorder = useRef<Recorder | null>(null)
+
+  const stop = async () => {
+    const rec = recorder.current
+    if (!rec) return
+    recorder.current = null
+    setState('transcribing')
+    try {
+      const audio = await rec.stop()
+      if (audio.size < 2000) throw new Error('No escuché nada')
+      const key = useAiSettings.getState().keys.groq ?? ''
+      const text = await transcribe(audio, key)
+      if (text) onText(text)
+      else useToasts.getState().push({ message: 'No entendí el audio. Intenta otra vez.', kind: 'info' })
+    } catch (err) {
+      useToasts.getState().push({ message: err instanceof Error ? err.message : 'No se pudo transcribir', kind: 'error' })
+    } finally {
+      setState('idle')
+    }
+  }
+
+  const toggle = async () => {
+    if (state === 'transcribing') return
+    if (state === 'recording') {
+      await stop()
+      return
+    }
+    const rec = new Recorder()
+    try {
+      await rec.start(() => void stop())
+      recorder.current = rec
+      setState('recording')
+    } catch (err) {
+      useToasts.getState().push({
+        message: err instanceof DOMException && err.name === 'NotAllowedError' ? 'Necesito permiso para usar el micrófono.' : 'No se pudo acceder al micrófono.',
+        kind: 'error',
+      })
+    }
+  }
+
+  useEffect(() => () => recorder.current?.cancel(), [])
+  return { state, toggle }
+}
+
 function matchAction(a: Action, q: string): boolean {
   const n = norm(q)
   return norm(a.title).includes(n) || a.keywords.some((k) => norm(k).includes(n))
@@ -137,6 +191,12 @@ export function CommandBar() {
   const semantic = useSemantic()
   const aiSettings = useAiSettings()
   const aiReady = isAiConfigured(aiSettings)
+  const canSee = aiReady && !!getProvider(aiSettings)?.capabilities.vision
+  const canDictate = dictationAvailable(aiSettings)
+  const dictation = useDictation((text) => {
+    setQ((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))
+    inputRef.current?.focus()
+  })
 
   useEffect(() => {
     if (focusTick > 0) {
@@ -149,7 +209,7 @@ export function CommandBar() {
     if (aiReady) void useSession.getState().send(text)
     else {
       void dispatch('ui.openSettings')
-      useToasts.getState().push({ message: 'Configura tu proveedor de IA en Ajustes › Inteligencia para pedirle cosas a Mesa.', kind: 'info' })
+      useToasts.getState().push({ message: 'Configura tu proveedor de IA en Ajustes › Inteligencia para pedirle cosas a Sky.', kind: 'info' })
     }
   }
 
@@ -233,7 +293,7 @@ export function CommandBar() {
     }
     const ask: Item = {
       key: 'ask',
-      title: `Pedir a Mesa: "${query}"`,
+      title: `Pedir a Sky: "${query}"`,
       hint: aiReady ? 'Enter' : 'Configura la IA en Ajustes',
       icon: <Sparkles className="h-[18px] w-[18px] text-accent" strokeWidth={2} />,
       run: () => askMesa(query),
@@ -300,12 +360,12 @@ export function CommandBar() {
       ? 'Describe qué hacer con lo adjunto…'
       : chatOpen
         ? chatRunning
-          ? 'Mesa está trabajando…'
+          ? 'Sky está trabajando…'
           : 'Responde o pide algo más…'
         : selectionCount > 0
           ? `${selectionCount} ${selectionCount === 1 ? 'elemento seleccionado' : 'elementos seleccionados'} · pide algo sobre ellos…`
           : aiReady
-            ? 'Pide algo a Mesa, busca un archivo o navega…'
+            ? 'Pide algo a Sky, busca un archivo o navega…'
             : 'Busca un archivo, ejecuta una acción o navega…'
 
   return (
@@ -398,7 +458,7 @@ export function CommandBar() {
         >
           <button
             type="button"
-            title={hasTurns ? (chatOpen ? 'Ocultar conversación' : 'Mostrar conversación') : 'Mesa'}
+            title={hasTurns ? (chatOpen ? 'Ocultar conversación' : 'Mostrar conversación') : 'Sky'}
             onClick={() => hasTurns && useSession.getState().setOpen(!chatOpen)}
             className={cn(
               'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-accent transition',
@@ -440,10 +500,26 @@ export function CommandBar() {
             spellCheck={false}
             className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
           />
-          {aiReady && !query && (
+          {canDictate && (
             <button
               type="button"
-              title="Capturar pantalla para Mesa"
+              title={dictation.state === 'recording' ? 'Terminar y transcribir' : dictation.state === 'transcribing' ? 'Transcribiendo…' : 'Dictar (Whisper en Groq)'}
+              aria-label="Dictar"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void dictation.toggle()}
+              className={cn(
+                'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition',
+                dictation.state === 'recording' ? 'bg-danger/10 text-danger' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
+              )}
+            >
+              {dictation.state === 'transcribing' ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <Mic className="h-[18px] w-[18px]" strokeWidth={1.75} />}
+              {dictation.state === 'recording' && <span className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-danger" />}
+            </button>
+          )}
+          {canSee && !query && (
+            <button
+              type="button"
+              title="Capturar pantalla para Sky"
               aria-label="Capturar pantalla"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => void snapScreen()}

@@ -259,7 +259,7 @@ export function TextEditor({ win }: { win: Win }) {
           }
         }}
         spellCheck={false}
-        placeholder={aiReady ? 'Escribe algo… (Ctrl+J para que Mesa continúe)' : 'Escribe algo…'}
+        placeholder={aiReady ? 'Escribe algo… (Ctrl+J para que Sky continúe)' : 'Escribe algo…'}
         className="scrollbar-thin flex-1 resize-none bg-transparent px-8 py-6 text-[15px] leading-7 text-ink outline-none placeholder:text-ink-3"
       />
 

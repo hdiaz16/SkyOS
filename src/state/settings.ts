@@ -1,8 +1,9 @@
 import { create } from 'zustand'
+import { sessionSuffix } from '../system/session'
 
 export type Theme = 'system' | 'light' | 'dark'
 
-const KEY = 'mesa:theme'
+const KEY = `mesa:theme${sessionSuffix()}`
 
 function readTheme(): Theme {
   try {
@@ -18,6 +19,15 @@ export function applyTheme(theme: Theme): void {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const dark = theme === 'dark' || (theme === 'system' && prefersDark)
   document.documentElement.classList.toggle('dark', dark)
+}
+
+/** Writes a theme for an account that is not signed in yet (onboarding). */
+export function persistThemeFor(userId: string, theme: Theme): void {
+  try {
+    localStorage.setItem(`mesa:theme:${userId}`, theme)
+  } catch {
+    /* ignore */
+  }
 }
 
 interface SettingsState {

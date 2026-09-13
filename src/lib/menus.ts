@@ -29,7 +29,7 @@ export async function createFileAndOpen(parentId: string, typeId = 'note'): Prom
   await dispatch('ui.open', { id: node.id })
 }
 
-/** Imports files and, when they land on the desktop, lets Mesa suggest where they belong. */
+/** Imports files and, when they land on the desktop, lets Sky suggest where they belong. */
 export async function importFiles(parentId: string, files: File[], ctx?: CommandContext): Promise<FsNode[]> {
   if (!files.length) return []
   const created = await dispatch<FsNode[]>('fs.import', { parentId, files }, ctx)
@@ -78,7 +78,7 @@ export function folderMenu(parentId: string, at?: Point): MenuItem[] {
     items.push({ label: 'Añadir widget…', onSelect: () => useUi.getState().openMenu(at.x, at.y, widgetMenu()) })
   }
   if (isAiConfigured()) {
-    items.push({ type: 'separator' }, { label: 'Resumir contenido con Mesa', onSelect: () => void runTask(() => summarizeFolder(parentId)) })
+    items.push({ type: 'separator' }, { label: 'Resumir contenido con Sky', onSelect: () => void runTask(() => summarizeFolder(parentId)) })
   }
   items.push({ type: 'separator' }, { label: 'Importar archivos…', onSelect: () => importInto(parentId) })
   return items
@@ -97,7 +97,7 @@ function transformMenu(node: FsNode): MenuItem[] {
       onSelect: async () => {
         const instruction = await useDialog.getState().ask({
           title: `¿Qué hacer con "${node.name}"?`,
-          description: 'Mesa te mostrará el resultado antes de tocar el archivo.',
+          description: 'Sky te mostrará el resultado antes de tocar el archivo.',
           placeholder: 'Por ejemplo: conviértelo en una lista de pendientes',
           confirmLabel: 'Transformar',
         })
@@ -124,7 +124,7 @@ export function nodeMenu(node: FsNode, ids: string[], at?: Point): MenuItem[] {
     if (isAiConfigured()) {
       const kind = fileKind(node)
       const aiItems: MenuItem[] = []
-      if (kind === 'folder') aiItems.push({ label: 'Resumir contenido con Mesa', onSelect: () => void runTask(() => summarizeFolder(node.id)) })
+      if (kind === 'folder') aiItems.push({ label: 'Resumir contenido con Sky', onSelect: () => void runTask(() => summarizeFolder(node.id)) })
       if (kind === 'text') {
         aiItems.push({
           label: 'Transformar con Mesa…',
@@ -133,7 +133,7 @@ export function nodeMenu(node: FsNode, ids: string[], at?: Point): MenuItem[] {
           },
         })
       }
-      if (canAttach(node)) aiItems.push({ label: 'Analizar con Mesa', onSelect: () => void attachNodeToMesa(node) })
+      if (canAttach(node)) aiItems.push({ label: 'Analizar con Sky', onSelect: () => void attachNodeToMesa(node) })
       if (aiItems.length) items.push({ type: 'separator' }, ...aiItems)
     }
     items.push({ type: 'separator' })

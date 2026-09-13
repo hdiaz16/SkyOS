@@ -81,7 +81,7 @@ export function BrowserApp({ win }: { win: Win }) {
         </form>
 
         {aiReady && (
-          <ToolButton label="Puntos clave con Mesa" onClick={keyPoints} active={!!taskId}>
+          <ToolButton label="Puntos clave con Sky" onClick={keyPoints} active={!!taskId}>
             <ListChecks className="h-4 w-4" />
           </ToolButton>
         )}

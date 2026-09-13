@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ImagePart } from './types'
 
 /**
- * Snap context: capture what is on screen, let the user pick a region and hand it to Mesa as an image.
+ * Snap context: capture what is on screen, let the user pick a region and hand it to Sky as an image.
  * Uses the browser's own screen-capture permission flow; nothing leaves the device until the user sends it.
  */
 

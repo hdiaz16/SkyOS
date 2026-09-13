@@ -1,6 +1,6 @@
-# Mesa
+# Sky
 
-Un escritorio web tranquilo, inspirado en la naturaleza, donde la inteligencia artificial es la protagonista.
+Sky es un escritorio web tranquilo, inspirado en la naturaleza, donde la inteligencia artificial es la protagonista.
 Escritorio, carpetas y ventanas como metáfora visual; una barra siempre visible como punto de entrada para pedir,
 buscar y navegar.
 

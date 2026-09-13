@@ -44,7 +44,7 @@ export function ClockWidget({ widget }: { widget: Widget }) {
             </li>
           )
         })}
-        {zones.length === 0 && <li className="text-[12px] text-ink-3">Pide a Mesa que agregue ciudades.</li>}
+        {zones.length === 0 && <li className="text-[12px] text-ink-3">Pide a Sky que agregue ciudades.</li>}
       </ul>
     </div>
   )

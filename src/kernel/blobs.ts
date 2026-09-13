@@ -1,4 +1,5 @@
 import { db } from './db'
+import { readSession } from '../system/session'
 
 export type BlobEngine = 'opfs' | 'indexeddb'
 
@@ -23,10 +24,24 @@ function opfsSupported(): boolean {
   }
 }
 
+/** Each account keeps its bytes in its own OPFS folder; the pre-accounts desktop lives at the root. */
+const STORAGE_DIR = readSession()?.storageDir ?? ''
+
+let dirPromise: Promise<FileSystemDirectoryHandle> | null = null
+
+function userDir(): Promise<FileSystemDirectoryHandle> {
+  dirPromise ??= (async () => {
+    let dir = await navigator.storage.getDirectory()
+    for (const segment of STORAGE_DIR.split('/').filter(Boolean)) dir = await dir.getDirectoryHandle(segment, { create: true })
+    return dir
+  })()
+  return dirPromise
+}
+
 const opfsStore: BlobStore = {
   engine: 'opfs',
   async put(id, blob) {
-    const dir = await navigator.storage.getDirectory()
+    const dir = await userDir()
     const handle = await dir.getFileHandle(id, { create: true })
     const writable = await handle.createWritable()
     await writable.write(blob)
@@ -34,7 +49,7 @@ const opfsStore: BlobStore = {
   },
   async get(id) {
     try {
-      const dir = await navigator.storage.getDirectory()
+      const dir = await userDir()
       const handle = await dir.getFileHandle(id)
       return await handle.getFile()
     } catch {
@@ -43,7 +58,7 @@ const opfsStore: BlobStore = {
   },
   async remove(id) {
     try {
-      const dir = await navigator.storage.getDirectory()
+      const dir = await userDir()
       await dir.removeEntry(id)
     } catch {
       /* already gone */

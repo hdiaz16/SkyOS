@@ -16,7 +16,7 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
 
 /**
  * Renders AI-authored HTML inside a sandboxed iframe: scripts may run, but the document has no access
- * to Mesa's origin, storage or cookies, and cannot navigate the parent page.
+ * to Sky's origin, storage or cookies, and cannot navigate the parent page.
  */
 export function HtmlWidget({ widget }: { widget: Widget }) {
   const theme = useSettings((s) => s.theme)

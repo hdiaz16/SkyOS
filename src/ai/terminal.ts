@@ -24,7 +24,7 @@ interface TerminalState {
 const WELCOME: TerminalLine = {
   id: 'welcome',
   kind: 'system',
-  text: 'Terminal de Mesa. Escribe lo que quieras saber o hacer con el sistema en lenguaje natural. "help" para ideas, "clear" para limpiar.',
+  text: 'Terminal de Sky. Escribe lo que quieras saber o hacer con el sistema en lenguaje natural. "help" para ideas, "clear" para limpiar.',
 }
 
 const HELP = [
@@ -37,7 +37,7 @@ const HELP = [
 ].join('\n')
 
 const EXTRA_SYSTEM = [
-  'Estás en la Terminal de Mesa, una consola de texto plano.',
+  'Estás en la Terminal de Sky, una consola de texto plano.',
   'Responde conciso, sin Markdown ni emojis, en líneas cortas; usa listas con guiones cuando ayude.',
   'Después de usar herramientas, resume el resultado en una o dos líneas.',
 ].join(' ')

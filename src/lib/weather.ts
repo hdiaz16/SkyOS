@@ -95,6 +95,21 @@ export async function geocode(name: string): Promise<Place | null> {
   return { name: `${r.name}${region}`, lat: r.latitude, lon: r.longitude }
 }
 
+/** Coordinates → readable place name. Free, no key, CORS-enabled. Falls back to coordinates. */
+export async function reverseGeocode(lat: number, lon: number): Promise<string> {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error()
+    const d = (await res.json()) as { city?: string; locality?: string; principalSubdivision?: string; countryName?: string }
+    const city = d.city || d.locality
+    const region = d.principalSubdivision && d.principalSubdivision !== city ? d.principalSubdivision : d.countryName
+    return [city, region].filter(Boolean).join(', ') || `${lat.toFixed(2)}, ${lon.toFixed(2)}`
+  } catch {
+    return `${lat.toFixed(2)}, ${lon.toFixed(2)}`
+  }
+}
+
 export function currentPosition(timeoutMs = 8000): Promise<{ lat: number; lon: number }> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) return reject(new Error('Sin geolocalización'))

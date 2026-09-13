@@ -2,6 +2,7 @@ import { useEffect, useState, type ComponentType } from 'react'
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSnow, CloudSun, Droplets, MapPin, Moon, Sun, Wind } from 'lucide-react'
 import { widgets, type Widget } from '../../kernel/widgets'
 import { useDialog } from '../../state/dialog'
+import { useAuth } from '../../system/auth'
 import { currentPosition, describeCode, fetchWeather, geocode, type Weather, type WeatherKind } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 
@@ -28,9 +29,12 @@ type State = { status: 'loading' } | { status: 'ok'; weather: Weather; label: st
 const dayName = (iso: string, i: number) => (i === 0 ? 'Hoy' : new Date(`${iso}T12:00:00`).toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', ''))
 
 export function WeatherWidget({ widget }: { widget: Widget }) {
-  const place = typeof widget.config.place === 'string' ? widget.config.place : ''
-  const lat = typeof widget.config.lat === 'number' ? widget.config.lat : undefined
-  const lon = typeof widget.config.lon === 'number' ? widget.config.lon : undefined
+  // The person's own place, captured at onboarding, is the default when the widget has none of its own.
+  const home = useAuth((s) => s.current?.profile.location)
+  const own = typeof widget.config.place === 'string' && widget.config.place.length > 0
+  const place = own ? (widget.config.place as string) : home?.place ?? ''
+  const lat = typeof widget.config.lat === 'number' ? widget.config.lat : own ? undefined : home?.lat
+  const lon = typeof widget.config.lon === 'number' ? widget.config.lon : own ? undefined : home?.lon
   const [state, setState] = useState<State>({ status: 'loading' })
 
   useEffect(() => {

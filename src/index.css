@@ -25,6 +25,9 @@
   --folder: #8fb996;
   --folder-2: #a9c9ae;
   --danger: #c25b4e;
+  --orb-disc: #4a8a68;
+  --orb-line: #f4f1e6;
+  --orb-halo: #cfe2d6;
   --shadow: 0 24px 60px -20px rgba(31, 42, 36, 0.28), 0 2px 8px rgba(31, 42, 36, 0.06);
   --shadow-sm: 0 8px 24px -12px rgba(31, 42, 36, 0.22), 0 1px 3px rgba(31, 42, 36, 0.05);
 }
@@ -52,6 +55,9 @@
   --folder: #5f8f74;
   --folder-2: #6fa085;
   --danger: #e57b6e;
+  --orb-disc: #4f9a74;
+  --orb-line: #f2f6f0;
+  --orb-halo: #24483a;
   --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 10px 28px -14px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
@@ -185,6 +191,80 @@ input, textarea {
 
 .dark .cursor-hand:active {
   cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='%2316201c' stroke='%23e6efe9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4'/><path d='M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2'/><path d='M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5'/><path d='M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2'/><path d='M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0'/></svg>") 12 12, grabbing;
+}
+
+/* Mesa's presence: a flat warm disc, a thin looping line, a soft halo. */
+.orb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orb-halo {
+  position: absolute;
+  inset: -16%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--orb-halo) 0%, var(--orb-halo) 42%, transparent 72%);
+  filter: blur(14px);
+  opacity: 0.9;
+  animation: orb-halo 6s ease-in-out infinite;
+}
+
+.orb-disc {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--orb-disc);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.25),
+    0 24px 60px -28px rgba(31, 42, 36, 0.45);
+  animation: orb-breathe 6s ease-in-out infinite;
+}
+
+.orb-glyph {
+  display: block;
+  overflow: visible;
+}
+
+/* A lit segment that travels the whole loop; pathLength="100" makes the dash units percentages. */
+.orb-trace {
+  stroke-dasharray: 28 72;
+  animation: orb-trace 7s linear infinite;
+}
+
+.orb-active .orb-halo {
+  animation-duration: 2.4s;
+  opacity: 1;
+}
+
+.orb-active .orb-disc {
+  animation-duration: 2.4s;
+}
+
+.orb-active .orb-trace {
+  animation-duration: 2.2s;
+}
+
+@keyframes orb-trace {
+  to { stroke-dashoffset: -100; }
+}
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(0.985); }
+  50% { transform: scale(1.015); }
+}
+
+@keyframes orb-halo {
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-halo, .orb-disc, .orb-trace { animation: none; }
 }
 
 @keyframes loading-bar {

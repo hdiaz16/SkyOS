@@ -4,12 +4,14 @@ import { widgets } from '../kernel/widgets'
 import { useWindows } from '../state/windows'
 import { useUi } from '../state/ui'
 import { useSettings } from '../state/settings'
+import { useAuth } from '../system/auth'
+import type { UserProfile } from '../system/db'
 
 /**
  * Stable instructions. Kept free of anything that changes between requests so the provider can cache it;
  * volatile state travels in the user turn (see buildStateSnapshot).
  */
-export const SYSTEM_PROMPT = `Eres Mesa, un escritorio web donde tú eres el protagonista: la persona te habla y tú actúas sobre sus archivos, carpetas y ventanas mediante herramientas.
+export const SYSTEM_PROMPT = `Eres Sky, un escritorio web donde tú eres el protagonista: la persona te habla y tú actúas sobre sus archivos, carpetas, widgets y ventanas mediante herramientas.
 
 Cómo trabajas:
 - Responde siempre en español, de forma breve y natural. Sin listas de pasos salvo que te las pidan.
@@ -25,6 +27,42 @@ Cómo trabajas:
 
 El bloque <estado> del mensaje describe el escritorio en este momento: úsalo como fuente de verdad inicial.`
 
+const TONE: Record<UserProfile['tone'], string> = {
+  warm: 'Tono cercano y relajado, como alguien de confianza; tutéala.',
+  direct: 'Tono directo y breve: frases cortas, sin adornos ni preámbulos.',
+  formal: 'Tono formal y cuidado, con respuestas completas y bien estructuradas.',
+}
+
+const PURPOSE: Record<UserProfile['purpose'], string> = {
+  work: 'Usa Sky sobre todo para trabajo: documentos, proyectos y reportes.',
+  study: 'Usa Sky sobre todo para estudiar: apuntes, lecturas y tareas.',
+  personal: 'Usa Sky sobre todo para proyectos personales.',
+  mixed: 'Usa Sky para un poco de todo.',
+}
+
+const AUTONOMY: Record<UserProfile['autonomy'], string> = {
+  ask: 'Autonomía: antes de mover, renombrar o borrar cualquier archivo, propone el plan en una línea y espera su confirmación, salvo que la instrucción sea explícita y de un solo paso.',
+  act: 'Autonomía: actúa directamente y avisa en una frase qué hiciste; todo se puede deshacer.',
+  manual: 'Autonomía: nunca hagas cambios que no se te hayan pedido de forma explícita; cuando veas una mejora, sugiérela en vez de aplicarla.',
+}
+
+/** The stable prompt for the signed-in person: base rules plus how they asked to be treated. */
+export async function buildSystemPrompt(): Promise<string> {
+  const user = useAuth.getState().current
+  if (!user) return SYSTEM_PROMPT
+  const p = user.profile
+  const persona = [
+    `Sobre la persona: se llama ${user.name}.`,
+    TONE[p.tone],
+    PURPOSE[p.purpose],
+    AUTONOMY[p.autonomy],
+    p.location ? `Vive o trabaja en ${p.location.place}; úsalo como referencia para clima, hora y lugares.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+  return `${SYSTEM_PROMPT}\n\n${persona}`
+}
+
 async function describeFolder(id: string, indent: string, depth: number): Promise<string[]> {
   const items = await fs.list(id)
   const lines: string[] = []
@@ -34,7 +72,7 @@ async function describeFolder(id: string, indent: string, depth: number): Promis
       lines.push(`${indent}- [carpeta] ${n.name} (id ${n.id}, ${count} elementos)`)
       if (depth > 0 && count > 0 && count <= 12) lines.push(...(await describeFolder(n.id, `${indent}  `, depth - 1)))
     } else {
-      lines.push(`${indent}- ${n.name} (id ${n.id})`)
+      lines.push(`${indent}- ${n.name} (id ${n.id})${n.tags?.length ? ` #${n.tags.join(' #')}` : ''}`)
     }
   }
   return lines

@@ -31,7 +31,7 @@ export function ResultApp({ win }: { win: Win }) {
   const saveAsNote = async () => {
     const folderId = task.context.folderId ?? ROOT_ID
     const base = task.context.saveAs ?? `${task.title}.md`
-    const name = task.kind === 'transform' ? withSuffix(base, ' (Mesa)') : base
+    const name = task.kind === 'transform' ? withSuffix(base, ' (Sky)') : base
     const node = await dispatch<FsNode>('fs.createFile', { parentId: folderId, name, type: extOf(name) === 'md' ? 'note' : 'text', content: task.text })
     await dispatch('ui.open', { id: node.id })
   }
@@ -64,7 +64,7 @@ export function ResultApp({ win }: { win: Win }) {
           {running ? (
             <>
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {task.statusMessage ?? 'Mesa está trabajando…'}
+              {task.statusMessage ?? 'Sky está trabajando…'}
             </>
           ) : task.status === 'done' ? (
             <>

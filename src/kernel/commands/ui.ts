@@ -84,7 +84,7 @@ registerCommand<Record<string, never>, void>({
 registerCommand<Record<string, never>, void>({
   id: 'ui.openTerminal',
   title: 'Abrir terminal',
-  description: 'Abre la terminal en lenguaje natural de Mesa.',
+  description: 'Abre la terminal en lenguaje natural de Sky.',
   params: {},
   async run() {
     useWindows.getState().open('terminal', { singleton: true })
@@ -95,7 +95,7 @@ registerCommand<Record<string, never>, void>({
 registerCommand<Record<string, never>, void>({
   id: 'ui.openSettings',
   title: 'Abrir ajustes',
-  description: 'Muestra los ajustes de Mesa.',
+  description: 'Muestra los ajustes de Sky.',
   params: {},
   async run() {
     useWindows.getState().open('settings', { singleton: true })
@@ -121,7 +121,7 @@ registerCommand<{ theme?: Theme }, Theme>({
 
 registerCommand<Record<string, never>, void>({
   id: 'ui.palette',
-  title: 'Barra de Mesa',
+  title: 'Barra de Sky',
   description: 'Lleva el foco a la barra principal.',
   ai: false,
   params: {},

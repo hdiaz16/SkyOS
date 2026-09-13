@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { runAgent, type ToolEvent } from './agent'
+import type { Tier } from './router'
 import type { Attachment, ChatMessage } from './types'
 
 export interface Turn {
@@ -13,6 +14,9 @@ export interface Turn {
   statusMessage?: string
   runId?: string
   error?: string
+  /** Which model answered and, when routed automatically, at what tier. */
+  model?: string
+  tier?: Tier | null
 }
 
 /** Something the user picked to send with the next message: a capture, an image, a PDF. */
@@ -45,7 +49,7 @@ function patchTurn(turns: Turn[], id: string, patch: Partial<Turn> | ((t: Turn) 
   return turns.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t))
 }
 
-/** The conversation behind the command bar: what the user asked, what Mesa said and did. */
+/** The conversation behind the command bar: what the user asked, what Sky said and did. */
 export const useSession = create<SessionState>((set, get) => ({
   open: false,
   running: false,
@@ -88,6 +92,9 @@ export const useSession = create<SessionState>((set, get) => ({
         signal: controller.signal,
         onEvent: (e) => {
           switch (e.type) {
+            case 'model':
+              set((s) => ({ turns: patchTurn(s.turns, replyId, { model: e.model, tier: e.tier }) }))
+              break
             case 'text':
               pendingText += e.delta
               if (frame === null) frame = requestAnimationFrame(flush)
@@ -121,6 +128,8 @@ export const useSession = create<SessionState>((set, get) => ({
           text: result.text,
           status: result.stopReason === 'aborted' ? 'stopped' : 'done',
           runId: result.runId,
+          model: result.model,
+          tier: result.tier,
           statusMessage: undefined,
         }),
       }))

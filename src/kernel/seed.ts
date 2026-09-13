@@ -2,9 +2,9 @@ import { db } from './db'
 import { fs } from './fs'
 import { ROOT_ID } from './types'
 
-const WELCOME = `# Bienvenido a Mesa
+const WELCOME = `# Bienvenido a Sky
 
-Mesa es un escritorio donde la inteligencia artificial será la protagonista.
+Sky es un escritorio donde la inteligencia artificial será la protagonista.
 La barra de abajo es el centro de todo: ahí pides, buscas y navegas.
 
 Por ahora funciona como un escritorio tranquilo, con pocas acciones bien cuidadas:
@@ -31,7 +31,7 @@ export function seedIfEmpty(): Promise<void> {
     const count = await db.nodes.count()
     if (count > 0) return
     await fs.createFolder(ROOT_ID, 'Proyectos')
-    await fs.createText(ROOT_ID, 'Bienvenido a Mesa.md', WELCOME)
+    await fs.createText(ROOT_ID, 'Bienvenido a Sky.md', WELCOME)
   })()
   return seeding
 }
