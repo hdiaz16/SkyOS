@@ -4,6 +4,7 @@ import { ROOT_ID, fileKind } from '../types'
 import { useWindows } from '../../state/windows'
 import { useUi } from '../../state/ui'
 import { useSettings, type Theme } from '../../state/settings'
+import { GOOGLE_HOME, googleSearchUrl, titleForUrl, toNavigableUrl } from '../../lib/web'
 
 registerCommand<{ id: string }, void>({
   id: 'ui.open',
@@ -46,6 +47,29 @@ registerCommand<{ folderId?: string }, void>({
   },
 })
 
+registerCommand<{ url?: string; query?: string }, void>({
+  id: 'ui.openBrowser',
+  title: 'Abrir navegador',
+  description: 'Abre el navegador web. Con "query" busca en Google; con "url" abre esa dirección. Sin parámetros abre Google.',
+  params: {
+    url: { type: 'string', description: 'Dirección a abrir.' },
+    query: { type: 'string', description: 'Texto a buscar en Google.' },
+  },
+  async run({ url, query }) {
+    const target = url ? toNavigableUrl(url) : query ? googleSearchUrl(query) : GOOGLE_HOME
+    const wm = useWindows.getState()
+    const existing = wm.windows.find((w) => w.app === 'browser')
+    if (existing) {
+      wm.setProps(existing.id, { url: target })
+      wm.setTitle(existing.id, titleForUrl(target))
+      wm.focus(existing.id)
+    } else {
+      wm.open('browser', { title: titleForUrl(target), props: { url: target } })
+    }
+    return { result: undefined }
+  },
+})
+
 registerCommand<Record<string, never>, void>({
   id: 'ui.openTrash',
   title: 'Abrir papelera',
@@ -68,6 +92,8 @@ registerCommand<Record<string, never>, void>({
   },
 })
 
+const THEME_NAMES: Record<Theme, string> = { system: 'del sistema', light: 'claro', dark: 'oscuro' }
+
 registerCommand<{ theme?: Theme }, Theme>({
   id: 'ui.theme',
   title: 'Cambiar tema',
@@ -77,18 +103,19 @@ registerCommand<{ theme?: Theme }, Theme>({
     const s = useSettings.getState()
     if (theme) s.setTheme(theme)
     else s.cycleTheme()
-    return { result: useSettings.getState().theme }
+    const next = useSettings.getState().theme
+    return { result: next, label: `Tema ${THEME_NAMES[next]}` }
   },
 })
 
 registerCommand<Record<string, never>, void>({
   id: 'ui.palette',
-  title: 'Barra universal',
-  description: 'Abre la barra de búsqueda y acciones.',
+  title: 'Barra de Mesa',
+  description: 'Lleva el foco a la barra principal.',
   ai: false,
   params: {},
   async run() {
-    useUi.getState().setPalette(true)
+    useUi.getState().focusComposer()
     return { result: undefined }
   },
 })

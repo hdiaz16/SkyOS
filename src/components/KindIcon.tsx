@@ -7,9 +7,9 @@ export function KindIcon({ kind, className }: { kind: FileKind; className?: stri
   if (kind === 'folder') {
     return (
       <svg viewBox="0 0 64 64" className={cn('no-drag drop-shadow-sm', className)} aria-hidden>
-        <path d="M6 18a6 6 0 0 1 6-6h13.5a6 6 0 0 1 4.24 1.76L33 17h19a6 6 0 0 1 6 6v25a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V18Z" fill="var(--accent)" opacity="0.55" />
-        <path d="M6 26a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v22a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V26Z" fill="var(--accent)" opacity="0.9" />
-        <path d="M6 26a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v3H6v-3Z" fill="#fff" opacity="0.18" />
+        <path d="M6 18a6 6 0 0 1 6-6h13.5a6 6 0 0 1 4.24 1.76L33 17h19a6 6 0 0 1 6 6v25a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V18Z" fill="var(--folder-2)" />
+        <path d="M6 26a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v22a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V26Z" fill="var(--folder)" />
+        <path d="M6 26a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v3H6v-3Z" fill="#fff" opacity="0.22" />
       </svg>
     )
   }

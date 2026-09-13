@@ -14,9 +14,11 @@ interface Props {
   node: FsNode
   /** Called instead of the default open behaviour for folders (e.g. navigate inside a Files window). */
   onOpenFolder?: (id: string) => void
+  /** Animate position changes when siblings appear or disappear. Keep off inside movable windows. */
+  animateLayout?: boolean
 }
 
-export function NodeIcon({ node, onOpenFolder }: Props) {
+export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
   const selected = useUi((s) => s.selection.includes(node.id))
   const renaming = useUi((s) => s.renamingId === node.id)
   const kind = fileKind(node)
@@ -82,7 +84,7 @@ export function NodeIcon({ node, onOpenFolder }: Props) {
 
   return (
     <motion.div
-      layout
+      layout={animateLayout}
       initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.85 }}
@@ -122,11 +124,12 @@ export function NodeIcon({ node, onOpenFolder }: Props) {
       ) : (
         <span
           className={cn(
-            'line-clamp-2 w-full break-words px-0.5 text-[12px] leading-[1.25] text-ink',
+            'line-clamp-2 w-full break-words px-0.5 text-[12px] leading-[1.25]',
+            dropHover ? 'font-medium text-accent' : 'text-ink',
             selected && 'font-medium',
           )}
         >
-          {node.name}
+          {dropHover ? 'Soltar aquí' : node.name}
         </span>
       )}
     </div>

@@ -4,19 +4,22 @@ import { ROOT_ID } from './types'
 
 const WELCOME = `# Bienvenido a Mesa
 
-Mesa es un escritorio que, muy pronto, entenderá lo que le pides.
+Mesa es un escritorio donde la inteligencia artificial será la protagonista.
+La barra de abajo es el centro de todo: ahí pides, buscas y navegas.
 
-Por ahora funciona como un escritorio normal, con pocas acciones bien cuidadas:
+Por ahora funciona como un escritorio tranquilo, con pocas acciones bien cuidadas:
 
-- Clic derecho en el escritorio para crear carpetas o notas.
+- Escribe en la barra de abajo para buscar archivos, ejecutar acciones o buscar en Google.
+- Ctrl+K lleva el foco a la barra desde cualquier lugar.
+- Clic derecho en el escritorio para crear carpetas, notas y otros tipos de archivo.
 - Arrastra archivos desde tu computadora para importarlos.
-- Ctrl+K abre la barra universal: busca archivos o ejecuta acciones.
 - Ctrl+Z deshace la última acción. Todo lo que pasa aquí se puede deshacer.
 - Doble clic abre. F2 renombra. Supr envía a la papelera.
+- Haz clic en la hora para ver el calendario.
 
 Todo se guarda en tu navegador. Nada sale de tu computadora.
 
-En la siguiente fase, la barra universal aceptará lenguaje natural:
+En la siguiente fase, la barra aceptará lenguaje natural:
 "junta las facturas de agosto en una carpeta" será una instrucción válida.
 `
 

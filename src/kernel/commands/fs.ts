@@ -2,6 +2,7 @@ import { registerCommand } from '../commands'
 import { fs } from '../fs'
 import { ROOT_ID, extOf, type FsNode } from '../types'
 import { useWindows } from '../../state/windows'
+import { FILE_TYPE_IDS, fileTypeById } from '../../lib/fileTypes'
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
@@ -19,19 +20,24 @@ registerCommand<{ parentId?: string; name?: string }, FsNode>({
   },
 })
 
-registerCommand<{ parentId?: string; name?: string; content?: string }, FsNode>({
-  id: 'fs.createNote',
-  title: 'Nueva nota',
-  description: 'Crea una nota de texto (Markdown) con contenido opcional.',
+registerCommand<{ parentId?: string; type?: string; name?: string; content?: string }, FsNode>({
+  id: 'fs.createFile',
+  title: 'Nuevo archivo',
+  description:
+    'Crea un archivo de texto de un tipo dado (note = Markdown, text, csv, json, html, script) con contenido opcional.',
   params: {
     parentId: { type: 'string', description: 'Carpeta destino. "root" es el escritorio.' },
-    name: { type: 'string', description: 'Nombre del archivo. Si no tiene extensión se agrega .md' },
-    content: { type: 'string', description: 'Contenido inicial de la nota.' },
+    type: { type: 'string', description: 'Tipo de archivo.', enum: FILE_TYPE_IDS },
+    name: { type: 'string', description: 'Nombre. Si no tiene extensión se agrega la del tipo.' },
+    content: { type: 'string', description: 'Contenido inicial. Si se omite se usa una plantilla mínima.' },
   },
-  async run({ parentId = ROOT_ID, name = 'Nota', content = '' }) {
-    const finalName = extOf(name) ? name : `${name}.md`
-    const node = await fs.createText(parentId, finalName, content)
-    return { result: node, label: `Nota "${node.name}" creada`, undo: () => fs.trash([node.id]) }
+  async run({ parentId = ROOT_ID, type, name, content }) {
+    const ft = fileTypeById(type)
+    const base = (name ?? ft.defaultName).trim() || ft.defaultName
+    const finalName = extOf(base) ? base : `${base}.${ft.ext}`
+    const blob = new Blob([content ?? ft.template], { type: ft.mime })
+    const node = await fs.createFile(parentId, finalName, blob, ft.mime)
+    return { result: node, label: `Se creó "${node.name}"`, undo: () => fs.trash([node.id]) }
   },
 })
 

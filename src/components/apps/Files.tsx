@@ -6,10 +6,11 @@ import { ROOT_ID } from '../../kernel/types'
 import { dispatch } from '../../kernel/commands'
 import { useWindows, type Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
-import { createFolderAndRename, createNoteAndOpen, folderMenu, importInto } from '../../lib/menus'
+import { createFileAndOpen, createFolderAndRename, folderMenu, importInto } from '../../lib/menus'
 import { cn } from '../../lib/utils'
 import { IconGrid } from '../IconGrid'
 import { NODE_DRAG_TYPE } from '../NodeIcon'
+import { ToolButton } from '../ToolButton'
 
 export function FilesApp({ win }: { win: Win }) {
   const folderId = win.props.folderId ?? ROOT_ID
@@ -54,7 +55,7 @@ export function FilesApp({ win }: { win: Win }) {
     if ((e.target as HTMLElement).closest('[data-node]')) return
     e.preventDefault()
     useUi.getState().clearSelection()
-    useUi.getState().openMenu(e.clientX, e.clientY, folderMenu(folderId))
+    useUi.getState().openMenu(e.clientX, e.clientY, folderMenu(folderId, { x: e.clientX, y: e.clientY }))
   }
 
   const onDragOver = (e: DragEvent) => {
@@ -104,7 +105,7 @@ export function FilesApp({ win }: { win: Win }) {
         <ToolButton label="Nueva carpeta" onClick={() => void createFolderAndRename(folderId)}>
           <FolderPlus className="h-4 w-4" />
         </ToolButton>
-        <ToolButton label="Nueva nota" onClick={() => void createNoteAndOpen(folderId)}>
+        <ToolButton label="Nueva nota" onClick={() => void createFileAndOpen(folderId, 'note')}>
           <FilePlus2 className="h-4 w-4" />
         </ToolButton>
         <ToolButton label="Importar archivos" onClick={() => importInto(folderId)}>
@@ -130,6 +131,13 @@ export function FilesApp({ win }: { win: Win }) {
         ) : (
           <IconGrid nodes={nodes ?? []} onOpenFolder={navigate} className="min-h-full" />
         )}
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent/60">
+            <span className="glass rounded-full px-3 py-1.5 text-[12px] font-medium text-accent shadow-soft">
+              Soltar aquí
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex h-7 shrink-0 items-center justify-between border-t border-line px-3 text-[11px] text-ink-3">
@@ -137,31 +145,6 @@ export function FilesApp({ win }: { win: Win }) {
         <span>{selectedCount > 0 ? `${selectedCount} ${selectedCount === 1 ? 'seleccionado' : 'seleccionados'}` : ''}</span>
       </div>
     </div>
-  )
-}
-
-function ToolButton({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
-    >
-      {children}
-    </button>
   )
 }
 

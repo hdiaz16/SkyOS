@@ -2,17 +2,21 @@ import { create } from 'zustand'
 
 export type MenuItem =
   | { type: 'separator' }
+  | { type: 'label'; label: string }
   | { type?: 'item'; label: string; shortcut?: string; danger?: boolean; onSelect: () => void }
 
 export interface ContextMenuState {
   x: number
   y: number
   items: MenuItem[]
+  /** Changes on every open so the same position still remounts the menu. */
+  nonce: number
 }
 
 interface UiState {
-  paletteOpen: boolean
-  setPalette: (open: boolean) => void
+  /** Increments each time something asks the command bar to take focus. */
+  composerFocus: number
+  focusComposer: () => void
   selection: string[]
   select: (ids: string[]) => void
   toggleSelect: (id: string) => void
@@ -24,9 +28,11 @@ interface UiState {
   closeMenu: () => void
 }
 
+let menuNonce = 0
+
 export const useUi = create<UiState>((set) => ({
-  paletteOpen: false,
-  setPalette: (paletteOpen) => set({ paletteOpen }),
+  composerFocus: 0,
+  focusComposer: () => set((s) => ({ composerFocus: s.composerFocus + 1 })),
   selection: [],
   select: (selection) => set({ selection }),
   toggleSelect: (id) =>
@@ -37,6 +43,6 @@ export const useUi = create<UiState>((set) => ({
   renamingId: null,
   setRenaming: (renamingId) => set({ renamingId }),
   contextMenu: null,
-  openMenu: (x, y, items) => set({ contextMenu: { x, y, items } }),
+  openMenu: (x, y, items) => set({ contextMenu: { x, y, items, nonce: ++menuNonce } }),
   closeMenu: () => set({ contextMenu: null }),
 }))

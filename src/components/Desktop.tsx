@@ -21,7 +21,7 @@ export function Desktop() {
     if ((e.target as HTMLElement).closest('[data-node]')) return
     e.preventDefault()
     useUi.getState().clearSelection()
-    useUi.getState().openMenu(e.clientX, e.clientY, folderMenu(ROOT_ID))
+    useUi.getState().openMenu(e.clientX, e.clientY, folderMenu(ROOT_ID, { x: e.clientX, y: e.clientY }))
   }
 
   const onDragOver = (e: DragEvent) => {
@@ -52,18 +52,22 @@ export function Desktop() {
       onContextMenu={onContextMenu}
       onDragOver={onDragOver}
       onDragLeave={(e) => {
-        if (e.target === e.currentTarget) setDragOver(false)
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false)
       }}
       onDrop={onDrop}
     >
-      <IconGrid nodes={nodes ?? []} className="h-full content-start" />
+      <IconGrid nodes={nodes ?? []} animateLayout className="h-full content-start" />
 
       <div
         className={cn(
-          'pointer-events-none absolute inset-3 rounded-3xl border-2 border-dashed transition-opacity duration-200',
+          'pointer-events-none absolute inset-3 flex items-center justify-center rounded-3xl border-2 border-dashed transition-opacity duration-200',
           dragOver ? 'border-accent/60 bg-accent-soft opacity-100' : 'opacity-0',
         )}
-      />
+      >
+        <span className="glass rounded-full px-4 py-2 text-[13px] font-medium text-accent shadow-soft">
+          Suelta para importar al escritorio
+        </span>
+      </div>
     </div>
   )
 }

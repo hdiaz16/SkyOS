@@ -27,7 +27,7 @@ export function ContextMenu() {
     }
   }, [menu, close])
 
-  return <AnimatePresence>{menu && <Menu key={`${menu.x}-${menu.y}`} menu={menu} />}</AnimatePresence>
+  return <AnimatePresence>{menu && <Menu key={menu.nonce} menu={menu} />}</AnimatePresence>
 }
 
 /** Receives a snapshot of the menu so the exit animation still has data after the store clears it. */
@@ -55,13 +55,19 @@ function Menu({ menu }: { menu: ContextMenuState }) {
       exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.08 } }}
       transition={{ type: 'spring', stiffness: 600, damping: 38 }}
       style={{ left: pos.x, top: pos.y, transformOrigin: 'top left' }}
-      className="glass fixed z-[200000] min-w-[200px] rounded-xl p-1 shadow-win"
+      className="glass fixed z-[200000] min-w-[210px] rounded-xl p-1 shadow-win"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {menu.items.map((item, i) =>
-        item.type === 'separator' ? (
-          <div key={i} className="my-1 h-px bg-line" />
-        ) : (
+      {menu.items.map((item, i) => {
+        if (item.type === 'separator') return <div key={i} className="my-1 h-px bg-line" />
+        if (item.type === 'label') {
+          return (
+            <div key={i} className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-3">
+              {item.label}
+            </div>
+          )
+        }
+        return (
           <button
             key={i}
             type="button"
@@ -77,8 +83,8 @@ function Menu({ menu }: { menu: ContextMenuState }) {
             <span>{item.label}</span>
             {item.shortcut && <span className="text-[11px] opacity-60">{item.shortcut}</span>}
           </button>
-        ),
-      )}
+        )
+      })}
     </motion.div>
   )
 }

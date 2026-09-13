@@ -1,40 +1,43 @@
-import { Sparkles } from 'lucide-react'
-import { useUi } from '../state/ui'
+import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { useClock } from '../lib/hooks'
+import { cn } from '../lib/utils'
+import { Calendar } from './Calendar'
+
+function greetingFor(hour: number): string {
+  if (hour < 12) return 'Buenos días'
+  if (hour < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+}
 
 export function TopBar() {
   const now = useClock()
-  const setPalette = useUi((s) => s.setPalette)
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const time = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-  const rawDate = now.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')
+  const rawDate = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/\./g, '')
   const date = rawDate.charAt(0).toUpperCase() + rawDate.slice(1)
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-[100000] flex h-11 items-center px-4">
-      <div className="flex w-24 shrink-0 items-center gap-2 text-[13px] font-semibold tracking-tight text-ink md:w-40">
-        <svg viewBox="0 0 64 64" className="h-4 w-4" aria-hidden>
-          <rect x="6" y="18" width="52" height="8" rx="3" fill="currentColor" />
-          <rect x="12" y="26" width="6" height="24" rx="2" fill="currentColor" />
-          <rect x="46" y="26" width="6" height="24" rx="2" fill="currentColor" />
-        </svg>
-        Mesa
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-[100000] flex h-11 items-center justify-between px-5">
+      <div className="text-[13px] text-ink-2">
+        <span className="font-medium text-ink">{greetingFor(now.getHours())}</span>
+        <span className="hidden md:inline"> · {date}</span>
       </div>
 
-      <div className="flex flex-1 justify-center">
+      <div className="pointer-events-auto relative">
         <button
           type="button"
-          onClick={() => setPalette(true)}
-          className="glass pointer-events-auto flex h-8 w-[380px] max-w-full items-center gap-2.5 rounded-full px-3.5 text-[13px] text-ink-2 shadow-soft transition hover:text-ink active:scale-[0.99]"
+          data-clock
+          onClick={() => setCalendarOpen((o) => !o)}
+          title="Calendario"
+          className={cn(
+            'rounded-lg px-2 py-1 text-[13px] font-medium tabular-nums text-ink transition hover:bg-surface-2',
+            calendarOpen && 'bg-surface-2',
+          )}
         >
-          <Sparkles className="h-3.5 w-3.5 text-accent" strokeWidth={2} />
-          <span className="flex-1 text-left">Busca o pide algo…</span>
-          <span className="rounded-md border border-line px-1.5 py-px font-mono text-[10px] text-ink-3">Ctrl K</span>
+          {time}
         </button>
-      </div>
-
-      <div className="flex w-24 shrink-0 items-center justify-end gap-3 whitespace-nowrap text-[12px] text-ink-2 md:w-40">
-        <span className="hidden md:inline">{date}</span>
-        <span className="font-medium tabular-nums text-ink">{time}</span>
+        <AnimatePresence>{calendarOpen && <Calendar onClose={() => setCalendarOpen(false)} />}</AnimatePresence>
       </div>
     </div>
   )

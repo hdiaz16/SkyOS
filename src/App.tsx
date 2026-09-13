@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
+import { Backdrop } from './components/Backdrop'
 import { Desktop } from './components/Desktop'
 import { WindowManager } from './components/WindowManager'
 import { TopBar } from './components/TopBar'
-import { Dock } from './components/Dock'
-import { CommandPalette } from './components/CommandPalette'
+import { CommandBar } from './components/CommandBar'
 import { ContextMenu } from './components/ContextMenu'
 import { Toasts } from './components/Toasts'
 import { useSettings, applyTheme } from './state/settings'
@@ -34,10 +34,10 @@ export default function App() {
       const ui = useUi.getState()
       if (mod && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        ui.setPalette(!ui.paletteOpen)
+        ui.focusComposer()
         return
       }
-      if (isEditableTarget(e.target) || ui.paletteOpen) return
+      if (isEditableTarget(e.target)) return
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         void undoLast()
@@ -64,12 +64,12 @@ export default function App() {
   }, [])
 
   return (
-    <div className="wallpaper relative h-full w-full overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden">
+      <Backdrop />
       <Desktop />
       <WindowManager />
       <TopBar />
-      <Dock />
-      <CommandPalette />
+      <CommandBar />
       <ContextMenu />
       <Toasts />
     </div>

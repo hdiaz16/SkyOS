@@ -2,40 +2,56 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Mañana en el campo: niebla, salvia, arena, un poco de sol. */
 :root {
-  --bg-a: #eef0f4;
-  --bg-b: #e4e7ee;
-  --bg-c: #f6f1ea;
-  --ink: #18181b;
-  --ink-2: #6b6b76;
-  --ink-3: #a1a1aa;
-  --surface: rgba(255, 255, 255, 0.86);
-  --surface-2: rgba(255, 255, 255, 0.55);
-  --surface-solid: #ffffff;
-  --line: rgba(20, 20, 30, 0.08);
-  --line-2: rgba(20, 20, 30, 0.14);
-  --accent: #2f5bea;
-  --accent-soft: rgba(47, 91, 234, 0.12);
-  --danger: #d0453c;
-  --shadow: 0 24px 60px -20px rgba(20, 20, 40, 0.28), 0 2px 8px rgba(20, 20, 40, 0.06);
-  --shadow-sm: 0 8px 24px -12px rgba(20, 20, 40, 0.22), 0 1px 3px rgba(20, 20, 40, 0.05);
+  --bg-a: #e8eee8;
+  --bg-b: #f1eee6;
+  --bg-c: #dfe9e6;
+  --blob-1: #b9d4b3;
+  --blob-2: #cfe1ea;
+  --blob-3: #f3e2c4;
+  --hill-1: #dbe5db;
+  --hill-2: #cfdccf;
+  --ink: #1f2a24;
+  --ink-2: #5f6f66;
+  --ink-3: #98a69e;
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-2: rgba(255, 255, 255, 0.5);
+  --surface-solid: #fbfcfa;
+  --line: rgba(31, 42, 36, 0.08);
+  --line-2: rgba(31, 42, 36, 0.14);
+  --accent: #3d7a5a;
+  --accent-soft: rgba(61, 122, 90, 0.14);
+  --folder: #8fb996;
+  --folder-2: #a9c9ae;
+  --danger: #c25b4e;
+  --shadow: 0 24px 60px -20px rgba(31, 42, 36, 0.28), 0 2px 8px rgba(31, 42, 36, 0.06);
+  --shadow-sm: 0 8px 24px -12px rgba(31, 42, 36, 0.22), 0 1px 3px rgba(31, 42, 36, 0.05);
 }
 
+/* Noche en el bosque: musgo, índigo, luz de luna. */
 .dark {
-  --bg-a: #101114;
-  --bg-b: #15171c;
-  --bg-c: #1a1a1f;
-  --ink: #f2f2f4;
-  --ink-2: #9b9ba5;
-  --ink-3: #62626c;
-  --surface: rgba(28, 29, 34, 0.9);
-  --surface-2: rgba(40, 41, 48, 0.6);
-  --surface-solid: #1c1d22;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-2: rgba(255, 255, 255, 0.14);
-  --accent: #6d8dff;
-  --accent-soft: rgba(109, 141, 255, 0.16);
-  --danger: #ef6b62;
+  --bg-a: #0e1512;
+  --bg-b: #121b17;
+  --bg-c: #101a1c;
+  --blob-1: #1e3b30;
+  --blob-2: #1a2538;
+  --blob-3: #2b3a33;
+  --hill-1: #0d1411;
+  --hill-2: #0a100e;
+  --ink: #e6efe9;
+  --ink-2: #9db0a5;
+  --ink-3: #5f7168;
+  --surface: rgba(20, 28, 25, 0.86);
+  --surface-2: rgba(38, 50, 45, 0.6);
+  --surface-solid: #16201c;
+  --line: rgba(230, 239, 233, 0.08);
+  --line-2: rgba(230, 239, 233, 0.14);
+  --accent: #7fc8a2;
+  --accent-soft: rgba(127, 200, 162, 0.16);
+  --folder: #5f8f74;
+  --folder-2: #6fa085;
+  --danger: #e57b6e;
   --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 10px 28px -14px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
@@ -79,16 +95,70 @@ input, textarea {
 
 .glass {
   background: var(--surface);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
   border: 1px solid var(--line);
 }
 
-.wallpaper {
-  background:
-    radial-gradient(1200px 800px at 15% 10%, var(--bg-c) 0%, transparent 60%),
-    radial-gradient(1000px 700px at 85% 90%, var(--bg-b) 0%, transparent 60%),
-    linear-gradient(160deg, var(--bg-a), var(--bg-b));
+/* Fondo: cielo, luz que deriva, colinas. */
+.backdrop {
+  background: linear-gradient(170deg, var(--bg-c) 0%, var(--bg-a) 45%, var(--bg-b) 100%);
+  transition: background 600ms ease;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.75;
+  will-change: transform;
+  transition: background 600ms ease;
+}
+
+.blob-1 {
+  width: 55vw;
+  height: 55vw;
+  left: -10vw;
+  top: -20vw;
+  background: var(--blob-1);
+  animation: drift-1 70s ease-in-out infinite alternate;
+}
+
+.blob-2 {
+  width: 50vw;
+  height: 50vw;
+  right: -15vw;
+  top: 5vh;
+  background: var(--blob-2);
+  animation: drift-2 90s ease-in-out infinite alternate;
+}
+
+.blob-3 {
+  width: 40vw;
+  height: 40vw;
+  left: 30vw;
+  bottom: -20vw;
+  background: var(--blob-3);
+  animation: drift-3 110s ease-in-out infinite alternate;
+}
+
+@keyframes drift-1 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(8vw, 6vh, 0) scale(1.08); }
+}
+
+@keyframes drift-2 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-6vw, 8vh, 0) scale(0.94); }
+}
+
+@keyframes drift-3 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-5vw, -6vh, 0) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob { animation: none; }
 }
 
 .scrollbar-thin {
@@ -98,4 +168,13 @@ input, textarea {
 
 .no-drag {
   -webkit-user-drag: none;
+}
+
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.loading-bar {
+  animation: loading-bar 1.2s ease-in-out infinite;
 }

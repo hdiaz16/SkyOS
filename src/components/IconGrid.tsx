@@ -5,10 +5,12 @@ import { NodeIcon } from './NodeIcon'
 interface Props {
   nodes: FsNode[]
   onOpenFolder?: (id: string) => void
+  /** Animate reflow when items appear or disappear. Off by default so movable windows stay crisp. */
+  animateLayout?: boolean
   className?: string
 }
 
-export function IconGrid({ nodes, onOpenFolder, className }: Props) {
+export function IconGrid({ nodes, onOpenFolder, animateLayout = false, className }: Props) {
   return (
     <div
       className={className}
@@ -16,7 +18,7 @@ export function IconGrid({ nodes, onOpenFolder, className }: Props) {
     >
       <AnimatePresence initial={false}>
         {nodes.map((n) => (
-          <NodeIcon key={n.id} node={n} onOpenFolder={onOpenFolder} />
+          <NodeIcon key={n.id} node={n} onOpenFolder={onOpenFolder} animateLayout={animateLayout} />
         ))}
       </AnimatePresence>
     </div>
