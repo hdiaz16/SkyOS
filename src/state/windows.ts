@@ -43,6 +43,10 @@ interface WindowsState {
   resize: (id: string, w: number, h: number) => void
   setTitle: (id: string, title: string) => void
   setProps: (id: string, props: WindowProps) => void
+  /** Puts a previously closed window back, on top. Used by undo. */
+  restore: (win: Win) => void
+  /** Applies several geometry or state patches in one update. */
+  patchMany: (patches: Array<Partial<Win> & { id: string }>) => void
 }
 
 const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
@@ -119,4 +123,30 @@ export const useWindows = create<WindowsState>((set, get) => ({
 
   setProps: (id, props) =>
     set((s) => ({ windows: s.windows.map((w) => (w.id === id ? { ...w, props: { ...w.props, ...props } } : w)) })),
+
+  restore: (win) =>
+    set((s) =>
+      s.windows.some((w) => w.id === win.id)
+        ? s
+        : { windows: [...s.windows, { ...win, z: s.nextZ, minimized: false }], nextZ: s.nextZ + 1 },
+    ),
+
+  patchMany: (patches) =>
+    set((s) => {
+      const byId = new Map(patches.map((p) => [p.id, p]))
+      return {
+        windows: s.windows.map((w) => {
+          const p = byId.get(w.id)
+          if (!p) return w
+          const next = { ...w, ...p }
+          return {
+            ...next,
+            x: Math.round(next.x),
+            y: Math.max(28, Math.round(next.y)),
+            w: Math.max(MIN_W, Math.round(next.w)),
+            h: Math.max(MIN_H, Math.round(next.h)),
+          }
+        }),
+      }
+    }),
 }))

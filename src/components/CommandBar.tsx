@@ -7,6 +7,7 @@ import {
   FolderOpen,
   FolderPlus,
   Globe,
+  Loader2,
   Settings2,
   Sparkles,
   SunMoon,
@@ -19,11 +20,14 @@ import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { dispatch, undoLast, useToasts } from '../kernel/commands'
 import { useUi } from '../state/ui'
 import { useWindows } from '../state/windows'
+import { useSession } from '../ai/session'
+import { isAiConfigured, useAiSettings } from '../ai/settings'
 import { createFileAndOpen, createFolderAndRename, importInto } from '../lib/menus'
 import { FILE_TYPES } from '../lib/fileTypes'
 import { looksLikeUrl } from '../lib/web'
 import { cn } from '../lib/utils'
 import { KindIcon } from './KindIcon'
+import { AssistantPanel } from './AssistantPanel'
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number }>
 
@@ -48,9 +52,9 @@ const ACTIONS: Action[] = [
   })),
   { id: 'import', title: 'Importar archivos…', hint: 'desde tu computadora', keywords: ['subir', 'importar', 'upload'], icon: Upload, run: () => importInto(ROOT_ID) },
   { id: 'files', title: 'Abrir Archivos', keywords: ['explorador', 'archivos', 'carpetas', 'escritorio'], icon: FolderOpen, run: () => void dispatch('ui.openFiles') },
-  { id: 'browser', title: 'Abrir navegador', hint: 'Google', keywords: ['google', 'web', 'internet', 'navegador', 'buscar'], icon: Globe, run: () => void dispatch('ui.openBrowser') },
+  { id: 'browser', title: 'Abrir navegador', hint: 'Google', keywords: ['google', 'web', 'internet', 'navegador'], icon: Globe, run: () => void dispatch('ui.openBrowser') },
   { id: 'trash', title: 'Abrir papelera', keywords: ['papelera', 'basura', 'trash', 'borrados'], icon: Trash2, run: () => void dispatch('ui.openTrash') },
-  { id: 'settings', title: 'Ajustes', keywords: ['configuracion', 'preferencias', 'settings', 'opciones'], icon: Settings2, run: () => void dispatch('ui.openSettings') },
+  { id: 'settings', title: 'Ajustes', keywords: ['configuracion', 'preferencias', 'settings', 'opciones', 'llave', 'api'], icon: Settings2, run: () => void dispatch('ui.openSettings') },
   { id: 'theme', title: 'Cambiar tema', hint: 'sistema, claro, oscuro', keywords: ['tema', 'oscuro', 'claro', 'dark', 'light', 'modo', 'noche'], icon: SunMoon, run: () => void dispatch('ui.theme') },
   { id: 'undo', title: 'Deshacer última acción', hint: 'Ctrl Z', keywords: ['deshacer', 'undo', 'revertir'], icon: Undo2, run: () => void undoLast() },
 ]
@@ -61,6 +65,8 @@ interface Item {
   hint?: string
   icon: ReactNode
   run: () => void
+  /** Keep the input focused after running (conversational items). */
+  keepFocus?: boolean
 }
 
 const NO_FILES: FsNode[] = []
@@ -86,6 +92,12 @@ export function CommandBar() {
   const trashCount = useLiveQuery(() => fs.listTrash().then((l) => l.length), [], 0)
   const files = useLiveQuery(() => fs.search(q, 6), [q], NO_FILES)
 
+  const chatOpen = useSession((s) => s.open)
+  const chatRunning = useSession((s) => s.running)
+  const hasTurns = useSession((s) => s.turns.length > 0)
+  const aiSettings = useAiSettings()
+  const aiReady = isAiConfigured(aiSettings)
+
   useEffect(() => {
     if (focusTick > 0) {
       inputRef.current?.focus()
@@ -93,10 +105,20 @@ export function CommandBar() {
     }
   }, [focusTick])
 
+  const askMesa = (text: string) => {
+    if (aiReady) void useSession.getState().send(text)
+    else {
+      void dispatch('ui.openSettings')
+      useToasts.getState().push({ message: 'Configura tu proveedor de IA en Ajustes › Inteligencia para pedirle cosas a Mesa.', kind: 'info' })
+    }
+  }
+
   const items = useMemo<Item[]>(() => {
     const query = q.trim()
     if (!query) return []
+    const nq = norm(query)
     const isUrl = looksLikeUrl(query)
+
     const fileItems: Item[] = files.map((n) => ({
       key: `file:${n.id}`,
       title: n.name,
@@ -104,15 +126,14 @@ export function CommandBar() {
       icon: <KindIcon kind={fileKind(n)} className="h-6 w-6" />,
       run: () => void dispatch('ui.open', { id: n.id }),
     }))
-    const actionItems: Item[] = ACTIONS.filter((a) => matchAction(a, query))
-      .slice(0, 6)
-      .map((a) => ({
-        key: `action:${a.id}`,
-        title: a.title,
-        hint: a.hint,
-        icon: <a.icon className="h-[18px] w-[18px] text-ink-2" strokeWidth={1.75} />,
-        run: a.run,
-      }))
+    const matched = ACTIONS.filter((a) => matchAction(a, query)).slice(0, 6)
+    const actionItems: Item[] = matched.map((a) => ({
+      key: `action:${a.id}`,
+      title: a.title,
+      hint: a.hint,
+      icon: <a.icon className="h-[18px] w-[18px] text-ink-2" strokeWidth={1.75} />,
+      run: a.run,
+    }))
     const web: Item = {
       key: 'web',
       title: isUrl ? `Abrir ${query}` : `Buscar "${query}" en Google`,
@@ -123,18 +144,22 @@ export function CommandBar() {
     const ask: Item = {
       key: 'ask',
       title: `Pedir a Mesa: "${query}"`,
-      hint: 'Se activa en la fase 1',
+      hint: aiReady ? 'Enter' : 'Configura la IA en Ajustes',
       icon: <Sparkles className="h-[18px] w-[18px] text-accent" strokeWidth={2} />,
-      run: () =>
-        useToasts.getState().push({
-          message: 'Muy pronto Mesa entenderá lo que le pides. Estamos en la fase 0.',
-          kind: 'info',
-        }),
+      run: () => askMesa(query),
+      keepFocus: aiReady,
     }
-    return isUrl ? [web, ...fileItems, ...actionItems, ask] : [...fileItems, ...actionItems, web, ask]
-  }, [files, q])
 
-  const open = focused && q.trim().length > 0
+    const strongFile = files.length > 0 && norm(files[0].name).startsWith(nq)
+    const strongAction = matched.length > 0 && norm(matched[0].title).startsWith(nq)
+    if (isUrl) return [web, ask, ...fileItems, ...actionItems]
+    if (strongFile || strongAction) return [...fileItems, ...actionItems, ask, web]
+    if (aiReady) return [ask, ...fileItems, ...actionItems, web]
+    return [...fileItems, ...actionItems, web, ask]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, q, aiReady])
+
+  const resultsOpen = focused && !chatOpen && q.trim().length > 0
 
   useEffect(() => {
     const el = listRef.current?.children[idx] as HTMLElement | undefined
@@ -146,18 +171,34 @@ export function CommandBar() {
     item.run()
     setQ('')
     setIdx(0)
-    inputRef.current?.blur()
+    if (!item.keepFocus) inputRef.current?.blur()
   }
 
-  const placeholder =
-    selectionCount > 0
-      ? `${selectionCount} ${selectionCount === 1 ? 'elemento seleccionado' : 'elementos seleccionados'} · pide algo o busca…`
-      : 'Pide algo a Mesa, busca un archivo o navega…'
+  const submit = () => {
+    const text = q.trim()
+    if (chatOpen) {
+      if (!text || chatRunning) return
+      askMesa(text)
+      setQ('')
+      return
+    }
+    run(items[idx])
+  }
+
+  const placeholder = chatOpen
+    ? chatRunning
+      ? 'Mesa está trabajando…'
+      : 'Responde o pide algo más…'
+    : selectionCount > 0
+      ? `${selectionCount} ${selectionCount === 1 ? 'elemento seleccionado' : 'elementos seleccionados'} · pide algo sobre ellos…`
+      : aiReady
+        ? 'Pide algo a Mesa, busca un archivo o navega…'
+        : 'Busca un archivo, ejecuta una acción o navega…'
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-5 z-[100000] flex flex-col items-center gap-2">
       <AnimatePresence initial={false}>
-        {minimized.length > 0 && (
+        {minimized.length > 0 && !chatOpen && (
           <motion.div
             key="minimized"
             initial={{ opacity: 0, y: 6 }}
@@ -181,7 +222,8 @@ export function CommandBar() {
 
       <div className="relative w-[min(800px,94vw)]">
         <AnimatePresence>
-          {open && (
+          {chatOpen && <AssistantPanel key="assistant" />}
+          {resultsOpen && (
             <motion.div
               key="results"
               initial={{ opacity: 0, y: 8, scale: 0.99 }}
@@ -217,11 +259,22 @@ export function CommandBar() {
 
         <div
           className={cn(
-            'glass pointer-events-auto flex h-14 items-center gap-2 rounded-2xl pl-4 pr-2 shadow-win transition-shadow',
+            'glass pointer-events-auto flex h-14 items-center gap-2 rounded-2xl pl-3 pr-2 shadow-win transition-shadow',
             focused && 'ring-1 ring-accent/40',
           )}
         >
-          <Sparkles className="h-[18px] w-[18px] shrink-0 text-accent" strokeWidth={2} />
+          <button
+            type="button"
+            title={hasTurns ? (chatOpen ? 'Ocultar conversación' : 'Mostrar conversación') : 'Mesa'}
+            onClick={() => hasTurns && useSession.getState().setOpen(!chatOpen)}
+            className={cn(
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-accent transition',
+              hasTurns ? 'hover:bg-accent-soft' : 'cursor-default',
+              chatOpen && 'bg-accent-soft',
+            )}
+          >
+            {chatRunning ? <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2} /> : <Sparkles className="h-[18px] w-[18px]" strokeWidth={2} />}
+          </button>
           <input
             ref={inputRef}
             value={q}
@@ -233,18 +286,19 @@ export function CommandBar() {
             onBlur={() => setFocused(false)}
             onKeyDown={(e) => {
               e.stopPropagation()
-              if (e.key === 'ArrowDown') {
+              if (e.key === 'ArrowDown' && resultsOpen) {
                 e.preventDefault()
                 setIdx((i) => Math.min(i + 1, items.length - 1))
-              } else if (e.key === 'ArrowUp') {
+              } else if (e.key === 'ArrowUp' && resultsOpen) {
                 e.preventDefault()
                 setIdx((i) => Math.max(i - 1, 0))
               } else if (e.key === 'Enter') {
                 e.preventDefault()
-                run(items[idx])
+                submit()
               } else if (e.key === 'Escape') {
                 e.preventDefault()
                 if (q) setQ('')
+                else if (chatOpen) useSession.getState().setOpen(false)
                 else inputRef.current?.blur()
               }
             }}
@@ -255,10 +309,11 @@ export function CommandBar() {
           {q.trim() ? (
             <button
               type="button"
-              aria-label="Ejecutar"
+              aria-label="Enviar"
+              disabled={chatOpen && chatRunning}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => run(items[idx])}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-soft transition hover:brightness-110 active:scale-95"
+              onClick={submit}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-soft transition hover:brightness-110 active:scale-95 disabled:opacity-40"
             >
               <CornerDownLeft className="h-4 w-4" />
             </button>
@@ -283,7 +338,7 @@ export function CommandBar() {
             <DockButton label="Papelera" onClick={() => void dispatch('ui.openTrash')} badge={(trashCount ?? 0) > 0}>
               <Trash2 className="h-5 w-5" strokeWidth={1.6} />
             </DockButton>
-            <DockButton label="Ajustes" onClick={() => void dispatch('ui.openSettings')}>
+            <DockButton label="Ajustes" onClick={() => void dispatch('ui.openSettings')} badge={!aiReady}>
               <Settings2 className="h-5 w-5" strokeWidth={1.6} />
             </DockButton>
           </div>

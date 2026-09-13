@@ -1,0 +1,128 @@
+import { registerCommand } from '../commands'
+import { fs } from '../fs'
+import { ROOT_ID, fileKind, type FileKind, type FsNode } from '../types'
+import { formatBytes } from '../../lib/utils'
+
+/** Compact node description for the model: no internal fields, sizes already formatted. */
+export interface NodeSummary {
+  id: string
+  name: string
+  kind: 'folder' | 'file'
+  type?: FileKind
+  size?: string
+  updatedAt: string
+}
+
+export function summarizeNode(n: FsNode): NodeSummary {
+  return {
+    id: n.id,
+    name: n.name,
+    kind: n.kind,
+    type: n.kind === 'file' ? fileKind(n) : undefined,
+    size: n.kind === 'file' ? formatBytes(n.size) : undefined,
+    updatedAt: new Date(n.updatedAt).toISOString().slice(0, 16),
+  }
+}
+
+async function folderName(id: string): Promise<string> {
+  return id === ROOT_ID ? 'Escritorio' : (await fs.get(id))?.name ?? 'Carpeta'
+}
+
+registerCommand<{ parentId?: string }, { folder: string; items: NodeSummary[] }>({
+  id: 'fs.list',
+  title: 'Listar carpeta',
+  description: 'Lista el contenido de una carpeta. Usa "root" para el escritorio.',
+  params: { parentId: { type: 'string', description: 'Id de la carpeta. "root" es el escritorio.' } },
+  async run({ parentId = ROOT_ID }) {
+    const items = await fs.list(parentId)
+    return { result: { folder: await folderName(parentId), items: items.map(summarizeNode) } }
+  },
+})
+
+interface TreeNode {
+  id: string
+  name: string
+  files: number
+  folders: TreeNode[]
+}
+
+async function buildTree(id: string, name: string, depth: number): Promise<TreeNode> {
+  const children = await fs.list(id)
+  const files = children.filter((c) => c.kind === 'file').length
+  const folders =
+    depth > 0
+      ? await Promise.all(children.filter((c) => c.kind === 'folder').map((c) => buildTree(c.id, c.name, depth - 1)))
+      : []
+  return { id, name, files, folders }
+}
+
+registerCommand<{ depth?: number }, TreeNode>({
+  id: 'fs.overview',
+  title: 'Vista general',
+  description: 'Árbol de carpetas desde el escritorio con el número de archivos de cada una. Úsalo antes de organizar.',
+  params: { depth: { type: 'number', description: 'Profundidad máxima, de 1 a 4. Por defecto 3.' } },
+  async run({ depth = 3 }) {
+    return { result: await buildTree(ROOT_ID, 'Escritorio', Math.min(Math.max(depth, 1), 4)) }
+  },
+})
+
+registerCommand<{ id: string; maxChars?: number }, unknown>({
+  id: 'fs.read',
+  title: 'Leer archivo',
+  description:
+    'Devuelve el contenido de un archivo de texto, recortado a maxChars (por defecto 20000). Para imágenes, PDF u otros binarios devuelve solo metadatos.',
+  params: {
+    id: { type: 'string', description: 'Id del archivo.', required: true },
+    maxChars: { type: 'number', description: 'Máximo de caracteres a devolver.' },
+  },
+  async run({ id, maxChars = 20000 }) {
+    const node = await fs.get(id)
+    if (!node) throw new Error('El archivo ya no existe')
+    if (node.kind === 'folder') throw new Error('Es una carpeta; usa fs.list')
+    const type = fileKind(node)
+    if (type !== 'text') {
+      return { result: { name: node.name, type, size: formatBytes(node.size), note: 'Archivo binario, sin vista de texto.' } }
+    }
+    const text = await fs.readText(id)
+    const limit = Math.max(200, Math.min(maxChars, 200000))
+    return {
+      result: {
+        name: node.name,
+        type,
+        chars: text.length,
+        truncated: text.length > limit,
+        content: text.slice(0, limit),
+      },
+    }
+  },
+})
+
+registerCommand<{ query: string }, NodeSummary[]>({
+  id: 'fs.find',
+  title: 'Buscar por nombre',
+  description: 'Busca archivos y carpetas cuyo nombre contenga el texto dado.',
+  params: { query: { type: 'string', description: 'Texto a buscar en los nombres.', required: true } },
+  async run({ query }) {
+    return { result: (await fs.search(query, 30)).map(summarizeNode) }
+  },
+})
+
+registerCommand<{ id: string }, unknown>({
+  id: 'fs.info',
+  title: 'Detalles',
+  description: 'Metadatos de un archivo o carpeta y su ruta completa.',
+  params: { id: { type: 'string', description: 'Id del elemento.', required: true } },
+  async run({ id }) {
+    const node = await fs.get(id)
+    if (!node) throw new Error('El elemento ya no existe')
+    const path = await fs.path(id)
+    return {
+      result: {
+        ...summarizeNode(node),
+        path: ['Escritorio', ...path.map((p) => p.name)].join(' / '),
+        parentId: node.parentId,
+        createdAt: new Date(node.createdAt).toISOString().slice(0, 16),
+      },
+    }
+  },
+})

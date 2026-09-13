@@ -6,6 +6,8 @@ export type Source = 'user' | 'ai' | 'system'
 
 export interface CommandContext {
   source: Source
+  /** Groups every entry produced by one AI run so the whole run can be undone at once. */
+  runId?: string
 }
 
 export interface CommandOutcome<R = unknown> {
@@ -40,6 +42,7 @@ export interface JournalEntry {
   label: string
   at: number
   source: Source
+  runId?: string
   undo?: () => Promise<void>
   undone: boolean
 }
@@ -75,7 +78,7 @@ interface JournalState {
 
 export const useJournal = create<JournalState>((set) => ({
   entries: [],
-  push: (entry) => set((s) => ({ entries: [...s.entries.slice(-99), entry] })),
+  push: (entry) => set((s) => ({ entries: [...s.entries.slice(-199), entry] })),
   markUndone: (id) =>
     set((s) => ({ entries: s.entries.map((e) => (e.id === id ? { ...e, undone: true } : e)) })),
 }))
@@ -96,46 +99,82 @@ export const useToasts = create<ToastState>((set) => ({
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }))
 
-export async function dispatch<R = unknown>(
+export interface Execution<R> {
+  result: R
+  /** Present only when the command produced a journaled (labelled) outcome. */
+  entry?: JournalEntry
+}
+
+/** Runs a command and returns both its result and the journal entry it produced, if any. */
+export async function execute<R = unknown>(
   id: string,
   params: unknown = {},
   ctx: CommandContext = { source: 'user' },
-): Promise<R> {
+): Promise<Execution<R>> {
   const def = registry.get(id)
   if (!def) throw new Error(`Comando desconocido: ${id}`)
   try {
     const out = await def.run(params, ctx)
+    let entry: JournalEntry | undefined
     if (out.label) {
-      const entry: JournalEntry = {
+      entry = {
         id: nanoid(8),
         commandId: id,
         label: out.label,
         at: Date.now(),
         source: ctx.source,
+        runId: ctx.runId,
         undo: out.undo,
         undone: false,
       }
       useJournal.getState().push(entry)
-      useToasts.getState().push({ message: out.label, kind: 'info', entryId: out.undo ? entry.id : undefined })
+      // AI actions are already listed, with their own undo, inside the conversation panel.
+      if (ctx.source !== 'ai') {
+        useToasts.getState().push({ message: out.label, kind: 'info', entryId: out.undo ? entry.id : undefined })
+      }
     }
-    return out.result as R
+    return { result: out.result as R, entry }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Algo salió mal'
-    useToasts.getState().push({ message, kind: 'error' })
+    if (ctx.source !== 'ai') useToasts.getState().push({ message, kind: 'error' })
     throw err
   }
 }
 
-export async function undoEntry(entryId: string): Promise<boolean> {
+/** Runs a command and returns only its result. */
+export async function dispatch<R = unknown>(
+  id: string,
+  params: unknown = {},
+  ctx: CommandContext = { source: 'user' },
+): Promise<R> {
+  return (await execute<R>(id, params, ctx)).result
+}
+
+export async function undoEntry(entryId: string, quiet = false): Promise<boolean> {
   const entry = useJournal.getState().entries.find((e) => e.id === entryId)
   if (!entry || entry.undone || !entry.undo) return false
   await entry.undo()
   useJournal.getState().markUndone(entryId)
-  useToasts.getState().push({ message: `Deshecho: ${entry.label}`, kind: 'info' })
+  if (!quiet) useToasts.getState().push({ message: `Deshecho: ${entry.label}`, kind: 'info' })
   return true
 }
 
 export async function undoLast(): Promise<boolean> {
   const entry = [...useJournal.getState().entries].reverse().find((e) => !e.undone && e.undo)
   return entry ? undoEntry(entry.id) : false
+}
+
+/** Undoes every reversible entry of an AI run, newest first. Returns how many were undone. */
+export async function undoRun(runId: string): Promise<number> {
+  const entries = [...useJournal.getState().entries].reverse().filter((e) => e.runId === runId && !e.undone && e.undo)
+  let count = 0
+  for (const e of entries) {
+    if (await undoEntry(e.id, true)) count++
+  }
+  if (count) useToasts.getState().push({ message: `${count} ${count === 1 ? 'acción deshecha' : 'acciones deshechas'}`, kind: 'info' })
+  return count
+}
+
+export function runEntries(runId: string): JournalEntry[] {
+  return useJournal.getState().entries.filter((e) => e.runId === runId)
 }
