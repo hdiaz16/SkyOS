@@ -73,7 +73,9 @@ export function indexPending(signal?: AbortSignal): Promise<number> {
       for (const r of replies) {
         const item = batch.find((b) => b.node.id === r.id)
         if (!item) continue
+        const previous = await db.fileIndex.get(item.node.id)
         await db.fileIndex.put({
+          ...previous,
           nodeId: item.node.id,
           hash: item.hash,
           summary: String(r.summary ?? '').slice(0, 400),

@@ -107,7 +107,7 @@ export function PdfViewer({ win }: { win: Win }) {
         </span>
       </div>
 
-      <div ref={container} onMouseUp={onMouseUp} className="scrollbar-thin relative flex-1 overflow-auto px-6 py-4">
+      <div ref={container} onMouseUp={onMouseUp} className="scrollbar-thin relative flex-1 select-text overflow-auto px-6 py-4">
         <Document
           file={url}
           onLoadSuccess={(doc) => setPages(doc.numPages)}

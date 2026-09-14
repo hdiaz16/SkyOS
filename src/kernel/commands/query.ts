@@ -107,6 +107,21 @@ registerCommand<{ query: string }, NodeSummary[]>({
   },
 })
 
+registerCommand<{ query: string; limit?: number }, Array<{ id: string; name: string; score: number; snippet: string }>>({
+  id: 'fs.semanticSearch',
+  title: 'Buscar por significado',
+  description:
+    'Encuentra archivos por lo que dicen, no por su nombre: describe el contenido ("el reporte con los costos del servidor") y devuelve los más afines con una puntuación. Corre en el dispositivo, sin costo. Úsalo antes que fs.find cuando la persona describa un contenido.',
+  params: {
+    query: { type: 'string', description: 'Descripción del contenido buscado.', required: true },
+    limit: { type: 'number', description: 'Máximo de resultados (por defecto 8).' },
+  },
+  async run({ query, limit }) {
+    const { vectorSearch } = await import('../../ai/embeddings')
+    return { result: await vectorSearch(query, limit ?? 8) }
+  },
+})
+
 registerCommand<{ id: string }, unknown>({
   id: 'fs.info',
   title: 'Detalles',

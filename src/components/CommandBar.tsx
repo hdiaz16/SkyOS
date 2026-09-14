@@ -40,6 +40,7 @@ import { connectedApps, useMcp } from '../mcp/manager'
 import { catalogFor } from '../mcp/catalog'
 import { AppLogo } from './apps/Apps'
 import { useSemantic } from '../ai/indexer'
+import { useEmbeddings, vectorSearch, type VectorHit } from '../ai/embeddings'
 import { captureScreen, useSnap } from '../ai/snap'
 import { getProvider } from '../ai/providers'
 import { dictationAvailable, Recorder, transcribe } from '../ai/voice'
@@ -222,6 +223,24 @@ export function CommandBar() {
   const query = q.trim()
   const semanticForQuery = semantic.query === query && query.length > 0 ? semantic : null
 
+  // Local meaning search: instant, no provider. Debounced so typing stays cheap.
+  const embeddingsReady = useEmbeddings((s) => s.enabled && s.status === 'ready')
+  const [vectorHits, setVectorHits] = useState<{ query: string; hits: VectorHit[] }>({ query: '', hits: [] })
+  useEffect(() => {
+    if (!embeddingsReady || query.length < 3 || looksLikeUrl(query)) return
+    let alive = true
+    const timer = window.setTimeout(() => {
+      vectorSearch(query, 6)
+        .then((hits) => alive && setVectorHits({ query, hits }))
+        .catch(() => undefined)
+    }, 220)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+  }, [embeddingsReady, query])
+  const vectorForQuery = vectorHits.query === query ? vectorHits.hits : []
+
   const items = useMemo<Item[]>(() => {
     if (!query) return []
     const nq = norm(query)
@@ -275,6 +294,18 @@ export function CommandBar() {
       )
     }
 
+    const byName = new Set(files.map((n) => n.id))
+    const vectorItems: Item[] = vectorForQuery
+      .filter((h) => !byName.has(h.id))
+      .map((h, i) => ({
+        key: `vec:${h.id}`,
+        title: h.name,
+        hint: h.snippet ? (h.snippet.length > 70 ? `${h.snippet.slice(0, 70)}…` : h.snippet) : `${Math.round(h.score * 100)}% de afinidad`,
+        icon: <ScanSearch className="h-[18px] w-[18px] text-accent" strokeWidth={1.75} />,
+        run: () => void dispatch('ui.open', { id: h.id }),
+        section: i === 0 ? 'Por significado' : undefined,
+      }))
+
     const fileItems: Item[] = files.map((n) => ({
       key: `file:${n.id}`,
       title: n.name,
@@ -325,7 +356,7 @@ export function CommandBar() {
 
     const strongFile = files.length > 0 && norm(files[0].name).startsWith(nq)
     const strongAction = matched.length > 0 && norm(matched[0].title).startsWith(nq)
-    const head = [...calcItems, ...flowItems, ...semanticItems]
+    const head = [...calcItems, ...flowItems, ...vectorItems, ...semanticItems.filter((s) => !vectorItems.some((v) => v.key.slice(4) === s.key.slice(4)))]
     const tail = meaning ? [meaning, web] : [web]
     if (isUrl) return [...head, web, ask, ...fileItems, ...actionItems]
     if (strongFile || strongAction) return [...head, ...fileItems, ...actionItems, ask, ...tail]

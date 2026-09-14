@@ -18,6 +18,10 @@ export interface FileIndexRow {
   summary: string
   keywords: string[]
   updatedAt: number
+  /** Meaning vector of the file's text, computed on the device; absent until the local model has run. */
+  embedding?: number[]
+  /** Hash of the content the vector was computed from. */
+  embeddedHash?: string
 }
 
 /** A saved natural-language routine the user can trigger by name. */

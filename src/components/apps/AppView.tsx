@@ -219,7 +219,7 @@ function NotionView({ record }: { record: McpServerRecord }) {
             </div>
           )}
           {open && (
-            <article className="mx-auto max-w-[640px] px-6 py-5">
+            <article className="mx-auto max-w-[640px] select-text px-6 py-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <button type="button" onClick={() => setOpen(null)} className="mb-1 flex items-center gap-1 text-[11px] text-ink-3 transition hover:text-ink">

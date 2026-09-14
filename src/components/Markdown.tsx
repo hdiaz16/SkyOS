@@ -51,7 +51,7 @@ const components: Components = {
 
 export function Markdown({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={className}>
+    <div className={cn('select-text', className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
         {text}
       </ReactMarkdown>

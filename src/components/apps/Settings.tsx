@@ -38,6 +38,7 @@ import { useDialog } from '../../state/dialog'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
 import { AppsPanel } from './Apps'
+import { useEmbeddings } from '../../ai/embeddings'
 import type { Win } from '../../state/windows'
 
 const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
@@ -467,6 +468,44 @@ function AiSection() {
           Probar conexión
         </button>
       </div>
+
+      <EmbeddingsRow />
+    </div>
+  )
+}
+
+/** The on-device meaning model: one switch, one line of status. */
+function EmbeddingsRow() {
+  const state = useEmbeddings()
+  const status = !state.enabled
+    ? 'Desactivada'
+    : state.status === 'ready'
+      ? `Modelo listo · ${state.indexed} archivos con huella`
+      : state.status === 'loading'
+        ? `Descargando el modelo… ${Math.round(state.progress * 100)}%`
+        : state.status === 'error'
+          ? `No se pudo cargar el modelo${state.error ? `: ${state.error}` : ''}`
+          : 'Se prepara al abrir el escritorio'
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-ink">Búsqueda por significado en tu dispositivo</p>
+          <p className="text-[12px] text-ink-3">{status}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={state.enabled}
+          onClick={() => state.setEnabled(!state.enabled)}
+          className={cn('relative h-6 w-11 shrink-0 rounded-full transition', state.enabled ? 'bg-accent' : 'bg-line-2')}
+        >
+          <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition', state.enabled ? 'left-[22px]' : 'left-0.5')} />
+        </button>
+      </div>
+      <p className="text-[11px] leading-relaxed text-ink-3">
+        Un modelo multilingüe pequeño (una sola descarga de unos 120 MB) convierte el contenido de tus archivos de texto en huellas de significado, aquí mismo. La barra encuentra "el reporte de los costos del servidor" sin recordar el nombre, sin tokens y sin que nada salga de tu equipo.
+      </p>
     </div>
   )
 }
