@@ -95,8 +95,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // overflow-clip, not hidden: a grid or editor focusing an off-screen input can scroll a hidden box by script; a clipped one never moves.
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative h-full w-full overflow-clip">
       <Backdrop />
       <Desktop />
       <WidgetLayer />

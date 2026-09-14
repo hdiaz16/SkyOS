@@ -3,6 +3,7 @@ import { getProvider } from './providers'
 import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, useAiSettings, type AiSettingsState, type ProviderId } from './settings'
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
+import { sanitizeHistory } from './history'
 import { allTools, executeTool, type ToolExecution } from './tools'
 import { DEFAULT_MCP_BUDGET_BYTES, MIN_MCP_BUDGET_BYTES } from '../mcp/tools'
 import { AiError, type Attachment, type ChatMessage, type ServerTool, type StopReason, type ToolCallPart, type Usage } from './types'
@@ -149,7 +150,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   for (const a of opts.attachments ?? []) userParts.push(a)
   userParts.push({ type: 'text', text: opts.prompt })
 
-  const messages: ChatMessage[] = [...(opts.history ?? []).map(slimHistory), { role: 'user', parts: userParts }]
+  const messages: ChatMessage[] = [...sanitizeHistory((opts.history ?? []).map(slimHistory)), { role: 'user', parts: userParts }]
   const resultCap = () => (active.provider === 'groq' ? RESULT_CHARS.metered : RESULT_CHARS.roomy)
   const usage: Usage = { inputTokens: 0, outputTokens: 0 }
   let model = route.model

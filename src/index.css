@@ -86,7 +86,8 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  overflow: hidden;
+  /* clip, not hidden: nothing may scroll the desktop, not even scripts focusing off-screen inputs */
+  overflow: clip;
 }
 
 body {

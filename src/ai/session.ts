@@ -4,6 +4,7 @@ import { runAgent, type ToolEvent } from './agent'
 import type { Tier } from './router'
 import type { Attachment, ChatMessage, Usage } from './types'
 import { conversationStore, type StoredTurn } from './conversation'
+import { trimHistory } from './history'
 import { useNetwork, whenOnline } from '../system/network'
 
 export interface Turn {
@@ -112,7 +113,7 @@ async function condense(get: Get, set: Set): Promise<void> {
   if (condensing || running || history.length <= SUMMARY_TRIGGER) return
   condensing = true
   try {
-    const older = history.slice(0, history.length - HISTORY_KEEP)
+    const older = history.slice(0, history.length - trimHistory(history, HISTORY_KEEP).length)
     const transcript = older
       .map((m) => {
         const text = m.parts
@@ -132,7 +133,7 @@ async function condense(get: Get, set: Set): Promise<void> {
     const current = get()
     // Fold only what is still there: the person may have kept talking while the summary was being written.
     if (!text || current.history.length <= HISTORY_KEEP) return
-    set({ summary: text, history: current.history.slice(-HISTORY_KEEP) })
+    set({ summary: text, history: trimHistory(current.history, HISTORY_KEEP) })
     persist(get())
   } catch {
     // Without a summary the history simply stays at its cap; nothing is lost but tokens.
@@ -176,7 +177,7 @@ export const useSession = create<SessionState>((set, get) => ({
   say: (text) => {
     const turn: Turn = { id: nanoid(6), role: 'assistant', text, toolEvents: [], status: 'done' }
     const message: ChatMessage = { role: 'assistant', parts: [{ type: 'text', text }] }
-    set((s) => ({ open: true, turns: [...s.turns, turn], history: [...s.history, message].slice(-MAX_HISTORY_MESSAGES) }))
+    set((s) => ({ open: true, turns: [...s.turns, turn], history: trimHistory([...s.history, message], MAX_HISTORY_MESSAGES) }))
     persist(get())
   },
 
@@ -264,7 +265,7 @@ export const useSession = create<SessionState>((set, get) => ({
       set((s) => ({
         running: false,
         controller: null,
-        history: result.messages.slice(-MAX_HISTORY_MESSAGES),
+        history: trimHistory(result.messages, MAX_HISTORY_MESSAGES),
         turns: patchTurn(s.turns, replyId, {
           text: result.text,
           status: result.stopReason === 'aborted' ? 'stopped' : 'done',

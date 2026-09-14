@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Workbook } from '@fortune-sheet/react'
-import type { Cell, CellMatrix, CellWithRowAndCol, Sheet } from '@fortune-sheet/core'
+import type { Cell, CellMatrix, CellWithRowAndCol, Selection, Sheet } from '@fortune-sheet/core'
 import '@fortune-sheet/react/dist/index.css'
 import { read, utils, write, type CellObject, type WorkSheet } from 'xlsx'
-import { Loader2, Save } from 'lucide-react'
+import { Languages, Lightbulb, Loader2, Save, Sparkles, Table2 } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { useToasts } from '../../kernel/commands'
+import { useSession } from '../../ai/session'
+import { isAiConfigured, useAiSettings } from '../../ai/settings'
 import { cn } from '../../lib/utils'
 
 /**
@@ -16,6 +18,59 @@ import { cn } from '../../lib/utils'
 
 const MIN_ROWS = 40
 const MIN_COLS = 26
+/** Rows of a selection that travel to Sky at most. */
+const MAX_SELECTED_ROWS = 400
+
+interface CellRange {
+  sheetId: string
+  rows: [number, number]
+  cols: [number, number]
+  /** Where the menu floats, relative to the grid: centered on the selection, above it unless there is no room. */
+  anchor?: { x: number; y: number; below: boolean; width: number }
+}
+
+/** The grid draws the selection as an element; its box tells us where to float the menu. */
+function anchorFor(grid: HTMLElement | null): CellRange['anchor'] | undefined {
+  const el = grid?.querySelector('.luckysheet-cell-selected')
+  if (!grid || !el) return undefined
+  const box = grid.getBoundingClientRect()
+  const r = el.getBoundingClientRect()
+  const below = r.top - box.top < 110
+  return { x: r.left - box.left + r.width / 2, y: below ? r.bottom - box.top + 8 : r.top - box.top - 8, below, width: box.width }
+}
+
+type RangeIntent = 'summary' | 'table' | 'translate' | 'explain'
+
+const rangeLabel = (r: CellRange) => `${utils.encode_cell({ r: r.rows[0], c: r.cols[0] })}:${utils.encode_cell({ r: r.rows[1], c: r.cols[1] })}`
+
+/** The selected cells as tab-separated text, display strings first, values as fallback. */
+function rangeText(sheet: Sheet, r: CellRange): string {
+  const matrix = matrixOf(sheet)
+  const lines: string[] = []
+  for (let row = r.rows[0]; row <= Math.min(r.rows[1], r.rows[0] + MAX_SELECTED_ROWS - 1); row++) {
+    const cells: string[] = []
+    for (let col = r.cols[0]; col <= r.cols[1]; col++) {
+      const cell = matrix[row]?.[col]
+      cells.push(cell?.m !== undefined ? String(cell.m) : cell?.v === undefined || cell?.v === null ? '' : String(cell.v))
+    }
+    if (cells.some((c) => c !== '')) lines.push(cells.join('\t'))
+  }
+  return lines.join('\n')
+}
+
+function rangeLead(intent: RangeIntent, name: string, sheet: string, label: string): string {
+  const where = `del rango ${label} de la hoja «${sheet}» en «${name}» (columnas separadas por tabulador)`
+  switch (intent) {
+    case 'summary':
+      return `Resume estos datos ${where}: qué contienen, totales o tendencias si aplican, y lo que destaca.`
+    case 'table':
+      return `Convierte estos datos ${where} en una tabla Markdown limpia con encabezados claros; conserva los números tal cual.`
+    case 'translate':
+      return `Traduce al español los textos de estos datos ${where} (si ya están en español, al inglés), conservando la estructura por filas.`
+    case 'explain':
+      return `Explícame con claridad qué muestran estos datos ${where}.`
+  }
+}
 /** Excel column widths come in characters; FortuneSheet wants pixels. */
 const CHAR_PX = 7.5
 
@@ -90,6 +145,15 @@ function toSheetJs(sheets: Sheet[]): ArrayBuffer {
   return write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
 }
 
+function RangeAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-ink transition hover:bg-surface-2">
+      {icon}
+      {label}
+    </button>
+  )
+}
+
 export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId: string; name: string }) {
   const [sheets, setSheets] = useState<Sheet[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -98,6 +162,39 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
   const latest = useRef<Sheet[] | null>(null)
   // FortuneSheet reports a change while it lays the workbook out; only edits after that count as the person's.
   const settled = useRef(false)
+  const [range, setRange] = useState<CellRange | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const aiReady = isAiConfigured(useAiSettings())
+
+  const onSelection = (sheetId: string, s: Selection) => {
+    const edges = [s.row?.[0], s.row?.[1], s.column?.[0], s.column?.[1]]
+    if (edges.some((n) => typeof n !== 'number' || !Number.isFinite(n))) {
+      setRange(null)
+      return
+    }
+    const rows: [number, number] = [Math.min(s.row[0], s.row[1]), Math.max(s.row[0], s.row[1])]
+    const cols: [number, number] = [Math.min(s.column[0], s.column[1]), Math.max(s.column[0], s.column[1])]
+    // One cell is just the cursor; a range is something to talk about.
+    if (rows[0] === rows[1] && cols[0] === cols[1]) {
+      setRange(null)
+      return
+    }
+    // The grid paints the selection right after this hook; measure it a frame later.
+    requestAnimationFrame(() => setRange({ sheetId, rows, cols, anchor: anchorFor(gridRef.current) }))
+  }
+
+  const askAboutRange = (intent: RangeIntent) => {
+    if (!range) return
+    const sheet = latest.current?.find((s) => s.id === range.sheetId) ?? latest.current?.[0]
+    if (!sheet) return
+    const text = rangeText(sheet, range)
+    if (!text.trim()) {
+      useToasts.getState().push({ message: 'Las celdas seleccionadas están vacías.', kind: 'error' })
+      return
+    }
+    useSession.getState().setOpen(true)
+    void useSession.getState().send(`${rangeLead(intent, name, sheet.name, rangeLabel(range))}\n\n"""\n${text}\n"""`)
+  }
 
   useEffect(() => {
     let alive = true
@@ -160,7 +257,7 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
           Guardar
         </button>
       </div>
-      <div className="sheet-editor min-h-0 flex-1">
+      <div ref={gridRef} className="sheet-editor relative min-h-0 flex-1">
         <Workbook
           data={sheets}
           lang="es"
@@ -168,11 +265,27 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
           showToolbar
           showFormulaBar
           showSheetTabs
+          hooks={{ afterSelectionChange: onSelection }}
           onChange={(data) => {
             latest.current = data
             if (settled.current) setDirty(true)
           }}
         />
+        {range && aiReady && (
+          <div
+            data-selection-menu
+            style={range.anchor ? { left: Math.max(240, Math.min(range.anchor.width - 240, range.anchor.x)), top: range.anchor.y } : { left: '50%', top: 8 }}
+            className={cn('glass absolute z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-xl p-1 shadow-win', range.anchor && !range.anchor.below && '-translate-y-full')}
+          >
+            <span className="px-2 text-[11.5px] tabular-nums text-ink-3">
+              {rangeLabel(range)} · {(range.rows[1] - range.rows[0] + 1) * (range.cols[1] - range.cols[0] + 1)} celdas
+            </span>
+            <RangeAction icon={<Sparkles className="h-3.5 w-3.5" />} label="Resumir" onClick={() => askAboutRange('summary')} />
+            <RangeAction icon={<Table2 className="h-3.5 w-3.5" />} label="A tabla" onClick={() => askAboutRange('table')} />
+            <RangeAction icon={<Languages className="h-3.5 w-3.5" />} label="Traducir" onClick={() => askAboutRange('translate')} />
+            <RangeAction icon={<Lightbulb className="h-3.5 w-3.5" />} label="Explicar" onClick={() => askAboutRange('explain')} />
+          </div>
+        )}
       </div>
     </div>
   )
