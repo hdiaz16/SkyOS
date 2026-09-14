@@ -12,7 +12,8 @@ function readTheme(): Theme {
   } catch {
     /* storage unavailable */
   }
-  return 'system'
+  // Night is the default: the interface recedes and the content carries the light.
+  return 'dark'
 }
 
 export function applyTheme(theme: Theme): void {

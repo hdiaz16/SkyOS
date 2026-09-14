@@ -47,7 +47,7 @@
   --ink: #e6efe9;
   --ink-2: #9db0a5;
   --ink-3: #5f7168;
-  --surface: rgba(20, 28, 25, 0.86);
+  --surface: rgba(20, 28, 25, 0.8);
   --surface-2: rgba(38, 50, 45, 0.6);
   --surface-solid: #16201c;
   --line: rgba(230, 239, 233, 0.08);
@@ -107,6 +107,22 @@ input, textarea {
   backdrop-filter: blur(24px) saturate(1.3);
   -webkit-backdrop-filter: blur(24px) saturate(1.3);
   border: 1px solid var(--line);
+}
+
+/* At night the glass carries its own light: a faint white edge instead of a dark one, so panels float over the depth. */
+.dark .glass {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Cmd+K: the desktop steps back so the bar has the room alone. */
+.spotlight-veil {
+  background: rgba(31, 42, 36, 0.28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.dark .spotlight-veil {
+  background: rgba(6, 10, 8, 0.48);
 }
 
 /* Fondo: cielo, luz que deriva, colinas. */

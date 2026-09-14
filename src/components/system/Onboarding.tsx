@@ -44,8 +44,8 @@ const AUTONOMIES: Choice<Autonomy>[] = [
 ]
 
 const THEMES: Choice<Theme>[] = [
-  { value: 'light', label: 'Claro', hint: 'Mañana en el campo.' },
   { value: 'dark', label: 'Oscuro', hint: 'Noche en el bosque.' },
+  { value: 'light', label: 'Claro', hint: 'Mañana en el campo.' },
   { value: 'system', label: 'Según el sistema', hint: 'Cambia con tu dispositivo.' },
 ]
 
@@ -58,7 +58,7 @@ export function Onboarding() {
   const [tone, setTone] = useState<Tone>('warm')
   const [purpose, setPurpose] = useState<Purpose>('mixed')
   const [autonomy, setAutonomy] = useState<Autonomy>('act')
-  const [theme, setTheme] = useState<Theme>('light')
+  const [theme, setTheme] = useState<Theme>('dark')
   const [location, setLocation] = useState<UserLocation | null>(null)
   const [locState, setLocState] = useState<'idle' | 'asking' | 'ok' | 'denied' | 'unavailable'>('idle')
   const [city, setCity] = useState('')
