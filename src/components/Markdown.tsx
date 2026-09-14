@@ -1,7 +1,11 @@
-import { type ReactNode } from 'react'
+import { isValidElement, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '../lib/utils'
+import { Mermaid } from './Mermaid'
+
+const isMermaidCode = (child: ReactNode): boolean =>
+  isValidElement<{ className?: string }>(child) && typeof child.props.className === 'string' && child.props.className.includes('language-mermaid')
 
 /**
  * Markdown for assistant replies and app content (Notion pages, documents). GitHub-flavored: headings,
@@ -34,9 +38,14 @@ const components: Components = {
   em: ({ children }) => <em>{children}</em>,
   del: ({ children }) => <del className="text-ink-3">{children}</del>,
   img: ({ src, alt }) => (typeof src === 'string' ? <img src={src} alt={alt ?? ''} loading="lazy" className="my-2 max-h-[420px] max-w-full rounded-lg border border-line" /> : null),
-  pre: ({ children }) => <pre className="scrollbar-thin my-2 overflow-x-auto rounded-xl bg-ink/[0.06] p-3 font-mono text-[12px] leading-relaxed text-ink dark:bg-white/[0.06]">{children}</pre>,
+  pre: ({ children }) => {
+    const only = Array.isArray(children) ? children.find((c) => isValidElement(c)) : children
+    if (isMermaidCode(only)) return <div className="my-2">{children}</div>
+    return <pre className="scrollbar-thin my-2 overflow-x-auto rounded-xl bg-ink/[0.06] p-3 font-mono text-[12px] leading-relaxed text-ink dark:bg-white/[0.06]">{children}</pre>
+  },
   code: ({ children, className }) => {
     const block = typeof className === 'string' && className.startsWith('language-')
+    if (block && className.includes('language-mermaid')) return <Mermaid code={String(children)} />
     return block ? <code className="font-mono">{children}</code> : <code className="rounded bg-surface-2 px-1 py-px font-mono text-[12.5px] text-ink">{children}</code>
   },
   table: ({ children }) => (

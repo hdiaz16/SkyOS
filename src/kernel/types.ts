@@ -19,7 +19,7 @@ export interface FsNode {
 
 export const ROOT_ID = 'root'
 
-export type FileKind = 'folder' | 'text' | 'image' | 'pdf' | 'document' | 'spreadsheet' | 'presentation' | 'other'
+export type FileKind = 'folder' | 'text' | 'image' | 'pdf' | 'document' | 'spreadsheet' | 'presentation' | 'canvas' | 'other'
 
 const TEXT_EXT = new Set([
   'txt', 'md', 'markdown', 'json', 'csv', 'js', 'ts', 'tsx', 'jsx', 'html', 'css',
@@ -51,6 +51,7 @@ export function fileKind(node: Pick<FsNode, 'kind' | 'mime' | 'name'>): FileKind
   const ext = extOf(node.name)
   if (node.mime.startsWith('image/') || IMAGE_EXT.has(ext)) return 'image'
   if (node.mime === 'application/pdf' || ext === 'pdf') return 'pdf'
+  if (ext === 'canvas') return 'canvas'
   if (OFFICE_MIME[node.mime]) return OFFICE_MIME[node.mime]
   if (DOCUMENT_EXT.has(ext)) return 'document'
   if (SPREADSHEET_EXT.has(ext)) return 'spreadsheet'
@@ -76,6 +77,8 @@ export function mimeFor(name: string, fallback = ''): string {
       return 'text/html'
     case 'pdf':
       return 'application/pdf'
+    case 'canvas':
+      return 'application/x-sky-canvas+json'
     case 'png':
       return 'image/png'
     case 'jpg':

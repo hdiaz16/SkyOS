@@ -2,6 +2,7 @@ import { db, type ExtractRow } from '../../kernel/db'
 import { fs } from '../../kernel/fs'
 import { fileKind, type FileKind, type FsNode } from '../../kernel/types'
 import { useJobs } from '../jobs'
+import { canvasText } from '../../kernel/canvas'
 import type { ExtractKind } from './worker'
 
 /**
@@ -16,7 +17,7 @@ const MAX_BYTES = 40 * 1024 * 1024
 export const isExtractable = (node: FsNode): boolean => node.kind === 'file' && EXTRACTABLE.has(fileKind(node)) && node.size <= MAX_BYTES
 
 /** Whether Sky can read this file's words, now or after extracting them. */
-export const isReadable = (node: FsNode): boolean => node.kind === 'file' && (fileKind(node) === 'text' || isExtractable(node))
+export const isReadable = (node: FsNode): boolean => node.kind === 'file' && (fileKind(node) === 'text' || fileKind(node) === 'canvas' || isExtractable(node))
 
 /** Identifies the content an extract was made from without hashing the binary. */
 const stamp = (node: FsNode) => `${node.size}:${node.updatedAt}`
@@ -131,7 +132,9 @@ export async function extractedText(node: FsNode, opts: TextOptions = {}): Promi
 /** Words Sky can read from any file: text files as they are, documents through their extract. Null for images and unknown binaries. */
 export async function textOf(node: FsNode, opts: TextOptions = {}): Promise<string | null> {
   if (node.kind !== 'file') return null
-  if (fileKind(node) === 'text') return fs.readText(node.id)
+  const kind = fileKind(node)
+  if (kind === 'text') return fs.readText(node.id)
+  if (kind === 'canvas') return canvasText(await fs.readText(node.id))
   return extractedText(node, opts)
 }
 

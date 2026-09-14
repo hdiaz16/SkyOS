@@ -30,7 +30,7 @@ const nativePdf = (node: FsNode) => fileKind(node) === 'pdf' && node.size <= MAX
 /** Whether Sky can look at this file directly: text always, documents through their text, images with vision, PDFs natively or as text. */
 export function canAttach(node: FsNode): boolean {
   const kind = fileKind(node)
-  if (kind === 'text') return node.size <= MAX_TEXT_BYTES
+  if (kind === 'text' || kind === 'canvas') return node.size <= MAX_TEXT_BYTES
   if (kind === 'image') return node.size <= MAX_IMAGE_BYTES && !!getProvider()?.capabilities.vision
   return nativePdf(node) || isExtractable(node)
 }

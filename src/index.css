@@ -333,3 +333,9 @@ html.handoff-flood body,
   overflow: hidden;
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
 }
+
+/* Canvas board: a quiet dotted grid so blocks read as placed on a surface. */
+.canvas-grid {
+  background-image: radial-gradient(circle, var(--line-2) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+}

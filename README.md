@@ -57,6 +57,15 @@ internos lo conservan para no perder datos.
   120 MB) convierte los textos en vectores dentro de un Web Worker; la barra encuentra "el reporte de los costos"
   sin tokens ni red. Índice de resúmenes con un modelo rápido como segunda opinión.
 
+**Lienzo (Text-to-UI)**
+
+- Un lienzo (`.canvas`) es un tablero libre: bloques de Markdown (notas, tablas), diagramas Mermaid y HTML
+  aislado, que se arrastran, redimensionan y editan en su sitio. Sky lo arma desde una frase ("arma el plan
+  con un diagrama de fases y una tabla de costos") con `canvas.create`, y lo extiende o corrige con
+  `canvas.addBlocks`, `canvas.updateBlock`, `canvas.removeBlock` y `canvas.read`; todo deshacible.
+- Mermaid se dibuja también en las respuestas de Sky, en notas y en páginas de Notion (```mermaid), con la paleta
+  del tema. La librería se carga solo la primera vez que aparece un diagrama.
+
 **Agentes de fondo**
 
 - Los documentos se leen solos al llegar: un Web Worker extrae el texto de PDF (pdf.js), Word y PowerPoint

@@ -27,7 +27,7 @@ registerCommand<{ parentId?: string; type?: string; name?: string; content?: str
   id: 'fs.createFile',
   title: 'Nuevo archivo',
   description:
-    'Crea un archivo de texto de un tipo dado (note = Markdown, text, csv, json, html, script) con contenido opcional.',
+    'Crea un archivo de un tipo dado (note = Markdown, text, csv, json, html, script; canvas = lienzo visual, mejor con canvas.create) con contenido opcional.',
   params: {
     parentId: { type: 'string', description: 'Carpeta destino. "root" es el escritorio.' },
     type: { type: 'string', description: 'Tipo de archivo.', enum: FILE_TYPE_IDS },

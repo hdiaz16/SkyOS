@@ -1,4 +1,4 @@
-import { Braces, CodeXml, File, FileArchive, FileAudio, FileImage, FileText, FileVideo, Table, Type, type LucideIcon } from 'lucide-react'
+import { Braces, CodeXml, File, FileArchive, FileAudio, FileImage, FileText, FileVideo, LayoutDashboard, Table, Type, type LucideIcon } from 'lucide-react'
 import { extOf, type FileKind } from '../kernel/types'
 
 /**
@@ -131,6 +131,7 @@ const BY_KIND: Record<Exclude<FileKind, 'folder'>, Glyph> = {
   document: { glyph: FileText, color: '#185ABD', label: 'Documento' },
   spreadsheet: { glyph: Table, color: '#107C41', label: 'Hoja de cálculo' },
   presentation: { glyph: File, color: '#C43E1C', label: 'Presentación' },
+  canvas: { glyph: LayoutDashboard, color: '#4A8A68', label: 'Lienzo' },
   other: { glyph: File, color: '#6B7280', label: 'Archivo' },
 }
 

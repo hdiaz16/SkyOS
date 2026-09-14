@@ -12,6 +12,7 @@ import { TrashApp } from './apps/Trash'
 import { SettingsApp } from './apps/Settings'
 import { OfficeViewer } from './apps/OfficeViewer'
 import { AppView } from './apps/AppView'
+import { CanvasApp } from './apps/Canvas'
 
 function renderApp(win: Win) {
   switch (win.app) {
@@ -37,6 +38,8 @@ function renderApp(win: Win) {
       return <OfficeViewer win={win} />
     case 'app':
       return <AppView win={win} />
+    case 'canvas':
+      return <CanvasApp win={win} />
   }
 }
 

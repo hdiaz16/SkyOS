@@ -9,6 +9,7 @@ export interface FileType {
 
 export const FILE_TYPES: FileType[] = [
   { id: 'note', label: 'Nota', ext: 'md', mime: 'text/markdown', defaultName: 'Nota', template: '' },
+  { id: 'canvas', label: 'Lienzo', ext: 'canvas', mime: 'application/x-sky-canvas+json', defaultName: 'Lienzo', template: '{\n  "version": 1,\n  "blocks": []\n}\n' },
   { id: 'text', label: 'Texto', ext: 'txt', mime: 'text/plain', defaultName: 'Texto', template: '' },
   { id: 'csv', label: 'Datos (CSV)', ext: 'csv', mime: 'text/csv', defaultName: 'Datos', template: 'columna_1,columna_2,columna_3\n' },
   { id: 'json', label: 'JSON', ext: 'json', mime: 'application/json', defaultName: 'Datos', template: '{\n  \n}\n' },

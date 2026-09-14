@@ -36,6 +36,9 @@ registerCommand<{ id: string }, void>({
       case 'presentation':
         wm.open('office', { title: node.name, props: { nodeId: id } })
         break
+      case 'canvas':
+        wm.open('canvas', { title: node.name, props: { nodeId: id } })
+        break
       default:
         throw new Error(`Todavía no hay un visor para "${node.name}"`)
     }
