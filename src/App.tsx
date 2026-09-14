@@ -10,6 +10,7 @@ import { PromptDialog } from './components/PromptDialog'
 import { SnapOverlay } from './components/SnapOverlay'
 import { Toasts } from './components/Toasts'
 import { AiBackground } from './components/AiBackground'
+import { Departure } from './components/system/Departure'
 import { useSettings, applyTheme } from './state/settings'
 import { useUi } from './state/ui'
 import { dispatch, undoLast } from './kernel/commands'
@@ -83,6 +84,7 @@ export default function App() {
       <SnapOverlay />
       <Toasts />
       <AiBackground />
+      <Departure />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { useToasts } from '../kernel/commands'
+import { useWindows } from '../state/windows'
 import { CATALOG, catalogFor } from './catalog'
 import {
   accountFromIdToken,
@@ -36,10 +37,15 @@ interface McpState {
   servers: McpServerRecord[]
   /** What each busy server is doing right now, for the panel. */
   busy: Record<string, string | undefined>
+  /** Name of the app whose authorization page the tab is about to leave for. */
+  leaving?: string
   loaded: boolean
 }
 
 export const useMcp = create<McpState>(() => ({ servers: [], busy: {}, loaded: false }))
+
+/** A beat for the departure notice to be read before the tab leaves. */
+const DEPARTURE_MS = 1100
 
 /* ---------- records ---------- */
 
@@ -225,6 +231,8 @@ export const mcp = {
         const entry = record.catalogId ? catalogFor(record.catalogId) : undefined
         const resource = prm?.resource ?? canonicalResource(record.url)
         const scopes = chooseScopes(challenge, prm, entry?.preferredScopes, [...(record.auth?.scopes ?? []), ...extraScopes])
+        useMcp.setState({ leaving: record.name })
+        await new Promise((r) => window.setTimeout(r, DEPARTURE_MS))
         const tokens = await authorize({ serverId: record.id, as, client, resource, scopes })
         record = (await patch(record.id, { auth: { issuer, resource, scopes, tokens }, account: accountFromIdToken(tokens.idToken) ?? record.account })) ?? record
         setBusy(id, 'Leyendo herramientas…')
@@ -232,6 +240,9 @@ export const mcp = {
         const { tools, ttlMs } = await fetchTools(record, tokens.accessToken)
         return await finishConnect(record, tools, ttlMs)
       }
+    } catch (err) {
+      useMcp.setState({ leaving: undefined })
+      throw err
     } finally {
       setBusy(id, undefined)
     }
@@ -371,21 +382,24 @@ async function keepAlive(): Promise<void> {
   }
 }
 
-/** After a full-page redirect (popup blocked), the callback left its parameters behind; finish the flow. */
+/** Back from the authorization page: the callback left its parameters behind; finish the flow where the person left off. */
 async function resumeRedirect(): Promise<void> {
   const params = takeRedirectResult()
   const pending = readPending()
   if (!params || !pending) return
   const record = await mcpStore.servers.get(pending.serverId)
   if (!record) return
+  const wm = useWindows.getState()
+  const win = wm.open('settings', { singleton: true, props: { section: 'apps', app: record.id } })
+  wm.setProps(win, { section: 'apps', app: record.id })
   try {
     const tokens = await redeem(pending, params)
     await patch(record.id, {
       auth: { issuer: pending.issuer, resource: pending.resource, scopes: pending.scopes, tokens },
       account: accountFromIdToken(tokens.idToken) ?? record.account,
     })
-    await mcp.connect(record.id)
-    useToasts.getState().push({ message: `${record.name} conectado`, kind: 'info' })
+    const done = await mcp.connect(record.id)
+    useToasts.getState().push({ message: `${done.name} conectado · ${done.tools?.length ?? 0} herramientas`, kind: 'info' })
   } catch (err) {
     useToasts.getState().push({ message: err instanceof Error ? err.message : `No se pudo conectar ${record.name}`, kind: 'error' })
   }

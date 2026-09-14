@@ -39,14 +39,19 @@ export function sessionSuffix(): string {
   return s ? `:${s.userId}` : ''
 }
 
-/** Signs in and reloads so every module boots against this user's stores. */
-export function startSession(info: SessionInfo, entrance: Entrance = 'plain'): void {
-  localStorage.setItem(KEY, JSON.stringify(info))
+/** Marks the next page load as a hand-over (no splash): signing in, or coming back from an authorization page. */
+export function markHandoff(entrance: Entrance): void {
   try {
     sessionStorage.setItem(HANDOFF_KEY, entrance)
   } catch {
     // Without sessionStorage the next page simply boots with its splash.
   }
+}
+
+/** Signs in and reloads so every module boots against this user's stores. */
+export function startSession(info: SessionInfo, entrance: Entrance = 'plain'): void {
+  localStorage.setItem(KEY, JSON.stringify(info))
+  markHandoff(entrance)
   window.location.reload()
 }
 

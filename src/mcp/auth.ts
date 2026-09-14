@@ -294,7 +294,7 @@ export async function authorize(input: AuthorizeInput): Promise<OAuthTokens> {
   }
 
   try {
-    const params = await authorizeInBrowser(url.toString(), pending.state)
+    const params = await authorizeInBrowser(url.toString())
     return await redeem(pending, params)
   } catch (err) {
     clearPending()
