@@ -10,7 +10,6 @@ import { ResultApp } from './apps/Result'
 import { TerminalApp } from './apps/Terminal'
 import { TrashApp } from './apps/Trash'
 import { SettingsApp } from './apps/Settings'
-import { AppsApp } from './apps/Apps'
 
 function renderApp(win: Win) {
   switch (win.app) {
@@ -31,9 +30,7 @@ function renderApp(win: Win) {
     case 'trash':
       return <TrashApp />
     case 'settings':
-      return <SettingsApp />
-    case 'apps':
-      return <AppsApp win={win} />
+      return <SettingsApp win={win} />
   }
 }
 

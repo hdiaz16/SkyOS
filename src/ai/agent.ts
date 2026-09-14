@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { getProvider } from './providers'
-import { useAiSettings } from './settings'
+import { presetFor, useAiSettings, type AiSettingsState } from './settings'
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
 import { allTools, executeTool, type ToolExecution } from './tools'
@@ -51,6 +51,37 @@ export interface AgentResult {
 }
 
 const MAX_ITERATIONS = 16
+const MAX_RETRIES = 2
+const BASE_BACKOFF_MS = 1500
+const MAX_WAIT_MS = 20_000
+
+/** Sibling models of the same provider, each with its own rate-limit quota, most capable first, none tried yet. */
+function nextModel(settings: AiSettingsState, current: string, tried: Set<string>, needsTools: boolean): string | undefined {
+  const preset = presetFor(settings.provider)
+  const order = [preset.tiers?.deep, preset.tiers?.balanced, preset.tiers?.fast, ...preset.models.map((m) => m.id)].filter((id): id is string => !!id)
+  return order.find((id) => id !== current && !tried.has(id) && (!needsTools || preset.models.find((m) => m.id === id)?.tools !== false))
+}
+
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const t = window.setTimeout(resolve, ms)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        window.clearTimeout(t)
+        resolve()
+      },
+      { once: true },
+    )
+  })
+}
+
+/** Older turns keep their words but not the desktop snapshot they carried: it is stale, and it is expensive. */
+function withoutSnapshot(m: ChatMessage): ChatMessage {
+  if (m.role !== 'user') return m
+  const parts = m.parts.filter((p) => !(p.type === 'text' && p.text.startsWith('<estado>')))
+  return parts.length ? { ...m, parts } : m
+}
 
 /**
  * One request from the user, resolved to completion: the model streams text, calls tools through the
@@ -77,7 +108,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   for (const a of opts.attachments ?? []) userParts.push(a)
   userParts.push({ type: 'text', text: opts.prompt })
 
-  const messages: ChatMessage[] = [...(opts.history ?? []), { role: 'user', parts: userParts }]
+  const messages: ChatMessage[] = [...(opts.history ?? []).map(withoutSnapshot), { role: 'user', parts: userParts }]
+  let model = route.model
+  const tried = new Set<string>([route.model])
   const toolEvents: ToolEvent[] = []
   let text = ''
   let stopReason: StopReason = 'other'
@@ -87,34 +120,59 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     const calls: ToolCallPart[] = []
     let refusal: string | undefined
 
-    for await (const ev of provider.chat({
-      model: route.model,
-      system,
-      messages,
-      tools,
-      serverTools: provider.capabilities.serverWebFetch ? opts.serverTools : undefined,
-      effort: settings.effort,
-      maxTokens: opts.maxTokens,
-      signal: opts.signal,
-    })) {
-      switch (ev.type) {
-        case 'text':
-          text += ev.delta
-          emit({ type: 'text', delta: ev.delta })
-          break
-        case 'tool_call':
-          calls.push(ev.call)
-          break
-        case 'server_tool':
-          emit({ type: 'status', message: ev.name === 'web_fetch' ? 'Leyendo la página…' : 'Buscando en la web…' })
-          break
-        case 'done':
-          assistant = ev.assistant
-          stopReason = ev.stopReason
-          refusal = ev.refusal
-          break
-        case 'error':
-          throw ev.error
+    // One model request, with patience: in automatic mode a model whose minute is used up hands over to a
+    // sibling with its own quota; otherwise a transient failure waits as long as the provider asked and retries.
+    let attempt = 0
+    for (;;) {
+      let streamed = false
+      calls.length = 0
+      try {
+        for await (const ev of provider.chat({
+          model,
+          system,
+          messages,
+          tools,
+          serverTools: provider.capabilities.serverWebFetch ? opts.serverTools : undefined,
+          effort: settings.effort,
+          maxTokens: opts.maxTokens,
+          signal: opts.signal,
+        })) {
+          switch (ev.type) {
+            case 'text':
+              streamed = true
+              text += ev.delta
+              emit({ type: 'text', delta: ev.delta })
+              break
+            case 'tool_call':
+              calls.push(ev.call)
+              break
+            case 'server_tool':
+              emit({ type: 'status', message: ev.name === 'web_fetch' ? 'Leyendo la página…' : 'Buscando en la web…' })
+              break
+            case 'done':
+              assistant = ev.assistant
+              stopReason = ev.stopReason
+              refusal = ev.refusal
+              break
+            case 'error':
+              throw ev.error
+          }
+        }
+        break
+      } catch (err) {
+        if (!(err instanceof AiError) || !err.retryable || streamed || opts.signal?.aborted) throw err
+        const next = route.auto ? nextModel(settings, model, tried, tools.length > 0) : undefined
+        if (next) {
+          tried.add(model)
+          model = next
+          attempt = 0
+          emit({ type: 'model', model, tier: route.tier })
+          continue
+        }
+        if (attempt >= MAX_RETRIES) throw err
+        attempt++
+        emit({ type: 'status', message: 'Sky está esperando su turno…' })
+        await pause(Math.min(err.retryAfterMs ?? BASE_BACKOFF_MS * 2 ** attempt, MAX_WAIT_MS), opts.signal)
       }
     }
 
@@ -150,5 +208,5 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     if (text) text += '\n\n'
   }
 
-  return { runId, text: text.trim(), stopReason, messages, toolEvents, model: route.model, tier: route.tier }
+  return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier }
 }

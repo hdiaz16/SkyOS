@@ -96,6 +96,23 @@ export async function listModels(baseUrl: string, apiKey?: string, shared = fals
   return ids.filter((id) => !skip.test(id)).sort()
 }
 
+/** Milliseconds the server asked us to wait: Retry-After (seconds or a date) or a rate-limit reset like "1m26.4s" / "712ms". */
+function retryAfterFrom(headers: Headers): number | undefined {
+  const retryAfter = headers.get('retry-after')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (!Number.isNaN(seconds)) return Math.max(0, seconds * 1000)
+    const at = Date.parse(retryAfter)
+    if (!Number.isNaN(at)) return Math.max(0, at - Date.now())
+  }
+  const reset = headers.get('x-ratelimit-reset-tokens') ?? headers.get('x-ratelimit-reset-requests')
+  if (!reset) return undefined
+  const unit = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 } as const
+  let ms = 0
+  for (const m of reset.matchAll(/([\d.]+)\s*(ms|s|m|h)/g)) ms += Number(m[1]) * unit[m[2] as keyof typeof unit]
+  return ms || undefined
+}
+
 export function createOpenAICompatProvider(cfg: Config): AiProvider {
   const base = cfg.baseUrl.replace(/\/+$/, '')
 
@@ -122,6 +139,8 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
             }
           : {}),
         max_tokens: req.maxTokens ?? 8000,
+        // gpt-oss reasons before answering; the person's effort setting decides how much.
+        ...(/gpt-oss/.test(req.model) && req.effort ? { reasoning_effort: req.effort } : {}),
       }
 
       let res: Response
@@ -137,14 +156,22 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
       }
 
       if (!res.ok || !res.body) {
+        const retryAfterMs = retryAfterFrom(res.headers)
+        const transient = res.status === 429 || res.status >= 500
         if (cfg.shared) {
-          yield { type: 'error', error: sharedKeyBusy() }
+          yield { type: 'error', error: sharedKeyBusy(res.status, retryAfterMs) }
           return
         }
         const detail = await res.text().catch(() => '')
         const msg =
-          res.status === 401 ? `La llave de ${cfg.name} no es válida.` : res.status === 404 ? `El modelo "${req.model}" no existe en ${cfg.name}.` : `${cfg.name} respondió ${res.status}. ${detail.slice(0, 200)}`
-        yield { type: 'error', error: new AiError(msg, res.status >= 500 || res.status === 429) }
+          res.status === 401
+            ? `La llave de ${cfg.name} no es válida.`
+            : res.status === 404
+              ? `El modelo "${req.model}" no existe en ${cfg.name}.`
+              : res.status === 429
+                ? `${cfg.name} está limitando las solicitudes en este momento.`
+                : `${cfg.name} respondió ${res.status}. ${detail.slice(0, 200)}`
+        yield { type: 'error', error: new AiError(msg, transient, { status: res.status, retryAfterMs }) }
         return
       }
 

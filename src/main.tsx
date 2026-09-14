@@ -19,6 +19,8 @@ import { flows } from './kernel/flows'
 import { calculate } from './lib/calc'
 import { useAuth } from './system/auth'
 import { users } from './system/users'
+import { mcp, useMcp } from './mcp/manager'
+import { discoverAuthorizationServer, discoverProtectedResource, obtainClient, parseChallenge } from './mcp/auth'
 
 if (import.meta.env.DEV) {
   // Debug handle: window.mesa.dispatch('fs.createFolder', { name: 'Demo' })
@@ -35,6 +37,7 @@ if (import.meta.env.DEV) {
       useJournal,
       ai: { useSession, useAiSettings, useTasks, useSnap, commandTools },
       system: { useAuth, users },
+      mcp: { mcp, useMcp, auth: { parseChallenge, discoverProtectedResource, discoverAuthorizationServer, obtainClient } },
     },
   })
 }

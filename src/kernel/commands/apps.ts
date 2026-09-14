@@ -36,10 +36,12 @@ registerCommand<Record<string, never>, AppStatus[]>({
 registerCommand<{ app?: string }, void>({
   id: 'ui.openApps',
   title: 'Abrir apps conectadas',
-  description: 'Abre el panel de apps conectadas, donde la persona autoriza Notion, Slack, Google, GitHub, Spotify y otros servidores MCP. Úsalo cuando pida algo de una app que no está conectada. Con "app" resalta esa app.',
+  description: 'Abre Ajustes en Apps conectadas, donde la persona autoriza Notion, Slack, Google, Gmail, GitHub, Spotify y otros servidores MCP. Úsalo cuando pida algo de una app que no está conectada. Con "app" resalta esa app.',
   params: { app: { type: 'string', description: 'Id de la app a resaltar (p. ej. notion, slack, gmail).' } },
   async run({ app }) {
-    useWindows.getState().open('apps', { singleton: true, props: { app } })
+    const wm = useWindows.getState()
+    const id = wm.open('settings', { singleton: true, props: { section: 'apps', app } })
+    wm.setProps(id, { section: 'apps', app })
     return { result: undefined }
   },
 })

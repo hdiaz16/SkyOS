@@ -2,15 +2,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, ChevronDown, ExternalLink, LayoutGrid, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useToasts } from '../../kernel/commands'
-import type { Win } from '../../state/windows'
 import { CATALOG, CATEGORIES, categoryFor, type CatalogEntry, type CategoryId } from '../../mcp/catalog'
 import { mcp, useMcp } from '../../mcp/manager'
 import { McpError, type McpServerRecord } from '../../mcp/types'
 import { cn } from '../../lib/utils'
 
 /**
- * Apps conectadas. Opens on categories (what you want to reach), then the apps inside; a flat list is one
- * click away for people who prefer it. Connecting is one consent screen; Sky keeps the session alive.
+ * Apps conectadas, inside Ajustes. Opens on categories (what you want to reach), then the apps inside; the
+ * flat list is one click away. Connecting is one consent screen; Sky keeps the session alive afterwards.
  */
 
 type View = { kind: 'categories' } | { kind: 'category'; id: CategoryId } | { kind: 'all' }
@@ -46,52 +45,53 @@ function itemsFrom(servers: McpServerRecord[]): AppItem[] {
 
 const isConnected = (r?: McpServerRecord) => !!r && r.status !== 'disconnected'
 
-export function AppsApp({ win }: { win: Win }) {
+export function AppsPanel({ highlight }: { highlight?: string }) {
   const servers = useMcp((s) => s.servers)
   const items = useMemo(() => itemsFrom(servers), [servers])
-  const highlight = win.props.app
   const [view, setView] = useState<View>(() => {
     const target = highlight ? CATALOG.find((c) => c.id === highlight) : undefined
     return target ? { kind: 'category', id: target.category } : { kind: 'categories' }
   })
 
-  return (
-    <div className="scrollbar-thin h-full overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-[560px] flex-col gap-5">
-        <header className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            {view.kind !== 'categories' && (
-              <button type="button" onClick={() => setView({ kind: 'categories' })} aria-label="Volver a categorías" className="mt-1 flex h-7 w-7 items-center justify-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink">
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            )}
-            <div>
-              <h1 className="font-display text-[22px] font-bold tracking-tight text-ink">
-                {view.kind === 'category' ? categoryFor(view.id).name : view.kind === 'all' ? 'Todas las apps' : 'Apps conectadas'}
-              </h1>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">
-                {view.kind === 'category'
-                  ? categoryFor(view.id).tagline
-                  : 'Conéctalas una vez. Sky guarda el acceso en tu cuenta de este navegador y lo renueva solo, sin volver a pedirte entrar.'}
-              </p>
-            </div>
-          </div>
-          {view.kind === 'categories' && (
-            <button type="button" onClick={() => setView({ kind: 'all' })} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Ver todas
-            </button>
-          )}
-        </header>
+  // A new highlight (from ui.openApps) moves the view to its category; adopted during render, not in an effect.
+  const [seenHighlight, setSeenHighlight] = useState(highlight)
+  if (highlight !== seenHighlight) {
+    setSeenHighlight(highlight)
+    const target = highlight ? CATALOG.find((c) => c.id === highlight) : undefined
+    if (target) setView({ kind: 'category', id: target.category })
+  }
 
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={view.kind === 'category' ? view.id : view.kind} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }} transition={{ duration: 0.22 }}>
-            {view.kind === 'categories' && <CategoryGrid items={items} onOpen={(id) => setView({ kind: 'category', id })} />}
-            {view.kind === 'category' && <AppList items={items.filter((i) => i.category === view.id)} category={view.id} highlight={highlight} />}
-            {view.kind === 'all' && <AppList items={items} highlight={highlight} grouped />}
-          </motion.div>
-        </AnimatePresence>
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex min-h-[28px] items-center justify-between gap-3">
+        {view.kind === 'categories' ? (
+          <p className="text-[12px] text-ink-3">Elige por lo que quieres hacer.</p>
+        ) : (
+          <button type="button" onClick={() => setView({ kind: 'categories' })} className="flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-2.5 text-[13px] font-medium text-ink transition hover:bg-surface-2">
+            <ArrowLeft className="h-4 w-4" />
+            {view.kind === 'category' ? categoryFor(view.id).name : 'Todas las apps'}
+          </button>
+        )}
+        {view.kind === 'categories' && (
+          <button type="button" onClick={() => setView({ kind: 'all' })} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Ver todas
+          </button>
+        )}
       </div>
+
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={view.kind === 'category' ? view.id : view.kind} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }} transition={{ duration: 0.22 }}>
+          {view.kind === 'categories' && <CategoryGrid items={items} onOpen={(id) => setView({ kind: 'category', id })} />}
+          {view.kind === 'category' && (
+            <div className="flex flex-col gap-3">
+              <p className="text-[12px] text-ink-3">{categoryFor(view.id).tagline}</p>
+              <AppList items={items.filter((i) => i.category === view.id)} category={view.id} highlight={highlight} />
+            </div>
+          )}
+          {view.kind === 'all' && <AppList items={items} highlight={highlight} grouped />}
+        </motion.div>
+      </AnimatePresence>
     </div>
   )
 }
@@ -111,12 +111,12 @@ function CategoryGrid({ items, onOpen }: { items: AppItem[]; onOpen: (id: Catego
             onClick={() => onOpen(cat.id)}
             className="group flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-line-2 hover:bg-surface-2"
           >
-            <div className="flex items-center -space-x-1.5">
+            <div className="flex items-center gap-1.5">
               {inCat.slice(0, 4).map((i) => (
-                <Badge key={i.id} color={i.color} abbr={i.abbr} size={28} ring />
+                <AppLogo key={i.id} item={i} size={30} />
               ))}
               {cat.id === 'custom' && (
-                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-line-2 bg-surface text-ink-3">
+                <span className="flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-dashed border-line-2 text-ink-3">
                   <Plus className="h-3.5 w-3.5" />
                 </span>
               )}
@@ -211,7 +211,7 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
   return (
     <div ref={ref} className={cn('rounded-2xl border bg-surface p-4 transition', highlighted ? 'border-accent ring-1 ring-accent/40' : 'border-line')}>
       <div className="flex items-start gap-3">
-        <Badge color={item.color} abbr={item.abbr} size={40} />
+        <AppLogo item={item} size={44} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-[15px] font-medium text-ink">{item.name}</p>
@@ -236,7 +236,11 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
           {connected && (
             <p className="mt-1.5 text-[12px] text-ink-3">
               {record?.account?.name ? `Como ${record.account.name}${record.account.email ? ` · ${record.account.email}` : ''} · ` : ''}
-              {record?.auth?.tokens?.refreshToken ? 'La sesión se renueva sola' : record?.auth?.tokens?.expiresAt ? `Sesión válida hasta ${new Date(record.auth.tokens.expiresAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}` : 'La sesión no caduca'}
+              {record?.auth?.tokens?.refreshToken
+                ? 'La sesión se renueva sola'
+                : record?.auth?.tokens?.expiresAt
+                  ? `Sesión válida hasta ${new Date(record.auth.tokens.expiresAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}`
+                  : 'La sesión no caduca'}
             </p>
           )}
           {attention && <p className="mt-1.5 text-[12px] leading-relaxed text-amber-700 dark:text-amber-400">{attention}</p>}
@@ -291,7 +295,7 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
       </div>
 
       {showTools && record?.tools && (
-        <ul className="mt-3 flex max-h-60 flex-col gap-1 overflow-y-auto rounded-xl bg-surface-2 p-3 scrollbar-thin">
+        <ul className="scrollbar-thin mt-3 flex max-h-60 flex-col gap-1 overflow-y-auto rounded-xl bg-surface-2 p-3">
           {record.tools.map((t) => (
             <li key={t.name} className="text-[12px] leading-relaxed">
               <span className="font-medium text-ink">{t.title ?? t.name}</span>
@@ -421,13 +425,21 @@ function AddServer() {
 
 /* ---------- pieces ---------- */
 
-export function Badge({ color, abbr, size, ring }: { color: string; abbr: string; size: number; ring?: boolean }) {
+/** The app's official mark on a small tile; custom servers get their initials on a neutral disc. */
+export function AppLogo({ item, size }: { item: Pick<AppItem, 'id' | 'name' | 'color' | 'abbr' | 'entry'>; size: number }) {
+  if (!item.entry) {
+    return (
+      <span
+        className="flex shrink-0 items-center justify-center rounded-xl font-display font-bold text-white"
+        style={{ width: size, height: size, background: item.color, fontSize: Math.round(size * 0.34), letterSpacing: '-0.02em' }}
+      >
+        {item.abbr}
+      </span>
+    )
+  }
   return (
-    <span
-      className={cn('flex shrink-0 items-center justify-center rounded-full font-display font-bold text-white', ring && 'ring-2 ring-surface')}
-      style={{ width: size, height: size, background: color, fontSize: Math.round(size * 0.36), letterSpacing: '-0.02em' }}
-    >
-      {abbr}
+    <span className="flex shrink-0 items-center justify-center rounded-xl border border-line bg-white shadow-soft" style={{ width: size, height: size, padding: Math.round(size * 0.18) }}>
+      <img src={`/brands/${item.id}.svg`} alt={`Logo de ${item.name}`} className="h-full w-full object-contain" draggable={false} />
     </span>
   )
 }
@@ -438,28 +450,5 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-[11px] font-medium text-ink-2">{label}</span>
       {children}
     </label>
-  )
-}
-
-/** Compact summary for Ajustes: who is connected, and a way in. */
-export function AppsSummary({ onOpen }: { onOpen: () => void }) {
-  const servers = useMcp((s) => s.servers)
-  const items = useMemo(() => itemsFrom(servers).filter((i) => isConnected(i.record)), [servers])
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-line p-4">
-      <div className="flex items-center -space-x-1.5">
-        {items.slice(0, 5).map((i) => (
-          <Badge key={i.id} color={i.color} abbr={i.abbr} size={28} ring />
-        ))}
-        {items.length === 0 && <Badge color={CUSTOM_COLOR} abbr="+" size={28} />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] text-ink">{items.length ? `${items.length} conectada${items.length === 1 ? '' : 's'}` : 'Ninguna conectada'}</p>
-        <p className="truncate text-[12px] text-ink-3">{items.length ? items.map((i) => i.name).join(', ') : 'Notion, Slack, Google, Gmail, GitHub, Spotify y cualquier servidor MCP.'}</p>
-      </div>
-      <button type="button" onClick={onOpen} className="shrink-0 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
-        Abrir
-      </button>
-    </div>
   )
 }

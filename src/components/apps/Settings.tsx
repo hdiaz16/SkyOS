@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   HardDrive,
+  Info,
   Loader2,
   LogOut,
   Monitor,
@@ -36,7 +37,8 @@ import { users } from '../../system/users'
 import { useDialog } from '../../state/dialog'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
-import { AppsSummary } from './Apps'
+import { AppsPanel } from './Apps'
+import type { Win } from '../../state/windows'
 
 const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'Sistema', icon: Monitor },
@@ -50,9 +52,97 @@ const EFFORTS: { value: Effort; label: string; hint: string }[] = [
   { value: 'high', label: 'Profunda', hint: 'Piensa más antes de actuar; tarda más' },
 ]
 
-export function SettingsApp() {
+type SectionId = 'account' | 'ai' | 'apps' | 'flows' | 'appearance' | 'storage' | 'about'
+
+interface SectionMeta {
+  id: SectionId
+  label: string
+  title: string
+  description: string
+  icon: typeof UserRound
+}
+
+/** The map of Ajustes: every area with a name, what it is for and an icon, in the order they appear. */
+const SECTIONS: SectionMeta[] = [
+  { id: 'account', label: 'Cuenta', title: 'Tu cuenta', description: 'Quién eres en este navegador: tu nombre, tu ubicación, tu PIN y si Sky te habla en voz alta.', icon: UserRound },
+  { id: 'ai', label: 'Inteligencia', title: 'Inteligencia', description: 'Con qué modelo piensa Sky, cómo elige entre rápido y profundo, y con qué llave se conecta.', icon: Bot },
+  {
+    id: 'apps',
+    label: 'Apps conectadas',
+    title: 'Apps conectadas',
+    description: 'Las apps a las que Sky puede llegar en tu nombre: correo, notas, archivos, agenda, código y música. Concedes el permiso una vez y Sky mantiene la sesión viva.',
+    icon: Plug,
+  },
+  { id: 'flows', label: 'Flujos', title: 'Flujos guardados', description: 'Rutinas que guardaste con Sky para pedirlas por su nombre desde la barra.', icon: Zap },
+  { id: 'appearance', label: 'Apariencia', title: 'Apariencia', description: 'La luz del escritorio: clara, oscura o la que marque tu sistema.', icon: Palette },
+  { id: 'storage', label: 'Almacenamiento', title: 'Almacenamiento', description: 'Dónde viven tus archivos, cuánto ocupan y qué sale de este navegador.', icon: HardDrive },
+  { id: 'about', label: 'Acerca de', title: 'Acerca de SkyOS', description: 'Versión, estándares que usa y dónde está el código.', icon: Info },
+]
+
+const isSectionId = (v: unknown): v is SectionId => SECTIONS.some((s) => s.id === v)
+
+export function SettingsApp({ win }: { win: Win }) {
+  const [section, setSection] = useState<SectionId>(() => (isSectionId(win.props.section) ? win.props.section : 'account'))
+  // Commands can point an already open window at a section (ui.openApps does): adopt the request during render.
+  const requested = `${win.props.section ?? ''}|${win.props.app ?? ''}`
+  const [seen, setSeen] = useState(requested)
+  if (requested !== seen) {
+    setSeen(requested)
+    if (isSectionId(win.props.section)) setSection(win.props.section)
+  }
+
+  const meta = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
+
+  return (
+    <div className="flex h-full">
+      <nav className="scrollbar-thin flex w-[196px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-3">
+        {SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSection(s.id)}
+            className={cn(
+              'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition',
+              s.id === section ? 'bg-surface-solid text-ink shadow-soft' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
+            )}
+          >
+            <s.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+            {s.label}
+          </button>
+        ))}
+      </nav>
+      <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex max-w-[560px] flex-col gap-5 p-6">
+          <header>
+            <h1 className="font-display text-[22px] font-bold tracking-tight text-ink">{meta.title}</h1>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{meta.description}</p>
+          </header>
+          {section === 'account' && <AccountSection />}
+          {section === 'ai' && <AiSection />}
+          {section === 'apps' && <AppsPanel highlight={win.props.app} />}
+          {section === 'flows' && <FlowsSection />}
+          {section === 'appearance' && <AppearanceSection />}
+          {section === 'storage' && <StorageSection />}
+          {section === 'about' && <AboutSection />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AppearanceSection() {
   const theme = useSettings((s) => s.theme)
   const setTheme = useSettings((s) => s.setTheme)
+  return (
+    <Segmented
+      value={theme}
+      onChange={setTheme}
+      options={THEMES.map((t) => ({ value: t.value, label: t.label, icon: <t.icon className="h-4 w-4" strokeWidth={1.75} /> }))}
+    />
+  )
+}
+
+function StorageSection() {
   const stats = useLiveQuery(() => fs.stats(), [])
   const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null)
 
@@ -66,54 +156,37 @@ export function SettingsApp() {
   const pct = estimate && estimate.quota ? Math.min(100, (estimate.usage / estimate.quota) * 100) : 0
 
   return (
-    <div className="scrollbar-thin h-full overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-[460px] flex-col gap-7">
-        <Section icon={<UserRound className="h-4 w-4" />} title="Tu cuenta">
-          <AccountSection />
-        </Section>
-
-        <Section icon={<Bot className="h-4 w-4" />} title="Inteligencia">
-          <AiSection />
-        </Section>
-
-        <Section icon={<Plug className="h-4 w-4" />} title="Apps conectadas">
-          <AppsSummary onOpen={() => void dispatch('ui.openApps')} />
-        </Section>
-
-        <Section icon={<Zap className="h-4 w-4" />} title="Flujos guardados">
-          <FlowsSection />
-        </Section>
-
-        <Section icon={<Palette className="h-4 w-4" />} title="Apariencia">
-          <Segmented
-            value={theme}
-            onChange={setTheme}
-            options={THEMES.map((t) => ({ value: t.value, label: t.label, icon: <t.icon className="h-4 w-4" strokeWidth={1.75} /> }))}
-          />
-        </Section>
-
-        <Section icon={<HardDrive className="h-4 w-4" />} title="Almacenamiento">
-          <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
-            <Row label="Dónde viven tus archivos">{fs.engine === 'opfs' ? 'Sistema de archivos del navegador' : 'IndexedDB'}</Row>
-            <Row label="Contenido">
-              {stats ? `${stats.files} archivos · ${stats.folders} carpetas · ${formatBytes(stats.bytes)}` : '…'}
-            </Row>
-            <div>
-              <Row label="Espacio del navegador">
-                {estimate ? `${formatBytes(estimate.usage)} de ${formatBytes(estimate.quota)}` : '…'}
-              </Row>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
-                <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${Math.max(pct, 0.5)}%` }} />
-              </div>
-            </div>
-            <p className="text-[12px] leading-relaxed text-ink-3">
-              Cada cuenta tiene su propio espacio en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita.
-            </p>
-          </div>
-        </Section>
-
-        <p className="text-center text-[11px] text-ink-3">Sky 0.3</p>
+    <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
+      <Row label="Dónde viven tus archivos">{fs.engine === 'opfs' ? 'Sistema de archivos del navegador' : 'IndexedDB'}</Row>
+      <Row label="Contenido">{stats ? `${stats.files} archivos · ${stats.folders} carpetas · ${formatBytes(stats.bytes)}` : '…'}</Row>
+      <div>
+        <Row label="Espacio del navegador">{estimate ? `${formatBytes(estimate.usage)} de ${formatBytes(estimate.quota)}` : '…'}</Row>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${Math.max(pct, 0.5)}%` }} />
+        </div>
       </div>
+      <p className="text-[12px] leading-relaxed text-ink-3">
+        Cada cuenta tiene su propio espacio en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita, y a una app
+        conectada solo cuando se lo pides a Sky.
+      </p>
+    </div>
+  )
+}
+
+function AboutSection() {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
+      <Row label="Versión">SkyOS 0.4</Row>
+      <Row label="Apps conectadas">Model Context Protocol 2026-07-28, con retroceso a 2025</Row>
+      <Row label="Código">
+        <a href="https://github.com/hdiaz16/SkyOS" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+          github.com/hdiaz16/SkyOS
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </Row>
+      <p className="text-[12px] leading-relaxed text-ink-3">
+        Un escritorio web tranquilo donde la inteligencia es la protagonista. Código abierto bajo licencia MIT.
+      </p>
     </div>
   )
 }
@@ -491,18 +564,6 @@ function Field({ label, hint, children }: { label: string; hint?: ReactNode; chi
       {children}
       {hint && <span className="text-[11px] leading-relaxed text-ink-3">{hint}</span>}
     </label>
-  )
-}
-
-function Section({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 text-[12px] font-medium uppercase tracking-wide text-ink-2">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </section>
   )
 }
 

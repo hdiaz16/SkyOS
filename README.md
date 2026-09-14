@@ -60,6 +60,25 @@ internos lo conservan para no perder datos.
 - Comandos de ventanas: ordenar en cuadrícula o cascada, cerrar o minimizar las inactivas, limpiar escritorio.
 - Papelera con restaurar, historial de acciones con deshacer individual y "deshacer todo" por respuesta.
 
+## Apps conectadas (MCP)
+
+Sky se conecta a apps externas por el estándar **Model Context Protocol**: cada app es un servidor MCP remoto
+oficial y la autorización es la OAuth 2.1 del propio protocolo (PKCE, Client ID Metadata Documents o registro
+dinámico, `resource`, validación de `iss`). No hay llaves que pegar: la persona concede permiso una vez y Sky
+renueva los tokens en segundo plano; la sesión vive en su cuenta de este navegador y no vuelve a pedir entrar.
+
+- Catálogo por categorías: Google Drive, Google Docs, Gmail, Google Calendar, Notion, Evernote, Slack, Todoist,
+  GitHub y Spotify. Cualquier otro servidor MCP se agrega por URL desde el panel.
+- Las herramientas de cada app llegan a Sky como `mcp_<app>__<herramienta>`, con su `ttlMs` respetado en caché.
+- Transporte Streamable HTTP dual: revisión 2026-07-28 (sin sesiones, `_meta` por petición, cabeceras
+  `Mcp-Method`/`Mcp-Name`) con retroceso automático a las revisiones 2025 (`initialize` + `Mcp-Session-Id`).
+- Google no registra clientes al vuelo: hace falta un cliente OAuth de Google Cloud (`VITE_GOOGLE_CLIENT_ID` y
+  `VITE_GOOGLE_CLIENT_SECRET`, o Apps conectadas › Avanzado).
+- Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
+  (p. ej. `ms-365-mcp-server`) por URL.
+- Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores
+  (`VITE_BRIDGE_URL`).
+
 ## Proveedores y modelo automático
 
 | Proveedor | Cómo | Modelo automático |

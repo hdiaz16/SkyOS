@@ -1,14 +1,15 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 
-export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'result' | 'terminal' | 'trash' | 'settings' | 'apps'
+export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'result' | 'terminal' | 'trash' | 'settings'
 
 export interface WindowProps {
   nodeId?: string
   folderId?: string
   url?: string
   taskId?: string
-  /** App to highlight in the Apps conectadas panel. */
+  /** Ajustes: section to show, and app to highlight inside Apps conectadas. */
+  section?: string
   app?: string
 }
 
@@ -61,8 +62,7 @@ const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
   result: { w: 640, h: 540, title: 'Sky' },
   terminal: { w: 720, h: 440, title: 'Terminal' },
   trash: { w: 640, h: 460, title: 'Papelera' },
-  settings: { w: 560, h: 560, title: 'Ajustes' },
-  apps: { w: 680, h: 640, title: 'Apps conectadas' },
+  settings: { w: 820, h: 600, title: 'Ajustes' },
 }
 
 const MIN_W = 360

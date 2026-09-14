@@ -1,0 +1,40 @@
+import { registerCommand } from '../commands'
+import { widgets } from '../widgets'
+import { useAuth } from '../../system/auth'
+import { users } from '../../system/users'
+import { geocode } from '../../lib/weather'
+import type { UserLocation } from '../../system/db'
+
+/** The person's own details that Sky may update on request. */
+
+async function saveLocation(location: UserLocation | undefined): Promise<void> {
+  const user = useAuth.getState().current
+  if (!user) throw new Error('No hay nadie con sesión iniciada.')
+  await users.updateProfile(user.id, { location }, user.profile)
+  await useAuth.getState().refreshCurrent()
+}
+
+registerCommand<{ place: string }, { place: string; lat: number; lon: number }>({
+  id: 'user.setLocation',
+  title: 'Cambiar ubicación',
+  description:
+    'Guarda la ciudad o lugar donde vive o está la persona (sirve para el clima, la hora y las referencias locales). Los widgets de clima sin lugar propio la siguen. Úsalo cuando diga dónde está o pida cambiar su ubicación.',
+  params: { place: { type: 'string', description: 'Ciudad o lugar, p. ej. "Monterrey" o "Ciudad de México".', required: true } },
+  async run({ place }) {
+    const user = useAuth.getState().current
+    if (!user) throw new Error('No hay nadie con sesión iniciada.')
+    const found = await geocode(place.trim())
+    if (!found) throw new Error(`No encontré «${place}». Prueba con la ciudad y el país.`)
+    const previous = user.profile.location
+    await saveLocation({ lat: found.lat, lon: found.lon, place: found.name })
+    // Weather widgets pinned to a place of their own start following the profile again.
+    for (const w of await widgets.list()) {
+      if (w.type === 'weather' && w.config.place) await widgets.setConfig(w.id, { place: undefined, lat: undefined, lon: undefined })
+    }
+    return {
+      result: { place: found.name, lat: found.lat, lon: found.lon },
+      label: `Ubicación: ${found.name}`,
+      undo: () => saveLocation(previous),
+    }
+  },
+})

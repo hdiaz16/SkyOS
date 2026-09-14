@@ -38,10 +38,14 @@ export function firstBoot(): Promise<void> {
     await seedIfEmpty()
     const user = useAuth.getState().current
     if (!user?.setupPending) return
-    if ((await widgets.list()).length === 0) {
-      const loc = user.profile.location
-      await widgets.create('weather', loc ? { config: { place: loc.place, lat: loc.lat, lon: loc.lon } } : {})
+    const existing = await widgets.list()
+    if (existing.length === 0) {
+      // No place of its own: the weather follows the profile, so a later "vivo en…" updates it too.
+      await widgets.create('weather')
       await widgets.create('recent')
+    } else {
+      // An adopted legacy desktop may carry the old demo widgets; currency only appears when someone adds it.
+      for (const w of existing) if (w.type === 'currency') await widgets.remove(w.id)
     }
     await users.markSetupDone(user.id)
     await useAuth.getState().refreshCurrent()

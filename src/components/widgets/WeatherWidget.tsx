@@ -3,7 +3,8 @@ import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, Cl
 import { widgets, type Widget } from '../../kernel/widgets'
 import { useDialog } from '../../state/dialog'
 import { useAuth } from '../../system/auth'
-import { currentPosition, describeCode, fetchWeather, geocode, type Weather, type WeatherKind } from '../../lib/weather'
+import { users } from '../../system/users'
+import { currentPosition, describeCode, fetchWeather, geocode, reverseGeocode, type Weather, type WeatherKind } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number }>
@@ -53,7 +54,14 @@ export function WeatherWidget({ widget }: { widget: Widget }) {
         if (!coords) {
           try {
             coords = await currentPosition()
-            label = label || 'Tu ubicación'
+            const name = await reverseGeocode(coords.lat, coords.lon)
+            label = label || name
+            // The browser knows where the person is; keep it in the profile so Sky and the other widgets know too.
+            const user = useAuth.getState().current
+            if (user && !user.profile.location) {
+              await users.updateProfile(user.id, { location: { lat: coords.lat, lon: coords.lon, place: name } }, user.profile)
+              await useAuth.getState().refreshCurrent()
+            }
           } catch {
             if (alive) setState({ status: 'needs-place', reason: 'Sin acceso a tu ubicación' })
             return

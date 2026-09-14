@@ -99,6 +99,8 @@ export interface ModelInfo {
   /** Rough speed and depth so the UI can explain the choice. */
   tier: 'fast' | 'balanced' | 'deep'
   vision: boolean
+  /** False for models that cannot call tools (Groq's compound systems). */
+  tools?: boolean
 }
 
 export interface ProviderCapabilities {
@@ -118,11 +120,16 @@ export interface AiProvider {
 /** Errors the UI can show verbatim to the user. */
 export class AiError extends Error {
   readonly retryable: boolean
+  readonly status?: number
+  /** How long the provider asked us to wait before trying again, when it said. */
+  readonly retryAfterMs?: number
 
-  constructor(message: string, retryable = false) {
+  constructor(message: string, retryable = false, extra: { status?: number; retryAfterMs?: number } = {}) {
     super(message)
     this.name = 'AiError'
     this.retryable = retryable
+    this.status = extra.status
+    this.retryAfterMs = extra.retryAfterMs
   }
 }
 
@@ -133,4 +140,5 @@ export class AiError extends Error {
  */
 export const SHARED_KEY_BUSY = 'Sky está atendiendo muchas solicitudes en este momento. Intenta de nuevo en un momento o, si prefieres, agrega tu propia llave en Ajustes › Inteligencia.'
 
-export const sharedKeyBusy = (): AiError => new AiError(SHARED_KEY_BUSY, true)
+export const sharedKeyBusy = (status?: number, retryAfterMs?: number): AiError =>
+  new AiError(SHARED_KEY_BUSY, status === undefined || status === 429 || status >= 500, { status, retryAfterMs })

@@ -46,7 +46,7 @@ export const PROVIDERS: ProviderPreset[] = [
       { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B', tier: 'deep', vision: false },
       { id: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B', tier: 'balanced', vision: false },
       { id: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B', tier: 'balanced', vision: false },
-      { id: 'groq/compound-mini', label: 'Compound Mini (con búsqueda web)', tier: 'balanced', vision: false },
+      { id: 'groq/compound-mini', label: 'Compound Mini (con búsqueda web)', tier: 'balanced', vision: false, tools: false },
     ],
     // The 20B model carries everything but the heavy work; it is the cheapest on the free tier.
     tiers: { fast: 'openai/gpt-oss-20b', balanced: 'openai/gpt-oss-20b', deep: 'openai/gpt-oss-120b' },
