@@ -50,24 +50,49 @@ function continuesBlock(previous: string, next: string): boolean {
   return LIST_OR_ROW.test(next) || LIST_OR_ROW.test(previous) || /^\s{2,}/.test(next)
 }
 
-/** Notion nests with tabs; Markdown nests with four spaces. A fence language like "plain text" becomes one word. */
+/** True when the last block written is a list item or belongs to one, so an indented line should stay inside it. */
+function inList(out: string[]): boolean {
+  for (let i = out.length - 1; i >= 0; i--) {
+    const line = out[i]
+    if (!line.trim()) continue
+    return LIST_OR_ROW.test(line) || /^\s{2,}\S/.test(line)
+  }
+  return false
+}
+
+/**
+ * Notion nests with tabs; Markdown nests with spaces. Inside a list, a tab becomes four spaces so the line
+ * (or the whole code fence that follows it) stays in its item; outside a list the tab is dropped, since four
+ * spaces would turn plain text into code. A fence language like "plain text" becomes one word.
+ */
 export function notionToMarkdown(raw: string): string {
   const body = stripWrapperBlocks(stripPreamble(raw))
   const out: string[] = []
   let inFence = false
+  let fenceIndent = ''
   for (const original of body.split('\n')) {
-    if (/^\s*```/.test(original)) {
+    const fence = /^(\s*)```(.*)$/.exec(original)
+    if (fence) {
+      if (!inFence) {
+        const tabs = (fence[1].match(/\t/g) ?? []).length
+        fenceIndent = tabs && inList(out) ? '    '.repeat(tabs) : ''
+        out.push(`${fenceIndent}\`\`\`${fence[2].trim().split(/\s+/)[0] ?? ''}`)
+      } else {
+        out.push(`${fenceIndent}\`\`\``)
+        fenceIndent = ''
+      }
       inFence = !inFence
-      out.push(inFence ? original.replace(/^(\s*```)\s*(.*)$/, (_m, fence: string, lang: string) => `${fence}${lang.trim().split(/\s+/)[0]}`) : original)
       continue
     }
     if (inFence) {
-      out.push(original)
+      out.push(fenceIndent + original)
       continue
     }
     const line = stripTransparentTags(convertBlockTags(original))
     if (!line.trim() && original.trim()) continue // a line that was only a wrapper tag
-    const next = line.replace(/^\t+/, (tabs) => '    '.repeat(tabs.length))
+    const tabs = (line.match(/^\t+/)?.[0].length ?? 0)
+    const indent = tabs && inList(out) ? '    '.repeat(tabs) : ''
+    const next = indent + line.replace(/^\t+/, '')
     // In Notion every line is its own block; in Markdown adjacent lines merge into one paragraph. Keep the blocks.
     const previous = out[out.length - 1] ?? ''
     if (next.trim() && previous.trim() && !continuesBlock(previous, next)) out.push('')
