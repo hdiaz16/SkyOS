@@ -73,7 +73,8 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
     ids: { type: 'array', items: { type: 'string', description: 'Id de ventana' }, description: 'Ventanas concretas.' },
     scope: { type: 'string', description: 'Alcance cuando no se dan ids.', enum: ['all', 'inactive', 'minimized', 'stale'] },
   },
-XX    const wins = targets(scope, ids)
+  async run({ ids, scope = 'stale' }) {
+    const wins = targets(scope, ids)
     if (!wins.length) return { result: 0 }
     const wm = useWindows.getState()
     for (const w of wins) wm.close(w.id)
@@ -97,7 +98,8 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
     ids: { type: 'array', items: { type: 'string', description: 'Id de ventana' }, description: 'Ventanas concretas.' },
     scope: { type: 'string', description: 'Alcance cuando no se dan ids.', enum: ['all', 'inactive', 'stale'] },
   },
-XX    const wins = targets(scope, ids).filter((w) => !w.minimized)
+  async run({ ids, scope = 'inactive' }) {
+    const wins = targets(scope, ids).filter((w) => !w.minimized)
     if (!wins.length) return { result: 0 }
     const wm = useWindows.getState()
     for (const w of wins) wm.minimize(w.id)
