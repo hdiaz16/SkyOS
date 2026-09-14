@@ -105,6 +105,8 @@ function fromSheetJs(ws: WorkSheet, name: string, order: number): Sheet {
     row: Math.max(range.e.r + 1 + 10, MIN_ROWS),
     column: Math.max(range.e.c + 1 + 4, MIN_COLS),
     config: Object.keys(columnlen).length ? { columnlen } : {},
+    // Without a starting selection the grid shows "A1:NaN" in its name box until the first click.
+    luckysheet_select_save: [{ row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 }],
   }
 }
 
@@ -195,6 +197,32 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
     useSession.getState().setOpen(true)
     void useSession.getState().send(`${rangeLead(intent, name, sheet.name, rangeLabel(range))}\n\n"""\n${text}\n"""`)
   }
+
+  /**
+   * FortuneSheet lays its canvas out once and only listens to the browser's own resize, so a window that
+   * changes size (a drag on the corner, a snap to an edge, the deck) would leave the grid at its old size and
+   * paint it past the frame. Watching the container and replaying a resize keeps the grid inside the window.
+   */
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    let frame = 0
+    let first = true
+    const observer = new ResizeObserver(() => {
+      if (first) {
+        first = false
+        return
+      }
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
+    })
+    observer.observe(el)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+    // The grid only exists once the workbook is parsed; watch it from then on.
+  }, [sheets])
 
   useEffect(() => {
     let alive = true

@@ -356,3 +356,28 @@ html.handoff-flood body,
   background-image: radial-gradient(circle, var(--line-2) 1px, transparent 1.2px);
   background-size: 24px 24px;
 }
+
+/* The spreadsheet grid ships its own chrome; these few rules make it belong to the desktop. */
+.sheet-editor .fortune-fx-input {
+  /* The formula bar reserves a full native scrollbar (arrows and all) even when empty. */
+  overflow-y: auto;
+}
+
+.sheet-editor *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.sheet-editor *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sheet-editor *::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 4px;
+}
+
+.sheet-editor * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}

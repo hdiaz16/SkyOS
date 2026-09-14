@@ -165,7 +165,7 @@ export function WindowFrame({ win, active, children }: Props) {
         </div>
       </div>
 
-      <div ref={contentRef} className={cn('relative min-h-0 flex-1', interacting && 'pointer-events-none')}>
+      <div ref={contentRef} className={cn('relative min-h-0 flex-1 overflow-hidden', interacting && 'pointer-events-none')}>
         {children}
         {win.app !== 'editor' && <SelectionMenu frameRef={contentRef} source={win.title} />}
       </div>
