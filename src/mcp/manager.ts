@@ -283,6 +283,16 @@ export const mcp = {
   },
 
   /** Runs a tool on a connected server. Auth trouble becomes a clear message and a mark in the panel. */
+  /**
+   * A live access token for a connected app, renewed when close to expiry; undefined when not connected.
+   * Lets system services (cloud sync) act with the same authorization the person already gave.
+   */
+  async accessToken(id: string): Promise<string | undefined> {
+    const record = serverRecord(id) ?? (await mcpStore.servers.get(id))
+    if (!record || record.status === 'disconnected') return undefined
+    return validToken(record)
+  },
+
   async callTool(id: string, name: string, args: Record<string, unknown>): Promise<CallToolResult> {
     const record = serverRecord(id) ?? (await mcpStore.servers.get(id))
     if (!record || record.status === 'disconnected') throw new McpError('not_connected', `${record?.name ?? 'Esa app'} no está conectada. Conéctala en Apps conectadas.`)
@@ -384,9 +394,10 @@ async function keepAlive(): Promise<void> {
 
 /** Back from the authorization page: the callback left its parameters behind; finish the flow where the person left off. */
 async function resumeRedirect(): Promise<void> {
-  const params = takeRedirectResult()
   const pending = readPending()
-  if (!params || !pending) return
+  if (!pending) return
+  const params = takeRedirectResult()
+  if (!params) return
   const record = await mcpStore.servers.get(pending.serverId)
   if (!record) return
   const wm = useWindows.getState()

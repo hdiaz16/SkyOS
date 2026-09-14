@@ -23,6 +23,11 @@ export const APP_ORIGIN = (env.VITE_APP_ORIGIN?.trim() ?? '').replace(/\/+$/, ''
  * Google's MCP servers do not register clients dynamically, so a Google Cloud OAuth client can be shipped
  * here (shared by everyone using this deployment) or pasted per person in Apps conectadas › Avanzado.
  */
+/** OneDrive sync signs in with the person's own Microsoft Entra app (single-page application); no MCP exists for personal accounts. */
+export const MS_OAUTH = {
+  clientId: env.VITE_MS_CLIENT_ID?.trim() ?? '',
+}
+
 export const GOOGLE_OAUTH = {
   clientId: env.VITE_GOOGLE_CLIENT_ID?.trim() ?? '',
   clientSecret: env.VITE_GOOGLE_CLIENT_SECRET?.trim() || undefined,

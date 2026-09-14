@@ -5,9 +5,11 @@ import { indexPending } from '../ai/indexer'
 import { embedPending, useEmbeddings, warmUp } from '../ai/embeddings'
 import { isAiConfigured, useAiSettings } from '../ai/settings'
 import { extractPending } from '../system/extract'
+import { syncNow, useSync } from '../system/sync'
 
 const DEBOUNCE_MS = 8000
 const EXTRACT_DEBOUNCE_MS = 1200
+const SYNC_DEBOUNCE_MS = 20_000
 
 const EMBED_DEBOUNCE_MS = 2500
 
@@ -16,6 +18,7 @@ export function AiBackground() {
   const settings = useAiSettings()
   const configured = isAiConfigured(settings)
   const embeddingsOn = useEmbeddings((s) => s.enabled)
+  const syncOn = useSync((s) => s.settings.enabled && !!s.settings.providerId)
   const signal = useLiveQuery(
     async () => {
       const rows = await db.nodes.where('kind').equals('file').and((n) => n.trashedAt === null).toArray()
@@ -45,6 +48,12 @@ export function AiBackground() {
       controller.abort()
     }
   }, [signal])
+
+  useEffect(() => {
+    if (!syncOn || !signal) return
+    const timer = window.setTimeout(() => void syncNow('auto'), SYNC_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [syncOn, signal])
 
   useEffect(() => {
     if (!embeddingsOn) return

@@ -38,6 +38,7 @@ import { useDialog } from '../../state/dialog'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
 import { AppsPanel } from './Apps'
+import { CloudSyncPanel } from './CloudSync'
 import { useEmbeddings } from '../../ai/embeddings'
 import type { Win } from '../../state/windows'
 
@@ -157,6 +158,8 @@ function StorageSection() {
   const pct = estimate && estimate.quota ? Math.min(100, (estimate.usage / estimate.quota) * 100) : 0
 
   return (
+    <div className="flex flex-col gap-4">
+      <CloudSyncPanel />
     <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
       <Row label="Dónde viven tus archivos">{fs.engine === 'opfs' ? 'Sistema de archivos del navegador' : 'IndexedDB'}</Row>
       <Row label="Contenido">{stats ? `${stats.files} archivos · ${stats.folders} carpetas · ${formatBytes(stats.bytes)}` : '…'}</Row>
@@ -167,9 +170,10 @@ function StorageSection() {
         </div>
       </div>
       <p className="text-[12px] leading-relaxed text-ink-3">
-        Cada cuenta tiene su propio espacio en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita, y a una app
-        conectada solo cuando se lo pides a Sky.
+        Cada cuenta tiene su propio espacio en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita, a una app
+        conectada solo cuando se lo pides a Sky, y a tu nube solo si activas la sincronización.
       </p>
+    </div>
     </div>
   )
 }

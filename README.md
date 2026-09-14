@@ -107,6 +107,23 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   `VITE_BRIDGE_URL=http://127.0.0.1:8787` en `.env.local`. Sky intenta primero directo y solo usa el puente cuando
   el navegador bloquea la llamada.
 
+## Nube: almacenamiento híbrido
+
+Todo vive en el navegador (OPFS + IndexedDB, por cuenta). En Ajustes › Almacenamiento se elige una nube propia y
+SkyOS mantiene ahí una copia de la carpeta «Nube» (o de todo el escritorio); otro dispositivo con la misma cuenta
+baja lo que le falte. Sincronización bidireccional por rutas, con enlaces por archivo (`syncState`): sube lo que
+cambió aquí, baja lo que cambió allá, borra lo que se borró y, si ambos lados cambiaron, deja la copia de la nube
+junto a la local marcada como conflicto. Corre como trabajo de fondo cada 5 minutos, al volver la red y 20 s después
+de cambiar archivos; una tarjeta resume lo que se movió. También desde la barra: "sincroniza con Drive".
+
+| Nube | Cómo | Notas |
+| --- | --- | --- |
+| Google Drive | Conexión MCP de Apps conectadas + API de Drive con ese mismo token (`drive.file`) | Carpeta `SkyOS` en tu Drive, con subcarpetas reales; el MCP oficial no tiene herramienta de actualización, por eso los bytes van por la API |
+| Dropbox | Conexión MCP oficial (`mcp.dropbox.com/mcp`) + API v2 con ese token | Carpeta `/SkyOS`; si Dropbox no acepta el registro dinámico, pega tu App Key en Apps › Avanzado |
+| OneDrive | Inicio de sesión propio (OAuth PKCE, misma pestaña) con tu app de Microsoft Entra (`VITE_MS_CLIENT_ID` o pegada en Ajustes) | Microsoft no ofrece MCP para cuentas personales; se usa la carpeta de la app (`Apps/SkyOS`, permiso `Files.ReadWrite.AppFolder`) |
+
+Box (`mcp.box.com`) está en el catálogo para las herramientas de Sky; su MCP exige habilitación del administrador.
+
 ## Archivos de Office y tipos de archivo
 
 Word, Excel y PowerPoint se leen dentro de Sky, en el navegador y sin que el archivo salga de la mÃ¡quina:

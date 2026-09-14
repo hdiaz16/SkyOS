@@ -18,6 +18,7 @@ import { dispatch, undoLast } from './kernel/commands'
 import { firstBoot } from './system/firstBoot'
 import { useSession } from './ai/session'
 import { mcp } from './mcp/manager'
+import { startSync } from './system/sync'
 import { isEditableTarget } from './lib/utils'
 
 export default function App() {
@@ -38,7 +39,13 @@ export default function App() {
       .finally(() => void firstBoot())
     navigator.storage?.persist?.().catch(() => undefined)
     // Connected apps: finish a pending authorization, renew tokens, keep sessions alive while the desktop is open.
-    return mcp.start()
+    const stopMcp = mcp.start()
+    // Cloud sync: finish a OneDrive sign-in, then keep the person's cloud in step.
+    const stopSync = startSync()
+    return () => {
+      stopMcp()
+      stopSync()
+    }
   }, [])
 
   useEffect(() => {

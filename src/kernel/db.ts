@@ -37,6 +37,20 @@ export interface ExtractRow {
   failed?: boolean
 }
 
+/** What this device and one cloud last agreed on for a file; drives two-way sync. */
+export interface SyncStateRow {
+  /** `${providerId}:${nodeId}` */
+  key: string
+  providerId: string
+  nodeId: string
+  remoteId: string
+  remotePath: string
+  remoteRev: string
+  /** Local updatedAt at the moment both sides matched. */
+  localUpdatedAt: number
+  syncedAt: number
+}
+
 /** A saved natural-language routine the user can trigger by name. */
 export interface FlowRow {
   id: string
@@ -62,6 +76,8 @@ export class MesaDB extends Dexie {
   conversation!: Table<ConversationRow, string>
   /** Extracted text of documents, so search and summaries never reopen the binary. */
   extracts!: Table<ExtractRow, string>
+  /** Cloud sync links, one per file and provider. */
+  syncState!: Table<SyncStateRow, string>
 
   constructor(name: string) {
     super(name)
@@ -85,6 +101,9 @@ export class MesaDB extends Dexie {
     })
     this.version(5).stores({
       extracts: 'nodeId, updatedAt',
+    })
+    this.version(6).stores({
+      syncState: 'key, providerId, nodeId, remotePath',
     })
   }
 }
