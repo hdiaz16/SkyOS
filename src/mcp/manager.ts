@@ -404,3 +404,9 @@ async function resumeRedirect(): Promise<void> {
     useToasts.getState().push({ message: err instanceof Error ? err.message : `No se pudo conectar ${record.name}`, kind: 'error' })
   }
 }
+
+/** Connected apps in dock order: catalog first, custom servers after. */
+export function connectedApps(servers: McpServerRecord[]): McpServerRecord[] {
+  const order = new Map(CATALOG.map((c, i) => [c.id, i]))
+  return servers.filter((s) => s.status !== 'disconnected').sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999))
+}

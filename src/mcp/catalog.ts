@@ -7,7 +7,7 @@ import type { Preregistered } from './auth'
  * them, which is how the panel opens.
  */
 
-export type CategoryId = 'files' | 'notes' | 'mail' | 'chat' | 'plan' | 'code' | 'music' | 'custom'
+export type CategoryId = 'files' | 'notes' | 'mail' | 'chat' | 'plan' | 'code' | 'music' | 'all' | 'custom'
 
 export interface Category {
   id: CategoryId
@@ -23,6 +23,7 @@ export const CATEGORIES: Category[] = [
   { id: 'plan', name: 'Agenda y tareas', tagline: 'Calendario y pendientes, sin cambiar de ventana.' },
   { id: 'code', name: 'Código', tagline: 'Repositorios, issues y pull requests.' },
   { id: 'music', name: 'Música', tagline: 'Lo que suena mientras trabajas.' },
+  { id: 'all', name: 'Todo en uno', tagline: 'Un solo permiso, cientos de apps a través de un intermediario.' },
   { id: 'custom', name: 'Otros servidores', tagline: 'Cualquier servidor MCP, por su URL.' },
 ]
 
@@ -47,6 +48,10 @@ export interface CatalogEntry {
   keywords: string[]
   /** Tools that cover most requests; they win the size budget unless the request clearly asks for others. */
   featuredTools?: string[]
+  /** The app's own web address, for "Abrir en…". */
+  webUrl?: string
+  /** Aggregators expose a few meta-tools that must always travel, whatever the request mentions. */
+  alwaysOn?: boolean
 }
 
 const google = (): Preregistered | undefined => (GOOGLE_OAUTH.clientId ? GOOGLE_OAUTH : undefined)
@@ -61,6 +66,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#1FA463',
     abbr: 'Dr',
     keywords: ['drive', 'google drive', 'nube', 'archivo de google', 'archivos de google'],
+    webUrl: 'https://drive.google.com',
     url: 'https://drivemcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file'],
     preregistered: google,
@@ -75,6 +81,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#4285F4',
     abbr: 'Do',
     keywords: ['docs', 'google docs', 'documento de google', 'doc de google'],
+    webUrl: 'https://docs.google.com',
     url: 'https://docsmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file'],
     preregistered: google,
@@ -90,6 +97,7 @@ export const CATALOG: CatalogEntry[] = [
     abbr: 'N',
     keywords: ['notion', 'página', 'páginas', 'pagina', 'paginas', 'workspace', 'base de datos'],
     featuredTools: ['notion-search', 'notion-fetch', 'notion-list-recent-pages', 'notion-create-pages', 'notion-update-page', 'notion-create-comment', 'notion-get-comments'],
+    webUrl: 'https://www.notion.so',
     url: 'https://mcp.notion.com/mcp',
     docsUrl: 'https://developers.notion.com/guides/mcp/get-started-with-mcp',
   },
@@ -102,6 +110,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#00A82D',
     abbr: 'Ev',
     keywords: ['evernote', 'libreta', 'libretas', 'nota', 'notas'],
+    webUrl: 'https://www.evernote.com/client/web',
     url: 'https://mcp.evernote.com/mcp',
     docsUrl: 'https://dev.evernote.com/mcp/clients/any',
   },
@@ -114,6 +123,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#EA4335',
     abbr: 'Gm',
     keywords: ['gmail', 'correo', 'correos', 'mail', 'email', 'bandeja', 'mensaje de correo'],
+    webUrl: 'https://mail.google.com',
     url: 'https://gmailmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send'],
     preregistered: google,
@@ -128,6 +138,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#4A154B',
     abbr: 'Sl',
     keywords: ['slack', 'canal', 'canales', 'mensaje', 'mensajes', 'equipo', 'chat'],
+    webUrl: 'https://app.slack.com',
     url: 'https://mcp.slack.com/mcp',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/slack',
   },
@@ -140,6 +151,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#1967D2',
     abbr: 'Ca',
     keywords: ['calendario', 'calendar', 'agenda', 'evento', 'eventos', 'reunión', 'reunion', 'cita', 'citas'],
+    webUrl: 'https://calendar.google.com',
     url: 'https://calendarmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/calendar.events'],
     preregistered: google,
@@ -154,6 +166,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#E44332',
     abbr: 'Td',
     keywords: ['todoist', 'tarea', 'tareas', 'pendiente', 'pendientes', 'to do', 'proyecto de tareas'],
+    webUrl: 'https://app.todoist.com',
     url: 'https://ai.todoist.net/mcp',
     docsUrl: 'https://github.com/Doist/todoist-ai',
   },
@@ -166,6 +179,7 @@ export const CATALOG: CatalogEntry[] = [
     color: '#24292F',
     abbr: 'Gh',
     keywords: ['github', 'repo', 'repositorio', 'issue', 'issues', 'pull request', 'pr', 'commit', 'rama', 'código'],
+    webUrl: 'https://github.com',
     url: 'https://api.githubcopilot.com/mcp/',
     docsUrl: 'https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md',
   },
@@ -178,8 +192,37 @@ export const CATALOG: CatalogEntry[] = [
     color: '#1DB954',
     abbr: 'Sp',
     keywords: ['spotify', 'música', 'musica', 'canción', 'cancion', 'canciones', 'playlist', 'artista', 'álbum', 'album', 'podcast'],
+    webUrl: 'https://open.spotify.com',
     url: 'https://mcp-gateway-external-pilot.spotify.net/mcp',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/spotify',
+  },
+  {
+    id: 'rube',
+    name: 'Rube (Composio)',
+    category: 'all',
+    tagline: 'Más de 500 apps con una sola autorización: Gmail, Slack, GitHub, Notion, Drive, HubSpot… Composio queda en medio.',
+    abilities: ['500+ apps', 'Una autorización', 'Herramientas bajo demanda'],
+    color: '#5B3DF5',
+    abbr: 'Ru',
+    keywords: ['rube', 'composio'],
+    alwaysOn: true,
+    webUrl: 'https://rube.app',
+    url: 'https://rube.app/mcp',
+    docsUrl: 'https://github.com/composiohq/rube',
+  },
+  {
+    id: 'zapier',
+    name: 'Zapier MCP',
+    category: 'all',
+    tagline: 'Miles de apps y acciones de Zapier desde Sky. Zapier queda en medio y aplica sus límites de plan.',
+    abilities: ['9,000+ apps', 'Acciones de Zapier', 'Una autorización'],
+    color: '#FF4F00',
+    abbr: 'Za',
+    keywords: ['zapier', 'zap'],
+    alwaysOn: true,
+    webUrl: 'https://mcp.zapier.com',
+    url: 'https://mcp.zapier.com/api/mcp/mcp',
+    docsUrl: 'https://help.zapier.com/hc/en-us/articles/36265392843917-Use-Zapier-MCP-with-your-client',
   },
 ]
 

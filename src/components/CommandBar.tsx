@@ -36,6 +36,9 @@ import { useUi } from '../state/ui'
 import { useWindows } from '../state/windows'
 import { useSession } from '../ai/session'
 import { isAiConfigured, resolveKey, useAiSettings, usesSharedKey } from '../ai/settings'
+import { connectedApps, useMcp } from '../mcp/manager'
+import { catalogFor } from '../mcp/catalog'
+import { AppLogo } from './apps/Apps'
 import { useSemantic } from '../ai/indexer'
 import { captureScreen, useSnap } from '../ai/snap'
 import { getProvider } from '../ai/providers'
@@ -193,6 +196,7 @@ export function CommandBar() {
   const semantic = useSemantic()
   const aiSettings = useAiSettings()
   const aiReady = isAiConfigured(aiSettings)
+  const apps = connectedApps(useMcp((s) => s.servers))
   const canSee = aiReady && !!getProvider(aiSettings)?.capabilities.vision
   const canDictate = dictationAvailable(aiSettings)
   const dictation = useDictation((text) => {
@@ -559,6 +563,15 @@ export function CommandBar() {
             <DockButton label="Nueva nota" onClick={() => void createFileAndOpen(ROOT_ID, 'note')}>
               <FilePlus2 className="h-5 w-5" strokeWidth={1.6} />
             </DockButton>
+            {apps.map((a) => {
+              const entry = catalogFor(a.id)
+              return (
+                <DockButton key={a.id} label={a.name} onClick={() => void dispatch('ui.openApp', { app: a.id })}>
+                  <AppLogo item={{ id: a.id, name: a.name, color: entry?.color ?? '#6B7280', abbr: entry?.abbr ?? a.name.slice(0, 2), entry }} size={24} />
+                </DockButton>
+              )
+            })}
+            {apps.length > 0 && <div className="mx-0.5 h-6 w-px shrink-0 bg-line-2" />}
             <DockButton label="Papelera" onClick={() => void dispatch('ui.openTrash')} badge={(trashCount ?? 0) > 0}>
               <Trash2 className="h-5 w-5" strokeWidth={1.6} />
             </DockButton>

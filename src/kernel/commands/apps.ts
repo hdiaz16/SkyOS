@@ -1,6 +1,6 @@
 import { registerCommand } from '../commands'
 import { useWindows } from '../../state/windows'
-import { CATALOG } from '../../mcp/catalog'
+import { CATALOG, catalogFor } from '../../mcp/catalog'
 import { useMcp } from '../../mcp/manager'
 
 /** Connected apps, for people (the panel) and for the assistant (knowing what it can reach). */
@@ -34,6 +34,23 @@ registerCommand<Record<string, never>, AppStatus[]>({
       if (!r.catalogId) rows.push({ id: r.id, name: r.name, connected: r.status !== 'disconnected', tools: r.tools?.length ?? 0, account: r.account?.name, attention: r.attention })
     }
     return { result: rows }
+  },
+})
+
+registerCommand<{ app: string }, void>({
+  id: 'ui.openApp',
+  keywords: APP_WORDS,
+  title: 'Abrir una app conectada',
+  description: 'Abre dentro de Sky la vista de una app conectada (p. ej. notion): páginas recientes, búsqueda y lectura. Úsalo cuando la persona quiera ver o entrar a la app, no solo pedir un dato.',
+  params: { app: { type: 'string', description: 'Id de la app conectada (p. ej. notion, slack, gmail).', required: true } },
+  async run({ app }) {
+    const record = useMcp.getState().servers.find((r) => r.id === app)
+    if (!record || record.status === 'disconnected') throw new Error(`${catalogFor(app)?.name ?? app} no está conectada. Ábrela en Apps conectadas.`)
+    const wm = useWindows.getState()
+    const existing = wm.windows.find((w) => w.app === 'app' && w.props.app === app)
+    if (existing) wm.focus(existing.id)
+    else wm.open('app', { title: record.name, props: { app } })
+    return { result: undefined }
   },
 })
 

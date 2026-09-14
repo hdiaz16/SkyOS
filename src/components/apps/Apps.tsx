@@ -427,7 +427,8 @@ function AddServer() {
 
 /** The app's official mark on a small tile; custom servers get their initials on a neutral disc. */
 export function AppLogo({ item, size }: { item: Pick<AppItem, 'id' | 'name' | 'color' | 'abbr' | 'entry'>; size: number }) {
-  if (!item.entry) {
+  const [missing, setMissing] = useState(false)
+  if (!item.entry || missing) {
     return (
       <span
         className="flex shrink-0 items-center justify-center rounded-xl font-display font-bold text-white"
@@ -439,7 +440,7 @@ export function AppLogo({ item, size }: { item: Pick<AppItem, 'id' | 'name' | 'c
   }
   return (
     <span className="flex shrink-0 items-center justify-center rounded-xl border border-line bg-white shadow-soft" style={{ width: size, height: size, padding: Math.round(size * 0.18) }}>
-      <img src={`/brands/${item.id}.svg`} alt={`Logo de ${item.name}`} className="h-full w-full object-contain" draggable={false} />
+      <img src={`/brands/${item.id}.svg`} alt={`Logo de ${item.name}`} className="h-full w-full object-contain" draggable={false} onError={() => setMissing(true)} />
     </span>
   )
 }

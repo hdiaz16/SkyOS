@@ -11,6 +11,7 @@ import { TerminalApp } from './apps/Terminal'
 import { TrashApp } from './apps/Trash'
 import { SettingsApp } from './apps/Settings'
 import { OfficeViewer } from './apps/OfficeViewer'
+import { AppView } from './apps/AppView'
 
 function renderApp(win: Win) {
   switch (win.app) {
@@ -34,6 +35,8 @@ function renderApp(win: Win) {
       return <SettingsApp win={win} />
     case 'office':
       return <OfficeViewer win={win} />
+    case 'app':
+      return <AppView win={win} />
   }
 }
 

@@ -186,7 +186,8 @@ export function mcpToolSpecs(context?: ToolContext): ToolSpec[] {
   const prompt = context ? normalize(`${context.prompt} ${context.recent ?? ''}`) : ''
   const candidates: Array<{ spec: ToolSpec; score: number }> = []
   for (const [name, { server, tool }] of targets()) {
-    if (context && !mentions(prompt, keywordsFor(server)) && !prompt.includes(`mcp_${sanitize(server.id).toLowerCase()}__`)) continue
+    const alwaysOn = server.catalogId ? (catalogFor(server.catalogId)?.alwaysOn ?? false) : false
+    if (context && !alwaysOn && !mentions(prompt, keywordsFor(server)) && !prompt.includes(`mcp_${sanitize(server.id).toLowerCase()}__`)) continue
     const text = short(tool.description || tool.title || tool.name, MAX_DESCRIPTION)
     const featured = server.catalogId ? (catalogFor(server.catalogId)?.featuredTools?.includes(tool.name) ?? false) : false
     candidates.push({ spec: { name, description: `[${server.name}] ${text}`, inputSchema: schemaOf(tool) }, score: toolScore(tool, prompt) + (featured ? FEATURED_BONUS : 0) })
