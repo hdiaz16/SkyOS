@@ -16,6 +16,8 @@ import {
   Sun,
   Trash2,
   UserRound,
+  Volume2,
+  VolumeX,
   XCircle,
   Zap,
 } from 'lucide-react'
@@ -141,6 +143,18 @@ function AccountSection() {
           {user.profile.location?.place ?? 'Sin ubicación'} · {user.pinHash ? 'Con PIN' : 'Sin PIN'}
         </p>
       </div>
+      <button
+        type="button"
+        title={user.profile.voice === false ? 'Activar la voz de Sky' : 'Silenciar la voz de Sky'}
+        onClick={async () => {
+          await users.updateProfile(user.id, { voice: user.profile.voice === false }, user.profile)
+          await useAuth.getState().refreshCurrent()
+        }}
+        className={cn('flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] transition hover:bg-surface-2', user.profile.voice === false ? 'text-ink-3' : 'text-ink-2 hover:text-ink')}
+      >
+        {user.profile.voice === false ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+        Voz
+      </button>
       <button type="button" onClick={() => void changePin()} className="rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
         {user.pinHash ? 'Cambiar PIN' : 'Poner PIN'}
       </button>
