@@ -15,6 +15,7 @@ import { useSettings, applyTheme } from './state/settings'
 import { useUi } from './state/ui'
 import { dispatch, undoLast } from './kernel/commands'
 import { firstBoot } from './system/firstBoot'
+import { useSession } from './ai/session'
 import { mcp } from './mcp/manager'
 import { isEditableTarget } from './lib/utils'
 
@@ -30,7 +31,10 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
-    void firstBoot()
+    void useSession
+      .getState()
+      .load()
+      .finally(() => void firstBoot())
     navigator.storage?.persist?.().catch(() => undefined)
     // Connected apps: finish a pending authorization, renew tokens, keep sessions alive while the desktop is open.
     return mcp.start()

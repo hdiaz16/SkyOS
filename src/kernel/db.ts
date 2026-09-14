@@ -3,6 +3,7 @@ import type { FsNode } from './types'
 import type { Widget } from './widgets'
 import { readSession } from '../system/session'
 import type { McpServerRecord, OAuthClient } from '../mcp/types'
+import type { ConversationRow } from '../ai/conversation'
 
 export interface BlobRow {
   id: string
@@ -40,6 +41,8 @@ export class MesaDB extends Dexie {
   mcpServers!: Table<McpServerRecord, string>
   /** OAuth client registrations, one per authorization server issuer. */
   oauthClients!: Table<OAuthClient, string>
+  /** The conversation with Sky (turns, model history, rolling summary); a single row. */
+  conversation!: Table<ConversationRow, string>
 
   constructor(name: string) {
     super(name)
@@ -57,6 +60,9 @@ export class MesaDB extends Dexie {
     this.version(3).stores({
       mcpServers: 'id, updatedAt',
       oauthClients: 'issuer',
+    })
+    this.version(4).stores({
+      conversation: 'id',
     })
   }
 }
