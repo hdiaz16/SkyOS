@@ -116,7 +116,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
             className="no-drag h-14 w-14 rounded-lg border border-line object-cover shadow-soft"
           />
         ) : (
-          <KindIcon kind={kind} className={isFolder ? 'h-14 w-14' : 'h-13 w-13'} />
+          <KindIcon kind={kind} name={node.name} className={isFolder ? 'h-14 w-14' : 'h-13 w-13'} />
         )}
       </div>
       {renaming ? (

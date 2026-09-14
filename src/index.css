@@ -315,3 +315,21 @@ html.handoff-flood body,
 .flood-veil {
   background: #4a8a68;
 }
+
+/* Office files read inside Sky: white sheets on the desk, whatever the theme. */
+.office-doc .docx-wrapper {
+  background: transparent;
+  padding: 0 16px;
+}
+.office-doc .docx-wrapper > section.docx {
+  margin: 0 auto 16px;
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
+  color-scheme: light;
+}
+.office-slides > div > div {
+  margin: 0 auto 16px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
+}

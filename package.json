@@ -17,12 +17,15 @@
     "@tailwindcss/vite": "^4.3.3",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
+    "docx-preview": "^0.4.0",
     "lucide-react": "^1.45.0",
     "motion": "^13.2.0",
     "nanoid": "^6.0.1",
+    "pptx-preview": "^1.0.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

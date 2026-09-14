@@ -275,7 +275,7 @@ export function CommandBar() {
       key: `file:${n.id}`,
       title: n.name,
       hint: n.kind === 'folder' ? 'Carpeta' : n.tags?.length ? n.tags.map((t) => `#${t}`).join(' ') : 'Archivo',
-      icon: <KindIcon kind={fileKind(n)} className="h-6 w-6" />,
+      icon: <KindIcon kind={fileKind(n)} name={n.name} className="h-6 w-6" />,
       run: () => void dispatch('ui.open', { id: n.id }),
     }))
     const matched = ACTIONS.filter((a) => matchAction(a, query)).slice(0, 6)

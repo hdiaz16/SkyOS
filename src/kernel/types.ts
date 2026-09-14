@@ -19,13 +19,27 @@ export interface FsNode {
 
 export const ROOT_ID = 'root'
 
-export type FileKind = 'folder' | 'text' | 'image' | 'pdf' | 'other'
+export type FileKind = 'folder' | 'text' | 'image' | 'pdf' | 'document' | 'spreadsheet' | 'presentation' | 'other'
 
 const TEXT_EXT = new Set([
   'txt', 'md', 'markdown', 'json', 'csv', 'js', 'ts', 'tsx', 'jsx', 'html', 'css',
   'xml', 'yml', 'yaml', 'log', 'sql', 'py', 'sh', 'toml', 'ini', 'env',
 ])
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp'])
+const DOCUMENT_EXT = new Set(['docx', 'doc', 'dotx', 'odt', 'rtf'])
+const SPREADSHEET_EXT = new Set(['xlsx', 'xls', 'xlsm', 'ods'])
+const PRESENTATION_EXT = new Set(['pptx', 'ppt', 'odp'])
+const OFFICE_MIME: Record<string, FileKind> = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
+  'application/msword': 'document',
+  'application/vnd.oasis.opendocument.text': 'document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'spreadsheet',
+  'application/vnd.ms-excel': 'spreadsheet',
+  'application/vnd.oasis.opendocument.spreadsheet': 'spreadsheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'presentation',
+  'application/vnd.ms-powerpoint': 'presentation',
+  'application/vnd.oasis.opendocument.presentation': 'presentation',
+}
 
 export function extOf(name: string): string {
   const i = name.lastIndexOf('.')
@@ -37,6 +51,10 @@ export function fileKind(node: Pick<FsNode, 'kind' | 'mime' | 'name'>): FileKind
   const ext = extOf(node.name)
   if (node.mime.startsWith('image/') || IMAGE_EXT.has(ext)) return 'image'
   if (node.mime === 'application/pdf' || ext === 'pdf') return 'pdf'
+  if (OFFICE_MIME[node.mime]) return OFFICE_MIME[node.mime]
+  if (DOCUMENT_EXT.has(ext)) return 'document'
+  if (SPREADSHEET_EXT.has(ext)) return 'spreadsheet'
+  if (PRESENTATION_EXT.has(ext)) return 'presentation'
   if (node.mime.startsWith('text/') || node.mime === 'application/json' || TEXT_EXT.has(ext)) return 'text'
   return 'other'
 }

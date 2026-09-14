@@ -78,7 +78,7 @@ export function TrashApp() {
         <ul className="scrollbar-thin flex-1 overflow-y-auto p-2">
           {items.map((n) => (
             <li key={n.id} className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-surface-2">
-              <KindIcon kind={fileKind(n)} className="h-8 w-8 shrink-0" />
+              <KindIcon kind={fileKind(n)} name={n.name} className="h-8 w-8 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] text-ink">{n.name}</p>
                 <p className="text-[11px] text-ink-3">

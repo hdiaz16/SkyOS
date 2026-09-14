@@ -81,6 +81,17 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   `VITE_BRIDGE_URL=http://127.0.0.1:8787` en `.env.local`. Sky intenta primero directo y solo usa el puente cuando
   el navegador bloquea la llamada.
 
+## Archivos de Office y tipos de archivo
+
+Word, Excel y PowerPoint se leen dentro de Sky, en el navegador y sin que el archivo salga de la mÃ¡quina:
+`docx-preview` maqueta los documentos, SheetJS lee los libros (hojas, filas, columnas) y `pptx-preview` dibuja las
+diapositivas. Los iconos del escritorio muestran el logo oficial del programa o del lenguaje (Word, Excel, PowerPoint,
+PDF, HTML, CSS, JavaScript, TypeScript, React, Python, Markdown, Go, Rust, Dockerâ¦) sobre una hoja con una banda de su
+color; el resto usa un glifo tintado por tipo (`src/lib/fileIcons.ts`, logos en `public/filetypes`).
+
+Editar con la paqueterÃ­a completa dentro de Sky requiere un servidor de documentos (ONLYOFFICE Docs o Collabora,
+autoalojados) o la cuenta de Microsoft 365 a travÃ©s de Microsoft Graph; ambos estÃ¡n en la fase siguiente.
+
 ## Proveedores y modelo automático
 
 | Proveedor | Cómo | Modelo automático |

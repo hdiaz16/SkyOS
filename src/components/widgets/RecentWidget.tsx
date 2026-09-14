@@ -28,7 +28,7 @@ export function RecentWidget({ widget }: { widget: Widget }) {
             onClick={() => void dispatch('ui.open', { id: f.id })}
             className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition hover:bg-surface-2"
           >
-            <KindIcon kind={fileKind(f)} className="h-7 w-7 shrink-0" />
+            <KindIcon kind={fileKind(f)} name={f.name} className="h-7 w-7 shrink-0" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] text-ink">{f.name}</span>
               <span className="block text-[11px] text-ink-3">{formatRelative(f.updatedAt)}</span>
