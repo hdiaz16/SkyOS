@@ -163,7 +163,7 @@ export function Onboarding() {
           className="flex w-full max-w-[560px] flex-col items-center"
         >
           {step === 'hello' && (
-            <Screen orb>
+            <Screen orb enter>
               <Sequence
                 lines={['Hola.', 'Soy Sky.', 'Voy a preparar un espacio para ti. Toma un minuto y unas cuantas preguntas.']}
                 onDone={() => undefined}
@@ -189,7 +189,7 @@ export function Onboarding() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Tu nombre"
                   maxLength={40}
-                  className="w-full max-w-[380px] border-b border-line-2 bg-transparent pb-2 text-center text-[26px] text-ink outline-none placeholder:text-ink-3 focus:border-accent"
+                  className="font-display w-full max-w-[380px] border-b border-line-2 bg-transparent pb-2 text-center text-[32px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-3 focus:border-accent"
                 />
                 <Primary type="submit" disabled={!name.trim()}>
                   Continuar
@@ -381,14 +381,14 @@ export function Onboarding() {
   )
 }
 
-function Screen({ question, note, orb, children }: { question?: string; note?: string; orb?: boolean; children: ReactNode }) {
+function Screen({ question, note, orb, enter, children }: { question?: string; note?: string; orb?: boolean; enter?: boolean; children: ReactNode }) {
   return (
     <div className="flex w-full flex-col items-center gap-8">
-      {orb && <Orb size={140} />}
+      {orb && <Orb size={140} enter={enter} />}
       {question && (
         <div className="text-center">
-          <h1 className="text-[28px] font-medium leading-tight tracking-tight text-ink">{question}</h1>
-          {note && <p className="mx-auto mt-3 max-w-[440px] text-[14px] leading-relaxed text-ink-2">{note}</p>}
+          <h1 className="font-display text-[36px] font-bold leading-[1.15] tracking-tight text-ink">{question}</h1>
+          {note && <p className="mx-auto mt-4 max-w-[460px] text-[14.5px] leading-relaxed text-ink-2">{note}</p>}
         </div>
       )}
       {children}
@@ -458,7 +458,9 @@ function Sequence({ lines, onDone, interval = 900 }: { lines: string[]; onDone: 
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className={cn(i === 0 ? 'text-[34px] font-medium tracking-tight text-ink' : i === 1 ? 'text-[22px] text-ink' : 'max-w-[420px] text-[15px] leading-relaxed text-ink-2')}
+          className={cn(
+            i === 0 ? 'font-display text-[54px] font-bold leading-none tracking-tight text-ink' : i === 1 ? 'font-display text-[28px] font-medium text-ink-2' : 'mt-2 max-w-[420px] text-[15px] leading-relaxed text-ink-2',
+          )}
         >
           {l}
         </motion.p>
@@ -473,6 +475,7 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
   const [shown, setShown] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [expanding, setExpanding] = useState(false)
   // The account must be created exactly once, even though React runs effects twice in development.
   const started = useRef(false)
 
@@ -488,7 +491,9 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
       .then((user) => {
         window.setTimeout(() => {
           setDone(true)
-          window.setTimeout(() => startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }), 1400)
+          // A beat to read "Listo", then the orb opens into the desktop.
+          window.setTimeout(() => setExpanding(true), 1300)
+          window.setTimeout(() => startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }), 1300 + 950)
         }, total)
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Algo salió mal'))
@@ -497,10 +502,16 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
 
   return (
     <div className="flex flex-col items-center gap-10">
-      <Orb size={160} active={!done} />
-      <div className="flex min-h-[96px] flex-col items-center gap-1.5 text-center">
+      <motion.div
+        animate={expanding ? { scale: 22, opacity: [1, 1, 0] } : { scale: 1, opacity: 1 }}
+        transition={expanding ? { duration: 0.95, times: [0, 0.7, 1], ease: [0.65, 0, 0.35, 1] } : { duration: 0.3 }}
+        style={{ willChange: 'transform, opacity' }}
+      >
+        <Orb size={160} active={!done || expanding} expanding={expanding} />
+      </motion.div>
+      <motion.div animate={{ opacity: expanding ? 0 : 1 }} transition={{ duration: 0.25 }} className="flex min-h-[96px] flex-col items-center gap-1.5 text-center">
         {done ? (
-          <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-[26px] font-medium tracking-tight text-ink">
+          <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-display text-[40px] font-bold tracking-tight text-ink">
             Listo, {name.trim().split(' ')[0]}.
           </motion.p>
         ) : (
@@ -517,7 +528,7 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
           ))
         )}
         {error && <p className="text-[13px] text-danger">{error}</p>}
-      </div>
+      </motion.div>
     </div>
   )
 }

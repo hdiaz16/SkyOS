@@ -48,7 +48,7 @@ export function Login() {
       <Orb size={120} active={busy} />
       <div className="text-center">
         <p className="text-[15px] text-ink-2">{greeting()}</p>
-        <h1 className="mt-1 text-[28px] font-medium tracking-tight text-ink">¿Quién eres?</h1>
+        <h1 className="font-display mt-1 text-[36px] font-bold tracking-tight text-ink">¿Quién eres?</h1>
       </div>
 
       <AnimatePresence mode="wait">
