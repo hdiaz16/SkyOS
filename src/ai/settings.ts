@@ -154,25 +154,35 @@ const DEFAULTS: Persisted = {
   discovered: {},
 }
 
-/** Every account starts with the shared Groq key unless the person stored one of their own. */
-function withSharedKey(keys: Partial<Record<ProviderId, string>>): Partial<Record<ProviderId, string>> {
-  return hasSharedGroqKey && !keys.groq ? { ...keys, groq: DEFAULT_GROQ_KEY } : keys
+/**
+ * Sky's included Groq key never enters the settings state or localStorage: it is resolved at request time
+ * (`resolveKey`), so no screen can display it and what each person stores is only ever their own.
+ * Older accounts that had it persisted are cleaned on load.
+ */
+function withoutSharedKey(keys: Partial<Record<ProviderId, string>>): Partial<Record<ProviderId, string>> {
+  if (!keys.groq || keys.groq !== DEFAULT_GROQ_KEY) return keys
+  const own = { ...keys }
+  delete own.groq
+  return own
 }
 
 function load(): Persisted {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return { ...DEFAULTS, keys: withSharedKey({}) }
+    if (!raw) return DEFAULTS
     const parsed = JSON.parse(raw) as Partial<Persisted>
-    return {
+    const state: Persisted = {
       ...DEFAULTS,
       ...parsed,
-      keys: withSharedKey(parsed.keys ?? {}),
+      keys: withoutSharedKey(parsed.keys ?? {}),
       baseUrls: parsed.baseUrls ?? {},
       discovered: parsed.discovered ?? {},
     }
+    // Accounts created before the key stopped being persisted get their storage cleaned right away.
+    if (hasSharedGroqKey && parsed.keys?.groq === DEFAULT_GROQ_KEY) localStorage.setItem(KEY, JSON.stringify(state))
+    return state
   } catch {
-    return { ...DEFAULTS, keys: withSharedKey({}) }
+    return DEFAULTS
   }
 }
 
@@ -195,7 +205,7 @@ function persist(state: AiSettingsState): void {
 /** Writes AI settings for an account that is not signed in yet (onboarding). */
 export function persistAiSettingsFor(userId: string, data: Partial<Persisted>): void {
   try {
-    localStorage.setItem(`mesa:ai:${userId}`, JSON.stringify({ ...DEFAULTS, ...data, keys: withSharedKey(data.keys ?? {}) }))
+    localStorage.setItem(`mesa:ai:${userId}`, JSON.stringify({ ...DEFAULTS, ...data }))
   } catch {
     /* ignore */
   }
@@ -221,7 +231,12 @@ export const useAiSettings = create<AiSettingsState>((set, get) => ({
     persist(get())
   },
   setKey: (id, key) => {
-    set((s) => ({ keys: { ...s.keys, [id]: key.trim() } }))
+    set((s) => {
+      const keys = { ...s.keys }
+      if (key.trim()) keys[id] = key.trim()
+      else delete keys[id]
+      return { keys }
+    })
     persist(get())
   },
   setBaseUrl: (id, url) => {
@@ -246,7 +261,17 @@ export function isAiConfigured(state: AiSettingsState = useAiSettings.getState()
   const preset = presetFor(state.provider)
   if (!state.model.trim()) return false
   if (state.model === AUTO_MODEL && !preset.tiers) return false
-  if (preset.needsKey && !state.keys[state.provider]) return false
+  if (preset.needsKey && !resolveKey(state)) return false
   if (state.provider === 'custom' && !state.baseUrls.custom) return false
   return true
+}
+
+/** True when requests to this provider would ride on Sky's included key rather than the person's own. */
+export function usesSharedKey(state: AiSettingsState = useAiSettings.getState(), provider: ProviderId = state.provider): boolean {
+  return provider === 'groq' && hasSharedGroqKey && !state.keys.groq
+}
+
+/** The key that actually travels to the provider: the person's own, or Sky's included one for Groq. Never for display. */
+export function resolveKey(state: AiSettingsState = useAiSettings.getState(), provider: ProviderId = state.provider): string {
+  return state.keys[provider] || (usesSharedKey(state, provider) ? DEFAULT_GROQ_KEY : '')
 }

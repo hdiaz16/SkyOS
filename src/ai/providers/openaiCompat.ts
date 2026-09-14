@@ -1,4 +1,4 @@
-import { AiError, type AiProvider, type ChatMessage, type ChatRequest, type Part, type StopReason, type StreamEvent, type ToolCallPart } from '../types'
+import { AiError, sharedKeyBusy, type AiProvider, type ChatMessage, type ChatRequest, type Part, type StopReason, type StreamEvent, type ToolCallPart } from '../types'
 
 /**
  * Adapter for any server that speaks the OpenAI chat-completions protocol:
@@ -10,6 +10,8 @@ interface Config {
   name: string
   baseUrl: string
   apiKey?: string
+  /** The key is Sky's included one: failures read as Sky being busy, never as a key or model problem. */
+  shared?: boolean
   vision?: boolean
 }
 
@@ -83,11 +85,11 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 /** Asks an OpenAI-compatible server which models it serves. Chat-capable ids only, sorted. */
-export async function listModels(baseUrl: string, apiKey?: string): Promise<string[]> {
+export async function listModels(baseUrl: string, apiKey?: string, shared = false): Promise<string[]> {
   const headers: Record<string, string> = {}
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`
   const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, { headers })
-  if (!res.ok) throw new AiError(res.status === 401 ? 'La llave no es válida.' : `El servidor respondió ${res.status}.`)
+  if (!res.ok) throw shared ? sharedKeyBusy() : new AiError(res.status === 401 ? 'La llave no es válida.' : `El servidor respondió ${res.status}.`)
   const data = (await res.json()) as { data?: Array<{ id: string }>; models?: Array<{ name: string }> }
   const ids = data.data?.map((m) => m.id) ?? data.models?.map((m) => m.name) ?? []
   const skip = /whisper|tts|orpheus|guard|embedding|safeguard|moderation|dall-e|image|audio|realtime|transcri/i
@@ -135,6 +137,10 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
       }
 
       if (!res.ok || !res.body) {
+        if (cfg.shared) {
+          yield { type: 'error', error: sharedKeyBusy() }
+          return
+        }
         const detail = await res.text().catch(() => '')
         const msg =
           res.status === 401 ? `La llave de ${cfg.name} no es válida.` : res.status === 404 ? `El modelo "${req.model}" no existe en ${cfg.name}.` : `${cfg.name} respondió ${res.status}. ${detail.slice(0, 200)}`

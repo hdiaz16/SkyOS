@@ -125,3 +125,12 @@ export class AiError extends Error {
     this.retryable = retryable
   }
 }
+
+/**
+ * What the person reads when a request riding on Sky's included key does not get through. That key is an
+ * implementation detail: whatever the cause (quota, rate limit, a revoked key), the useful message is that
+ * Sky is busy right now and that their own key in Ajustes is the way around it. Never "failed", never details.
+ */
+export const SHARED_KEY_BUSY = 'Sky está atendiendo muchas solicitudes en este momento. Intenta de nuevo en un momento o, si prefieres, agrega tu propia llave en Ajustes › Inteligencia.'
+
+export const sharedKeyBusy = (): AiError => new AiError(SHARED_KEY_BUSY, true)

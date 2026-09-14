@@ -575,7 +575,7 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
           // A beat to read "Listo", then the line races, the disc opens and the desktop takes over.
           window.setTimeout(() => setRushing(true), 1200)
           window.setTimeout(() => setExpanding(true), 1200 + 1300)
-          window.setTimeout(() => startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }), 1200 + 1300 + 1000)
+          window.setTimeout(() => startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }, 'flood'), 1200 + 1300 + 1000)
         }, total)
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Algo salió mal'))

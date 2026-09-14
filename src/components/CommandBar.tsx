@@ -34,7 +34,7 @@ import { dispatch, undoLast, useToasts } from '../kernel/commands'
 import { useUi } from '../state/ui'
 import { useWindows } from '../state/windows'
 import { useSession } from '../ai/session'
-import { isAiConfigured, useAiSettings } from '../ai/settings'
+import { isAiConfigured, resolveKey, useAiSettings, usesSharedKey } from '../ai/settings'
 import { useSemantic } from '../ai/indexer'
 import { captureScreen, useSnap } from '../ai/snap'
 import { getProvider } from '../ai/providers'
@@ -130,8 +130,8 @@ function useDictation(onText: (text: string) => void) {
     try {
       const audio = await rec.stop()
       if (audio.size < 2000) throw new Error('No escuché nada')
-      const key = useAiSettings.getState().keys.groq ?? ''
-      const text = await transcribe(audio, key)
+      const settings = useAiSettings.getState()
+      const text = await transcribe(audio, resolveKey(settings, 'groq'), usesSharedKey(settings, 'groq'))
       if (text) onText(text)
       else useToasts.getState().push({ message: 'No entendí el audio. Intenta otra vez.', kind: 'info' })
     } catch (err) {

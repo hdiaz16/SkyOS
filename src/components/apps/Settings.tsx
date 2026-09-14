@@ -25,7 +25,7 @@ import { fs } from '../../kernel/fs'
 import { flows } from '../../kernel/flows'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
-import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, useAiSettings, type ProviderId } from '../../ai/settings'
+import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, resolveKey, useAiSettings, usesSharedKey, type ProviderId } from '../../ai/settings'
 import { getProvider } from '../../ai/providers'
 import { listModels } from '../../ai/providers/openaiCompat'
 import { TIER_LABELS } from '../../ai/router'
@@ -184,6 +184,8 @@ function AiSection() {
   const discovered = ai.discovered[ai.provider] ?? []
   const knownIds = new Set(preset.models.map((m) => m.id))
   const extraModels = discovered.filter((id) => !knownIds.has(id))
+  // Sky's included key is resolved at request time and never shown; the field only ever holds the person's own.
+  const shared = usesSharedKey(ai)
 
   const runTest = async () => {
     setTest({ state: 'running' })
@@ -211,7 +213,7 @@ function AiSection() {
   const refreshModels = async () => {
     setLoadingModels(true)
     try {
-      const ids = await listModels(baseUrl || preset.baseUrl || '', ai.keys[ai.provider])
+      const ids = await listModels(baseUrl || preset.baseUrl || '', resolveKey(ai), shared)
       ai.setDiscovered(ai.provider, ids)
       useToasts.getState().push({ message: `${ids.length} modelos disponibles en ${preset.name}`, kind: 'info' })
     } catch (err) {
@@ -253,6 +255,7 @@ function AiSection() {
           label="Llave de API"
           hint={
             <>
+              {shared && 'Sky ya trae una llave para que funcione desde el primer día; si pegas la tuya, usará tu cuenta. '}
               Se guarda solo en este navegador, dentro de tu cuenta, y viaja únicamente al proveedor.
               {preset.keyUrl && (
                 <>
@@ -274,7 +277,7 @@ function AiSection() {
                 ai.setKey(ai.provider, e.target.value)
                 setTest({ state: 'idle' })
               }}
-              placeholder={ai.provider === 'anthropic' ? 'sk-ant-…' : ai.provider === 'groq' ? 'gsk_…' : 'sk-…'}
+              placeholder={shared ? 'Incluida con Sky · pega la tuya si prefieres usar tu cuenta' : ai.provider === 'anthropic' ? 'sk-ant-…' : ai.provider === 'groq' ? 'gsk_…' : 'sk-…'}
               spellCheck={false}
               autoComplete="off"
               className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 pr-9 font-mono text-[13px] text-ink outline-none focus:border-accent"
@@ -351,7 +354,7 @@ function AiSection() {
               )}
               <button
                 type="button"
-                disabled={loadingModels || (preset.needsKey && !ai.keys[ai.provider])}
+                disabled={loadingModels || (preset.needsKey && !resolveKey(ai))}
                 onClick={() => void refreshModels()}
                 className="flex h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] text-ink-2 transition hover:border-line-2 hover:text-ink disabled:opacity-40"
               >

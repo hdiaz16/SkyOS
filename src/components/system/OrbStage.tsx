@@ -6,7 +6,8 @@ import { ORB_SIZE, ORB_TOP, useOrbStage } from './orbStore'
  * One orb for every pre-desktop screen. It is mounted once and stays put at a fixed anchor while the
  * splash, the onboarding and the login change the text beneath it; only its mood changes.
  */
-export function OrbStage() {
+/** `arrive` replays the arrival; a hand-over reload shows the orb already at rest. */
+export function OrbStage({ arrive = true }: { arrive?: boolean }) {
   const mode = useOrbStage((s) => s.mode)
   const tempo = mode === 'rush' || mode === 'flood' ? TEMPO_RUSH : mode === 'busy' ? TEMPO_BUSY : TEMPO_CALM
   const flooding = mode === 'flood'
@@ -18,7 +19,7 @@ export function OrbStage() {
         animate={flooding ? { scale: 24, opacity: 1 } : { scale: 1, opacity: mode === 'hidden' ? 0 : 1 }}
         transition={flooding ? { duration: 1, ease: [0.7, 0, 0.3, 1] } : { duration: 0.7, ease: 'easeInOut' }}
       >
-        <Orb size={ORB_SIZE} enter tempo={tempo} expanding={flooding} />
+        <Orb size={ORB_SIZE} enter={arrive} tempo={tempo} expanding={flooding} />
       </motion.div>
     </div>
   )

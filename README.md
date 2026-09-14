@@ -64,7 +64,7 @@ internos lo conservan para no perder datos.
 
 | Proveedor | Cómo | Modelo automático |
 | --- | --- | --- |
-| Groq (por defecto) | Protocolo de OpenAI, llave compartida en `.env.local` | GPT-OSS 20B para lo cotidiano; GPT-OSS 120B para tareas complejas o redacción larga. Whisper Large v3 Turbo para dictar. |
+| Groq (por defecto) | Protocolo de OpenAI, llave incluida en `.env.local`, nunca visible en la interfaz; si no responde, Sky solo dice que está atendiendo muchas solicitudes e invita a usar una llave propia | GPT-OSS 20B para lo cotidiano; GPT-OSS 120B para tareas complejas o redacción larga. Whisper Large v3 Turbo para dictar. |
 | Anthropic (Claude) | SDK oficial en el navegador | Haiku 4.5 para lo simple, Sonnet 5 para lo medio, Opus 5 para lo complejo. Lee PDF, imágenes y páginas web. |
 | OpenAI, OpenRouter | Protocolo de chat completions | Modelo fijo elegido en Ajustes; lista de modelos en vivo. |
 | Ollama, compatibles | Misma interfaz, URL base propia | Modelos locales sin llave. |

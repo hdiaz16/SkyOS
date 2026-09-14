@@ -1,5 +1,5 @@
-import { useAiSettings, type AiSettingsState } from './settings'
-import { AiError } from './types'
+import { resolveKey, useAiSettings, type AiSettingsState } from './settings'
+import { AiError, sharedKeyBusy } from './types'
 
 /**
  * Dictation through Groq's Whisper endpoint. Works whenever a Groq key is stored, whichever provider
@@ -11,10 +11,10 @@ const MODEL = 'whisper-large-v3-turbo'
 const MAX_SECONDS = 60
 
 export function dictationAvailable(state: AiSettingsState = useAiSettings.getState()): boolean {
-  return !!state.keys.groq && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
+  return !!resolveKey(state, 'groq') && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
 }
 
-export async function transcribe(audio: Blob, apiKey: string): Promise<string> {
+export async function transcribe(audio: Blob, apiKey: string, shared = false): Promise<string> {
   const form = new FormData()
   form.append('file', audio, `dictado.${audio.type.includes('mp4') ? 'mp4' : 'webm'}`)
   form.append('model', MODEL)
@@ -23,6 +23,7 @@ export async function transcribe(audio: Blob, apiKey: string): Promise<string> {
   form.append('temperature', '0')
   const res = await fetch(TRANSCRIBE_URL, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form })
   if (!res.ok) {
+    if (shared) throw sharedKeyBusy()
     if (res.status === 401) throw new AiError('La llave de Groq no es válida.')
     if (res.status === 429) throw new AiError('Groq está saturado; intenta en unos segundos.', true)
     throw new AiError(`No se pudo transcribir (${res.status}).`, res.status >= 500)

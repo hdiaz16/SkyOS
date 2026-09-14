@@ -307,3 +307,11 @@ input, textarea {
 .loading-bar {
   animation: loading-bar 1.2s ease-in-out infinite;
 }
+
+/* The onboarding ends with the disc flooding the screen; the reload that follows keeps that color
+   (html.handoff-flood, set by index.html before first paint) and the shell's veil dissolves it.
+   Pre-login screens are always light, so this is the light-theme --orb-disc. */
+html.handoff-flood body,
+.flood-veil {
+  background: #4a8a68;
+}
