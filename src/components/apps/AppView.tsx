@@ -7,6 +7,7 @@ import { mcp, useMcp } from '../../mcp/manager'
 import type { CallToolResult, McpServerRecord, McpTool } from '../../mcp/types'
 import { useSession } from '../../ai/session'
 import { Markdown } from '../Markdown'
+import { notionPage } from '../../mcp/notionText'
 import { AppLogo } from './Apps'
 import { cn } from '../../lib/utils'
 
@@ -106,18 +107,6 @@ interface OpenPage extends NotionPage {
   text: string
 }
 
-/** Notion wraps the page in a preamble and XML-like tags; the Markdown body is what people want to read. */
-function pageBody(raw: string): string {
-  return raw
-    .replace(/^Here is the result of[^\n]*\n/, '')
-    .replace(/<(ancestor-path|iconMetadata|properties)>[\s\S]*?<\/\1>\s*/g, '')
-    // Notion-flavored Markdown wraps blocks in XML-like tags (<page>, <callout>, <columns>â¦); the words are what matter.
-    .replace(/<\/?[a-zA-Z][\w-]*(?:\s[^>]*)?>/g, '')
-    // A leading JSON object carries the page properties, already shown in the title.
-    .replace(/^\s*{[^\n]*}\s*\n/, '')
-    .trim()
-}
-
 const asPages = (data: unknown): NotionPage[] => {
   const results = (data as { results?: unknown[] } | null)?.results
   if (!Array.isArray(results)) return []
@@ -169,9 +158,8 @@ function NotionView({ record }: { record: McpServerRecord }) {
     setOpening(page.url)
     try {
       const r = await mcp.callTool(record.id, 'notion-fetch', { id: page.url })
-      const data = payload(r) as { title?: string; text?: string; url?: string } | string
-      const text = typeof data === 'string' ? data : (data.text ?? '')
-      setOpen({ ...page, title: typeof data === 'string' ? page.title : (data.title ?? page.title), text: pageBody(text) })
+      const parsed = notionPage(payload(r) as { title?: string; text?: string } | string)
+      setOpen({ ...page, title: parsed.title ?? page.title, text: parsed.markdown })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No pude abrir la página')
     } finally {
@@ -243,7 +231,7 @@ function NotionView({ record }: { record: McpServerRecord }) {
                   Abrir en Notion <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
-              <Markdown text={open.text || '_Esta página está vacía._'} className="prose-sky text-[14px] leading-relaxed text-ink" />
+              <Markdown text={open.text || '_Esta página está vacía._'} className="text-[14px] leading-relaxed text-ink" />
             </article>
           )}
         </section>
