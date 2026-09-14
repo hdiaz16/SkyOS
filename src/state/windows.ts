@@ -26,6 +26,30 @@ export interface Win {
   props: WindowProps
   /** Last time the window was opened or brought to the front; lets Sky tell what the person has not used in a while. */
   touchedAt: number
+  /** Geometry to go back to after a snap or maximize. */
+  prev?: Geometry
+  maximized?: boolean
+  /** True right after the system placed the window (snap, arrange, stack): the frame glides there instead of jumping, then clears it. */
+  settling?: boolean
+}
+
+export type Geometry = Pick<Win, 'x' | 'y' | 'w' | 'h'>
+export type SnapTarget = 'left' | 'right' | 'max'
+
+/** Where windows may live: under the top bar, above the command bar, with a little air at the sides. */
+export function workspace(): Geometry {
+  const margin = 12
+  const top = 52
+  const bottom = 100
+  return { x: margin, y: top, w: Math.max(320, window.innerWidth - margin * 2), h: Math.max(240, window.innerHeight - top - bottom) }
+}
+
+export function snapGeometry(target: SnapTarget): Geometry {
+  const ws = workspace()
+  if (target === 'max') return ws
+  const gap = 12
+  const half = Math.floor((ws.w - gap) / 2)
+  return target === 'left' ? { x: ws.x, y: ws.y, w: half, h: ws.h } : { x: ws.x + half + gap, y: ws.y, w: ws.w - half - gap, h: ws.h }
 }
 
 interface OpenOptions {
@@ -53,6 +77,18 @@ interface WindowsState {
   restore: (win: Win) => void
   /** Applies several geometry or state patches in one update. */
   patchMany: (patches: Array<Partial<Win> & { id: string }>) => void
+  /** Sends the window to a half of the screen or the whole workspace, remembering where it was. */
+  snap: (id: string, target: SnapTarget) => void
+  /** Whole workspace, or back to where it was. */
+  toggleMaximize: (id: string) => void
+  /** Windows hidden by Zen mode, or null when Zen is off. */
+  zen: string[] | null
+  /** Zen: every window but the active one fades away; again brings them back. */
+  toggleZen: () => void
+  /** Gathers the visible windows behind the active one as a deck ordered by recent use. */
+  stack: () => void
+  /** The frame reports that a placement finished animating. */
+  settled: (id: string) => void
 }
 
 const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
@@ -73,9 +109,12 @@ const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
 const MIN_W = 360
 const MIN_H = 240
 
+const place = (w: Win, g: Geometry, extra: Partial<Win> = {}): Win => ({ ...w, ...g, settling: true, ...extra })
+
 export const useWindows = create<WindowsState>((set, get) => ({
   windows: [],
   nextZ: 10,
+  zen: null,
 
   open: (app, opts = {}) => {
     const state = get()
@@ -142,6 +181,58 @@ export const useWindows = create<WindowsState>((set, get) => ({
         : { windows: [...s.windows, { ...win, z: s.nextZ, minimized: false, touchedAt: Date.now() }], nextZ: s.nextZ + 1 },
     ),
 
+  snap: (id, target) =>
+    set((s) => ({
+      windows: s.windows.map((w) => (w.id === id ? place(w, snapGeometry(target), { prev: w.maximized ? w.prev : { x: w.x, y: w.y, w: w.w, h: w.h }, maximized: target === 'max' }) : w)),
+    })),
+
+  toggleMaximize: (id) =>
+    set((s) => ({
+      windows: s.windows.map((w) => {
+        if (w.id !== id) return w
+        if (w.maximized && w.prev) return place(w, w.prev, { maximized: false, prev: undefined })
+        return place(w, snapGeometry('max'), { prev: { x: w.x, y: w.y, w: w.w, h: w.h }, maximized: true })
+      }),
+    })),
+
+  settled: (id) => set((s) => (s.windows.some((w) => w.id === id && w.settling) ? { windows: s.windows.map((w) => (w.id === id ? { ...w, settling: false } : w)) } : s)),
+
+  toggleZen: () =>
+    set((s) => {
+      if (s.zen) {
+        const back = new Set(s.zen)
+        return { zen: null, windows: s.windows.map((w) => (back.has(w.id) ? { ...w, minimized: false } : w)) }
+      }
+      let top: Win | undefined
+      for (const w of s.windows) if (!w.minimized && (!top || w.z > top.z)) top = w
+      const hidden = s.windows.filter((w) => !w.minimized && w.id !== top?.id).map((w) => w.id)
+      if (!hidden.length) return s
+      const gone = new Set(hidden)
+      return { zen: hidden, windows: s.windows.map((w) => (gone.has(w.id) ? { ...w, minimized: true } : w)) }
+    }),
+
+  stack: () =>
+    set((s) => {
+      const visible = s.windows.filter((w) => !w.minimized).sort((a, b) => b.touchedAt - a.touchedAt)
+      if (visible.length < 2) return s
+      const lead = visible[0]
+      const ws = workspace()
+      const w = Math.min(lead.w, ws.w - 16 * (visible.length - 1))
+      const h = Math.min(lead.h, ws.h - 14 * (visible.length - 1))
+      const x0 = Math.max(ws.x, Math.min(lead.x, ws.x + ws.w - w - 16 * (visible.length - 1)))
+      const y0 = Math.max(ws.y + 14 * (visible.length - 1), Math.min(lead.y, ws.y + ws.h - h))
+      const order = new Map(visible.map((win, i) => [win.id, i]))
+      let z = s.nextZ
+      return {
+        nextZ: s.nextZ + visible.length,
+        windows: s.windows.map((win) => {
+          const i = order.get(win.id)
+          if (i === undefined) return win
+          return place(win, { x: x0 + 16 * i, y: y0 - 14 * i, w, h }, { z: z + visible.length - 1 - i, maximized: false })
+        }),
+      }
+    }),
+
   patchMany: (patches) =>
     set((s) => {
       const byId = new Map(patches.map((p) => [p.id, p]))
@@ -149,7 +240,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
         windows: s.windows.map((w) => {
           const p = byId.get(w.id)
           if (!p) return w
-          const next = { ...w, ...p }
+          const next = { ...w, ...p, settling: true }
           return {
             ...next,
             x: Math.round(next.x),

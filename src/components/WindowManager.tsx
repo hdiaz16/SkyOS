@@ -13,6 +13,7 @@ import { SettingsApp } from './apps/Settings'
 import { OfficeViewer } from './apps/OfficeViewer'
 import { AppView } from './apps/AppView'
 import { CanvasApp } from './apps/Canvas'
+import { SnapPreview } from './SnapPreview'
 
 function renderApp(win: Win) {
   switch (win.app) {
@@ -47,12 +48,15 @@ export function WindowManager() {
   const windows = useWindows((s) => s.windows)
   const topZ = windows.reduce((m, w) => (w.minimized ? m : Math.max(m, w.z)), -1)
   return (
-    <AnimatePresence>
-      {windows.map((w) => (
-        <WindowFrame key={w.id} win={w} active={w.z === topZ}>
-          {renderApp(w)}
-        </WindowFrame>
-      ))}
-    </AnimatePresence>
+    <>
+      <AnimatePresence>
+        {windows.map((w) => (
+          <WindowFrame key={w.id} win={w} active={w.z === topZ}>
+            {renderApp(w)}
+          </WindowFrame>
+        ))}
+      </AnimatePresence>
+      <SnapPreview />
+    </>
   )
 }

@@ -57,6 +57,11 @@ export default function App() {
         ui.focusComposer()
         return
       }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        void dispatch('ui.zen')
+        return
+      }
       if (isEditableTarget(e.target)) return
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()

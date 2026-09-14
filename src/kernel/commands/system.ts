@@ -26,7 +26,7 @@ function activeId(windows: Win[]): string | undefined {
 }
 
 /** Words that make these commands relevant; without one of them in the request, their tools stay home. */
-const WINDOW_WORDS = ['ventana', 'ventanas', 'minimiza', 'minimizar', 'cierra', 'cerrar', 'ordena', 'ordenar', 'acomoda', 'acomodar', 'cascada', 'cuadricula', 'cuadrícula', 'limpia', 'limpiar', 'despeja', 'abiertas', 'sesion', 'sesión', 'salir', 'logout', 'sistema', 'estado', 'hora', 'fecha', 'almacenamiento', 'espacio', 'version', 'versión']
+const WINDOW_WORDS = ['ventana', 'ventanas', 'minimiza', 'minimizar', 'cierra', 'cerrar', 'ordena', 'ordenar', 'acomoda', 'acomodar', 'cascada', 'cuadricula', 'cuadrícula', 'limpia', 'limpiar', 'despeja', 'abiertas', 'zen', 'enfoque', 'concentrar', 'concentrarme', 'apila', 'apilar', 'mazo', 'maximiza', 'maximizar', 'pantalla completa', 'sesion', 'sesión', 'salir', 'logout', 'sistema', 'estado', 'hora', 'fecha', 'almacenamiento', 'espacio', 'version', 'versión']
 
 registerCommand<Record<string, never>, WindowSummary[]>({
   id: 'ui.windows',
@@ -167,6 +167,69 @@ registerCommand<{ layout?: Layout }, number>({
       label: `${plural(wins.length, 'ventana ordenada', 'ventanas ordenadas')} ${names[layout]}`,
       undo: async () => useWindows.getState().patchMany(before),
     }
+  },
+})
+
+registerCommand<Record<string, never>, { zen: boolean; hidden: number }>({
+  id: 'ui.zen',
+  keywords: WINDOW_WORDS,
+  title: 'Modo Zen',
+  description: 'Alterna el modo Zen (Ctrl+Mayús+Z): todas las ventanas menos la activa se desvanecen para dejar solo el documento en curso; volver a llamarlo las trae de vuelta.',
+  params: {},
+  async run() {
+    const wm = useWindows.getState()
+    const wasOn = !!wm.zen
+    wm.toggleZen()
+    const now = useWindows.getState().zen
+    if (!wasOn && !now) return { result: { zen: false, hidden: 0 }, label: 'No hay otras ventanas que apartar' }
+    return {
+      result: { zen: !!now, hidden: now?.length ?? 0 },
+      label: now ? `Modo Zen: ${plural(now.length, 'ventana apartada', 'ventanas apartadas')}` : 'Modo Zen apagado',
+      undo: async () => useWindows.getState().toggleZen(),
+    }
+  },
+})
+
+registerCommand<Record<string, never>, number>({
+  id: 'ui.stackWindows',
+  keywords: WINDOW_WORDS,
+  title: 'Apilar ventanas',
+  description: 'Reúne las ventanas visibles en un mazo detrás de la activa, ordenado por uso reciente (también con doble clic en el fondo del escritorio).',
+  params: {},
+  async run() {
+    const wins = useWindows.getState().windows.filter((w) => !w.minimized)
+    if (wins.length < 2) return { result: wins.length }
+    const before = wins.map((w) => ({ id: w.id, x: w.x, y: w.y, w: w.w, h: w.h, z: w.z }))
+    useWindows.getState().stack()
+    return {
+      result: wins.length,
+      label: `${plural(wins.length, 'ventana apilada', 'ventanas apiladas')} detrás de la activa`,
+      undo: async () => useWindows.getState().patchMany(before),
+    }
+  },
+})
+
+registerCommand<{ id?: string; target?: 'left' | 'right' | 'max' | 'restore' }, void>({
+  id: 'ui.snapWindow',
+  keywords: WINDOW_WORDS,
+  title: 'Ajustar ventana',
+  description: 'Lleva una ventana (la activa si no se da id) a la mitad izquierda, la derecha, a pantalla completa ("max") o de vuelta a su tamaño ("restore").',
+  params: {
+    id: { type: 'string', description: 'Id de la ventana; por defecto la activa.' },
+    target: { type: 'string', description: 'left, right, max o restore.', enum: ['left', 'right', 'max', 'restore'] },
+  },
+  async run({ id, target = 'max' }) {
+    const wm = useWindows.getState()
+    const win = id ? wm.windows.find((w) => w.id === id) : wm.windows.find((w) => w.id === activeId(wm.windows))
+    if (!win) throw new Error('No hay una ventana que ajustar')
+    const before = { id: win.id, x: win.x, y: win.y, w: win.w, h: win.h, maximized: win.maximized, prev: win.prev }
+    if (target === 'restore') {
+      if (win.maximized) wm.toggleMaximize(win.id)
+      else if (win.prev) wm.patchMany([{ id: win.id, ...win.prev, prev: undefined }])
+    } else {
+      wm.snap(win.id, target)
+    }
+    return { result: undefined, label: `"${win.title}" ajustada`, undo: async () => useWindows.getState().patchMany([before]) }
   },
 })
 

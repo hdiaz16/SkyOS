@@ -17,6 +17,11 @@ export function Desktop() {
     if (e.button === 0 && !(e.target as HTMLElement).closest('[data-node]')) useUi.getState().clearSelection()
   }
 
+  const onDoubleClick = (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('[data-node]')) return
+    void dispatch('ui.stackWindows')
+  }
+
   const onContextMenu = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest('[data-node]')) return
     e.preventDefault()
@@ -48,6 +53,7 @@ export function Desktop() {
     <div
       className="absolute inset-0 px-5 pb-28 pt-14"
       onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       onDragOver={onDragOver}
       onDragLeave={(e) => {

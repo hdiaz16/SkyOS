@@ -26,6 +26,9 @@ interface UiState {
   contextMenu: ContextMenuState | null
   openMenu: (x: number, y: number, items: MenuItem[]) => void
   closeMenu: () => void
+  /** Half or whole of the screen a dragged window would snap to if released now. */
+  snapPreview: 'left' | 'right' | 'max' | null
+  setSnapPreview: (target: 'left' | 'right' | 'max' | null) => void
 }
 
 let menuNonce = 0
@@ -45,4 +48,6 @@ export const useUi = create<UiState>((set) => ({
   contextMenu: null,
   openMenu: (x, y, items) => set({ contextMenu: { x, y, items, nonce: ++menuNonce } }),
   closeMenu: () => set({ contextMenu: null }),
+  snapPreview: null,
+  setSnapPreview: (snapPreview) => set((s) => (s.snapPreview === snapPreview ? s : { snapPreview })),
 }))
