@@ -12,7 +12,7 @@ import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
 import { currentPosition, reverseGeocode } from '../../lib/weather'
 import { cn } from '../../lib/utils'
-import { Orb, TEMPO_BUSY, TEMPO_CALM, TEMPO_RUSH } from './Orb'
+import { BELOW_ORB, useOrbStage } from './orbStore'
 
 type Step = 'hello' | 'name' | 'tone' | 'purpose' | 'autonomy' | 'theme' | 'location' | 'microphone' | 'ai' | 'pin' | 'setup'
 
@@ -145,8 +145,15 @@ export function Onboarding() {
   const preset = presetFor(provider)
   const needsKey = preset.needsKey
 
+  // Screens that share the stage with the orb sit under it; the questions take the whole screen.
+  const withOrb = step === 'hello' || step === 'setup'
+
+  useEffect(() => {
+    useOrbStage.getState().setMode(step === 'hello' ? 'idle' : step === 'setup' ? 'busy' : 'hidden')
+  }, [step])
+
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center px-6 select-none">
+    <div className="absolute inset-0 select-none">
       <div className="absolute left-6 top-5 flex items-center gap-3">
         {index > 0 && step !== 'setup' && (
           <button type="button" onClick={back} className="text-[13px] text-ink-3 transition hover:text-ink">
@@ -176,10 +183,11 @@ export function Onboarding() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10, transition: { duration: 0.18 } }}
           transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-          className="flex w-full max-w-[560px] flex-col items-center"
+          className={cn('absolute inset-x-0 flex flex-col items-center px-6', !withOrb && 'inset-y-0 justify-center')}
+          style={withOrb ? { top: BELOW_ORB } : undefined}
         >
           {step === 'hello' && (
-            <Screen orb enter>
+            <Screen>
               <Sequence
                 lines={['Hola.', 'Soy Sky.', 'Voy a preparar un espacio para ti. Toma un minuto y unas cuantas preguntas.']}
                 onDone={() => undefined}
@@ -454,10 +462,9 @@ export function Onboarding() {
   )
 }
 
-function Screen({ question, note, orb, enter, children }: { question?: string; note?: string; orb?: boolean; enter?: boolean; children: ReactNode }) {
+function Screen({ question, note, children }: { question?: string; note?: string; children: ReactNode }) {
   return (
-    <div className="flex w-full flex-col items-center gap-8">
-      {orb && <Orb size={140} enter={enter} />}
+    <div className="flex w-full max-w-[560px] flex-col items-center gap-8">
       {question && (
         <div className="text-center">
           <h1 className="font-display text-[36px] font-bold leading-[1.15] tracking-tight text-ink">{question}</h1>
@@ -575,15 +582,13 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The shared orb tells the story: busy while creating, calm on "Listo", then racing, then flooding.
+  useEffect(() => {
+    useOrbStage.getState().setMode(expanding ? 'flood' : rushing ? 'rush' : done ? 'idle' : 'busy')
+  }, [done, rushing, expanding])
+
   return (
-    <div className="flex flex-col items-center gap-10">
-      <motion.div
-        animate={expanding ? { scale: 24 } : { scale: 1 }}
-        transition={expanding ? { duration: 1, ease: [0.7, 0, 0.3, 1] } : { duration: 0.3 }}
-        style={{ willChange: 'transform' }}
-      >
-        <Orb size={160} tempo={rushing ? TEMPO_RUSH : done ? TEMPO_CALM : TEMPO_BUSY} expanding={expanding} />
-      </motion.div>
+    <div className="flex flex-col items-center">
       <motion.div animate={{ opacity: rushing || expanding ? 0 : 1 }} transition={{ duration: 0.5 }} className="flex min-h-[96px] flex-col items-center gap-1.5 text-center">
         {done ? (
           <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-display text-[40px] font-bold tracking-tight text-ink">

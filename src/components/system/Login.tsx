@@ -4,7 +4,7 @@ import { ArrowLeft, Lock, UserPlus } from 'lucide-react'
 import { useAuth } from '../../system/auth'
 import type { UserRow } from '../../system/db'
 import { cn } from '../../lib/utils'
-import { Orb } from './Orb'
+import { BELOW_ORB, useOrbStage } from './orbStore'
 
 const greeting = () => {
   const h = new Date().getHours()
@@ -43,9 +43,12 @@ export function Login() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, selected])
 
+  useEffect(() => {
+    useOrbStage.getState().setMode(busy ? 'busy' : 'idle')
+  }, [busy])
+
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-10 px-6 select-none">
-      <Orb size={120} active={busy} />
+    <div className="absolute inset-x-0 flex flex-col items-center gap-8 px-6 select-none" style={{ top: BELOW_ORB }}>
       <div className="text-center">
         <p className="text-[15px] text-ink-2">{greeting()}</p>
         <h1 className="font-display mt-1 text-[36px] font-bold tracking-tight text-ink">¿Quién eres?</h1>
