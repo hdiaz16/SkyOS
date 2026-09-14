@@ -8,6 +8,8 @@ import { fs } from '../kernel/fs'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { useWindows } from '../state/windows'
 import { formatBytes } from '../lib/utils'
+import { useJobs } from '../system/jobs'
+import { textOf } from '../system/extract'
 
 /**
  * Focused, single-shot AI jobs that produce a document rather than a conversation:
@@ -79,6 +81,29 @@ interface StartTaskOptions {
   openWindow?: boolean
 }
 
+export interface TaskRunOptions {
+  /** No window now: the task runs on its own and a card offers the result when it is ready. */
+  background?: boolean
+}
+
+/** Whether the task's Result window is the one on top; if not, finishing deserves a card. */
+function resultVisible(taskId: string): boolean {
+  const { windows } = useWindows.getState()
+  const win = windows.find((w) => w.props.taskId === taskId)
+  if (!win || win.minimized) return false
+  let top: (typeof windows)[number] | undefined
+  for (const w of windows) if (!w.minimized && (!top || w.z > top.z)) top = w
+  return top?.id === win.id
+}
+
+/** Brings the task's Result window to the front, opening one if it was never shown. */
+function showResult(taskId: string, title: string): void {
+  const wm = useWindows.getState()
+  const win = wm.windows.find((w) => w.props.taskId === taskId)
+  if (win) wm.focus(win.id)
+  else wm.open('result', { title, props: { taskId } })
+}
+
 /** Starts a task, opens its window and streams the model's answer into it. Returns the task id. */
 export function startTask(opts: StartTaskOptions): string {
   const id = nanoid(6)
@@ -95,6 +120,8 @@ export function startTask(opts: StartTaskOptions): string {
   if (opts.openWindow !== false) {
     useWindows.getState().open('result', { title: opts.title, props: { taskId: id } })
   }
+  useJobs.getState().start({ id, kind: 'ai', title: opts.title, detail: 'Sky está trabajando…' })
+  const open = () => showResult(id, opts.title)
 
   let pending = ''
   let frame: number | null = null
@@ -126,23 +153,27 @@ export function startTask(opts: StartTaskOptions): string {
     .then((result) => {
       if (frame !== null) cancelAnimationFrame(frame)
       flush()
+      const aborted = result.stopReason === 'aborted'
       useTasks.getState().patch(id, {
         text: result.text,
-        status: result.stopReason === 'aborted' ? 'stopped' : 'done',
+        status: aborted ? 'stopped' : 'done',
         runId: result.runId,
         controller: null,
         statusMessage: undefined,
       })
+      useJobs.getState().finish(id, { detail: aborted ? 'Detenida' : 'Resultado listo', open, quiet: aborted || resultVisible(id) })
     })
     .catch((err: unknown) => {
       if (frame !== null) cancelAnimationFrame(frame)
       flush()
+      const message = err instanceof Error ? err.message : 'Algo salió mal'
       useTasks.getState().patch(id, {
         status: 'error',
-        error: err instanceof Error ? err.message : 'Algo salió mal',
+        error: message,
         controller: null,
         statusMessage: undefined,
       })
+      useJobs.getState().finish(id, { error: message, open, quiet: resultVisible(id) })
     })
 
   return id
@@ -180,7 +211,7 @@ interface Gathered {
   skipped: string[]
 }
 
-/** What the model can use from a set of files: text inline within budget, PDFs attached when the provider reads them, the rest by name. */
+/** What the model can use from a set of files: text inline within budget (documents through their extracted text), PDFs attached when the provider reads them natively, the rest by name. */
 async function gather(files: FsNode[]): Promise<Gathered> {
   const sections: string[] = []
   const attachments: Attachment[] = []
@@ -203,6 +234,10 @@ async function gather(files: FsNode[]): Promise<Gathered> {
         attachments.push({ type: 'document', mediaType: 'application/pdf', data: await blobToBase64(blob), title: f.name })
         pdfs++
       }
+    } else if (kind !== 'text' && budget > 0 && (await textOf(f))?.trim()) {
+      const text = ((await textOf(f)) ?? '').slice(0, Math.min(perFile, budget))
+      budget -= text.length
+      sections.push(`### ${f.name}\n${text}`)
     } else {
       skipped.push(`${f.name} (${kind}, ${formatBytes(f.size)})`)
     }
@@ -222,7 +257,7 @@ function describeInput(lead: string, files: FsNode[], g: Gathered): string {
 }
 
 /** Reads a folder's documents and asks for a report, without opening any of them. */
-export async function summarizeFolder(folderId: string): Promise<string> {
+export async function summarizeFolder(folderId: string, opts: TaskRunOptions = {}): Promise<string> {
   const folder = folderId === ROOT_ID ? null : await fs.get(folderId)
   const folderName = folder?.name ?? 'Escritorio'
   const files: FsNode[] = []
@@ -234,6 +269,7 @@ export async function summarizeFolder(folderId: string): Promise<string> {
     title: `Resumen · ${folderName}`,
     prompt: describeInput(`Carpeta: "${folderName}"`, files, g),
     attachments: g.attachments,
+    openWindow: !opts.background,
     extraSystem:
       'Tarea: resumir el contexto de una carpeta para alguien que no quiere abrir los archivos. Responde en Markdown breve con estas secciones: "Qué hay aquí" (2-3 frases), "Temas" (viñetas), "Fechas, pendientes y cifras" (viñetas, solo si aparecen) y "Sugerencias" (máximo 3, concretas). No inventes nada que no esté en los archivos; si algo no se pudo leer, dilo en una línea.',
     context: { folderId, saveAs: `Resumen de ${folderName}.md` },
@@ -261,7 +297,7 @@ function commonFolder(files: FsNode[]): string | undefined {
 const plural = (n: number) => `${n} archivo${n === 1 ? '' : 's'}`
 
 /** One document out of several: what they say together, where they agree or clash, what matters now. */
-export async function synthesizeFiles(ids: string[]): Promise<string> {
+export async function synthesizeFiles(ids: string[], opts: TaskRunOptions = {}): Promise<string> {
   const files = await selectedFiles(ids)
   if (!files.length) throw new Error('No hay archivos que leer en la selección')
   const g = await gather(files)
@@ -270,6 +306,7 @@ export async function synthesizeFiles(ids: string[]): Promise<string> {
     title: `Síntesis · ${plural(files.length)}`,
     prompt: describeInput('Selección de archivos', files, g),
     attachments: g.attachments,
+    openWindow: !opts.background,
     extraSystem:
       'Tarea: sintetizar varios archivos en un solo documento para alguien que no quiere abrirlos uno por uno. Responde en Markdown con: "En conjunto" (2-4 frases que unan las piezas), "Por archivo" (una viñeta por archivo con lo esencial), "Coincidencias y contradicciones" (solo si las hay) y "Lo que importa ahora" (máximo 3 viñetas). No inventes nada que no esté en los archivos; si algo no se pudo leer, dilo en una línea.',
     context: { folderId: commonFolder(files), saveAs: 'Síntesis.md' },
@@ -277,7 +314,7 @@ export async function synthesizeFiles(ids: string[]): Promise<string> {
 }
 
 /** A checklist of the commitments, pending items and dates scattered across the files. */
-export async function tasksFromFiles(ids: string[]): Promise<string> {
+export async function tasksFromFiles(ids: string[], opts: TaskRunOptions = {}): Promise<string> {
   const files = await selectedFiles(ids)
   if (!files.length) throw new Error('No hay archivos que leer en la selección')
   const g = await gather(files)
@@ -286,6 +323,7 @@ export async function tasksFromFiles(ids: string[]): Promise<string> {
     title: `Pendientes · ${plural(files.length)}`,
     prompt: describeInput('Selección de archivos', files, g),
     attachments: g.attachments,
+    openWindow: !opts.background,
     extraSystem:
       'Tarea: extraer los pendientes, compromisos y fechas que aparecen en los archivos. Responde en Markdown con una lista de tareas ("- [ ] …"), agrupada por archivo cuando ayude; cada tarea con su fecha o responsable si aparece. Cierra con "Sin fecha" para lo que no la tiene. Nada que no esté en los archivos; si algo no se pudo leer, dilo en una línea.',
     context: { folderId: commonFolder(files), saveAs: 'Pendientes.md' },

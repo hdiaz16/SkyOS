@@ -4,12 +4,14 @@ import { db } from '../kernel/db'
 import { indexPending } from '../ai/indexer'
 import { embedPending, useEmbeddings, warmUp } from '../ai/embeddings'
 import { isAiConfigured, useAiSettings } from '../ai/settings'
+import { extractPending } from '../system/extract'
 
 const DEBOUNCE_MS = 8000
+const EXTRACT_DEBOUNCE_MS = 1200
 
 const EMBED_DEBOUNCE_MS = 2500
 
-/** Headless: keeps both semantic indexes (local vectors, model summaries) fresh a few seconds after files stop changing. */
+/** Headless: reads new documents and keeps both semantic indexes (local vectors, model summaries) fresh a few seconds after files stop changing. */
 export function AiBackground() {
   const settings = useAiSettings()
   const configured = isAiConfigured(settings)
@@ -33,6 +35,16 @@ export function AiBackground() {
       controller.abort()
     }
   }, [configured, signal, settings.provider, settings.model])
+
+  useEffect(() => {
+    if (!signal) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => void extractPending(controller.signal), EXTRACT_DEBOUNCE_MS)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [signal])
 
   useEffect(() => {
     if (!embeddingsOn) return

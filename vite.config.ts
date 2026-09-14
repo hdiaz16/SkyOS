@@ -42,5 +42,5 @@ function clientMetadata(origin: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const origin = (env.VITE_APP_ORIGIN || 'http://127.0.0.1:5173').replace(/\/+$/, '')
-  return { plugins: [react(), tailwindcss(), clientMetadata(origin)] }
+  return { plugins: [react(), tailwindcss(), clientMetadata(origin)], worker: { format: 'es' } }
 })

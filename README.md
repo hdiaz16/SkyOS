@@ -57,6 +57,15 @@ internos lo conservan para no perder datos.
   120 MB) convierte los textos en vectores dentro de un Web Worker; la barra encuentra "el reporte de los costos"
   sin tokens ni red. Índice de resúmenes con un modelo rápido como segunda opinión.
 
+**Agentes de fondo**
+
+- Los documentos se leen solos al llegar: un Web Worker extrae el texto de PDF (pdf.js), Word y PowerPoint
+  (XML) y Excel (SheetJS) sin congelar el escritorio, y lo guarda junto al archivo. Desde ahí lo usan la búsqueda
+  por significado, los resúmenes, los adjuntos y `fs.read`, aunque el proveedor no lea PDF de forma nativa.
+- Las tareas de Sky (síntesis, pendientes, resumen de carpeta) pueden correr en segundo plano: Sky responde al
+  instante y una tarjeta avisa al terminar con el botón Abrir. Si cierras o tapas la ventana de resultado, la
+  tarjeta aparece igual. "¿Qué estás haciendo?" lista los trabajos en curso.
+
 **Ventanas inteligentes**
 
 - Editor con copiloto: selecciona texto y pide mejorar, resumir, traducir o cualquier instrucción; Ctrl+J continúa.

@@ -5,6 +5,7 @@ import { getProvider } from './providers'
 import { useSession } from './session'
 import { useAiSettings } from './settings'
 import type { Attachment, ImageMediaType } from './types'
+import { isExtractable, textOf } from '../system/extract'
 
 const IMAGE_TYPES: ImageMediaType[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -23,21 +24,22 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(bin)
 }
 
-/** Whether Sky can look at this file directly: text always, images with vision, PDFs with a provider that reads documents. */
+/** PDFs go to the model as documents only when it reads them natively; otherwise their extracted text travels. */
+const nativePdf = (node: FsNode) => fileKind(node) === 'pdf' && node.size <= MAX_PDF_BYTES && !!getProvider()?.capabilities.documents
+
+/** Whether Sky can look at this file directly: text always, documents through their text, images with vision, PDFs natively or as text. */
 export function canAttach(node: FsNode): boolean {
   const kind = fileKind(node)
-  const caps = getProvider()?.capabilities
   if (kind === 'text') return node.size <= MAX_TEXT_BYTES
-  if (kind === 'image') return node.size <= MAX_IMAGE_BYTES && !!caps?.vision
-  if (kind === 'pdf') return node.size <= MAX_PDF_BYTES && !!caps?.documents
-  return false
+  if (kind === 'image') return node.size <= MAX_IMAGE_BYTES && !!getProvider()?.capabilities.vision
+  return nativePdf(node) || isExtractable(node)
 }
 
 export async function attachmentFor(node: FsNode): Promise<Attachment | null> {
   const kind = fileKind(node)
-  if (kind === 'text') {
-    const text = await fs.readText(node.id)
-    return text.trim() ? { type: 'file', name: node.name, text: text.slice(0, textBudget().perFile), nodeId: node.id } : null
+  if (kind === 'text' || (kind !== 'image' && !nativePdf(node))) {
+    const text = await textOf(node)
+    return text?.trim() ? { type: 'file', name: node.name, text: text.slice(0, textBudget().perFile), nodeId: node.id } : null
   }
   const blob = await fs.readBlob(node.id)
   if (!blob) return null

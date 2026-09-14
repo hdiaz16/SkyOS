@@ -2,6 +2,7 @@ import { registerCommand } from '../commands'
 import { fs } from '../fs'
 import { ROOT_ID, fileKind, type FileKind, type FsNode } from '../types'
 import { formatBytes } from '../../lib/utils'
+import { textOf } from '../../system/extract'
 
 /** Compact node description for the model: no internal fields, sizes already formatted. */
 export interface NodeSummary {
@@ -70,7 +71,7 @@ registerCommand<{ id: string; maxChars?: number }, unknown>({
   id: 'fs.read',
   title: 'Leer archivo',
   description:
-    'Devuelve el contenido de un archivo de texto, recortado a maxChars (por defecto 20000). Para imágenes, PDF u otros binarios devuelve solo metadatos.',
+    'Devuelve el contenido de un archivo, recortado a maxChars (por defecto 20000): texto tal cual; PDF, Word, Excel y PowerPoint a través de su texto extraído. Para imágenes y otros binarios devuelve solo metadatos.',
   params: {
     id: { type: 'string', description: 'Id del archivo.', required: true },
     maxChars: { type: 'number', description: 'Máximo de caracteres a devolver.' },
@@ -80,10 +81,10 @@ registerCommand<{ id: string; maxChars?: number }, unknown>({
     if (!node) throw new Error('El archivo ya no existe')
     if (node.kind === 'folder') throw new Error('Es una carpeta; usa fs.list')
     const type = fileKind(node)
-    if (type !== 'text') {
-      return { result: { name: node.name, type, size: formatBytes(node.size), note: 'Archivo binario, sin vista de texto.' } }
+    const text = await textOf(node)
+    if (text === null) {
+      return { result: { name: node.name, type, size: formatBytes(node.size), note: 'Archivo binario (imagen u otro formato) sin texto que leer.' } }
     }
-    const text = await fs.readText(id)
     const limit = Math.max(200, Math.min(maxChars, 200000))
     return {
       result: {
@@ -92,6 +93,7 @@ registerCommand<{ id: string; maxChars?: number }, unknown>({
         chars: text.length,
         truncated: text.length > limit,
         content: text.slice(0, limit),
+        ...(type !== 'text' ? { note: text.trim() ? 'Texto extraído del documento.' : 'El documento no tiene texto legible (quizá es un escaneo).' } : {}),
       },
     }
   },
@@ -119,7 +121,7 @@ registerCommand<{ ids: string[]; maxCharsEach?: number }, ReadManyItem[]>({
   id: 'fs.readMany',
   title: 'Leer varios archivos',
   description:
-    'Devuelve el contenido de varios archivos de texto en una sola llamada (hasta 12; cada uno recortado a maxCharsEach, por defecto 4000). Úsalo para resumir, comparar o extraer datos de una selección o carpeta en vez de leer uno por uno con fs.read.',
+    'Devuelve el contenido de varios archivos en una sola llamada (hasta 12; cada uno recortado a maxCharsEach, por defecto 4000): texto tal cual y documentos (PDF, Word, Excel, PowerPoint) por su texto extraído. Úsalo para resumir, comparar o extraer datos de una selección o carpeta en vez de leer uno por uno con fs.read.',
   params: {
     ids: { type: 'array', items: { type: 'string', description: 'Id' }, description: 'Ids de los archivos.', required: true },
     maxCharsEach: { type: 'number', description: 'Máximo de caracteres por archivo.' },
@@ -137,11 +139,11 @@ registerCommand<{ ids: string[]; maxCharsEach?: number }, ReadManyItem[]>({
         out.push({ id, name: node.name, type, note: 'Es una carpeta; usa fs.list.' })
         continue
       }
-      if (type !== 'text') {
-        out.push({ id, name: node.name, type, note: `Archivo binario (${formatBytes(node.size)}), sin vista de texto.` })
+      const text = await textOf(node)
+      if (text === null) {
+        out.push({ id, name: node.name, type, note: `Archivo binario (${formatBytes(node.size)}) sin texto que leer.` })
         continue
       }
-      const text = await fs.readText(id)
       out.push({ id, name: node.name, type, text: text.length > maxCharsEach ? `${text.slice(0, maxCharsEach)}\n…[recortado: ${text.length - maxCharsEach} caracteres más]` : text })
     }
     return { result: out }

@@ -24,6 +24,19 @@ export interface FileIndexRow {
   embeddedHash?: string
 }
 
+/** Text pulled out of a PDF or Office file by the extraction worker, keyed by file. */
+export interface ExtractRow {
+  nodeId: string
+  /** Size and modification time of the content the text came from. */
+  hash: string
+  text: string
+  chars: number
+  pages?: number
+  updatedAt: number
+  /** Set when the file could not be read, so it is not retried on every pass. */
+  failed?: boolean
+}
+
 /** A saved natural-language routine the user can trigger by name. */
 export interface FlowRow {
   id: string
@@ -47,6 +60,8 @@ export class MesaDB extends Dexie {
   oauthClients!: Table<OAuthClient, string>
   /** The conversation with Sky (turns, model history, rolling summary); a single row. */
   conversation!: Table<ConversationRow, string>
+  /** Extracted text of documents, so search and summaries never reopen the binary. */
+  extracts!: Table<ExtractRow, string>
 
   constructor(name: string) {
     super(name)
@@ -67,6 +82,9 @@ export class MesaDB extends Dexie {
     })
     this.version(4).stores({
       conversation: 'id',
+    })
+    this.version(5).stores({
+      extracts: 'nodeId, updatedAt',
     })
   }
 }

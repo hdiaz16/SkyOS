@@ -3,6 +3,7 @@ import { db } from '../../kernel/db'
 import { fs } from '../../kernel/fs'
 import { fileKind } from '../../kernel/types'
 import { sessionSuffix } from '../../system/session'
+import { isExtractable, textOf } from '../../system/extract'
 import { hashText } from '../json'
 
 /**
@@ -145,11 +146,14 @@ export function embedPending(signal?: AbortSignal): Promise<number> {
   if (indexing) return indexing
   indexing = (async () => {
     if (!useEmbeddings.getState().enabled) return 0
-    const files = (await db.nodes.filter((n) => n.kind === 'file' && n.trashedAt === null && n.size <= MAX_FILE_BYTES).toArray()).filter((n) => fileKind(n) === 'text')
+    const files = (await db.nodes.filter((n) => n.kind === 'file' && n.trashedAt === null).toArray()).filter(
+      (n) => (fileKind(n) === 'text' && n.size <= MAX_FILE_BYTES) || isExtractable(n),
+    )
     const pending: Array<{ id: string; name: string; text: string; hash: string }> = []
     for (const node of files) {
-      const text = await fs.readText(node.id)
-      if (!text.trim()) continue
+      // Documents count only once their text has been extracted; the extractor triggers a new pass when it finishes.
+      const text = fileKind(node) === 'text' ? await fs.readText(node.id) : await textOf(node, { extract: false })
+      if (!text?.trim()) continue
       const hash = hashText(text)
       const row = await db.fileIndex.get(node.id)
       if (row?.embeddedHash !== hash) pending.push({ id: node.id, name: node.name, text, hash })
