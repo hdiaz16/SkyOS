@@ -114,7 +114,7 @@ function TurnView({ turn }: { turn: Turn }) {
                   <img key={i} src={`data:${a.mediaType};base64,${a.data}`} alt="" className="h-20 rounded-lg border border-line object-cover" />
                 ) : (
                   <span key={i} className="flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[12px] text-ink-2">
-                    <FileText className="h-3.5 w-3.5" /> {a.title ?? 'PDF'}
+                    <FileText className="h-3.5 w-3.5" /> {a.type === 'file' ? a.name : (a.title ?? 'PDF')}
                   </span>
                 ),
               )}

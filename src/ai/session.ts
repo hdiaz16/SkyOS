@@ -52,7 +52,7 @@ interface SessionState {
 }
 
 const MAX_HISTORY_MESSAGES = 24
-const MAX_PENDING = 4
+const MAX_PENDING = 12
 /** Messages kept verbatim once the older part has been folded into the summary. */
 const HISTORY_KEEP = 10
 /** History length that triggers folding. */

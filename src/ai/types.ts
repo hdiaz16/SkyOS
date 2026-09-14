@@ -24,6 +24,17 @@ export interface DocumentPart {
   title?: string
 }
 
+/** A text file attached from the desktop: its content travels inline, so every provider can read it. */
+export interface FilePart {
+  type: 'file'
+  name: string
+  text: string
+  nodeId?: string
+}
+
+/** How a file attachment is shown to the model. */
+export const fileBlock = (p: FilePart): string => `<archivo nombre="${p.name}">\n${p.text}\n</archivo>`
+
 export interface ToolCallPart {
   type: 'tool_call'
   id: string
@@ -38,8 +49,8 @@ export interface ToolResultPart {
   isError?: boolean
 }
 
-export type Part = TextPart | ImagePart | DocumentPart | ToolCallPart | ToolResultPart
-export type Attachment = ImagePart | DocumentPart
+export type Part = TextPart | ImagePart | DocumentPart | FilePart | ToolCallPart | ToolResultPart
+export type Attachment = ImagePart | DocumentPart | FilePart
 
 export interface ChatMessage {
   role: 'user' | 'assistant'

@@ -35,6 +35,7 @@ const MAX_TURNS_KEPT = 80
 function lightPart(p: Part): Part {
   if (p.type === 'image') return { type: 'text', text: '[imagen adjunta en un turno anterior]' }
   if (p.type === 'document') return { type: 'text', text: `[documento adjunto: ${p.title ?? 'PDF'}]` }
+  if (p.type === 'file') return { type: 'text', text: `[archivo adjunto en un turno anterior: ${p.name}]` }
   return p
 }
 

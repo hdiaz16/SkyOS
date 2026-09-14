@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { AiError, type AiProvider, type ChatMessage, type ChatRequest, type Part, type StopReason, type StreamEvent } from '../types'
+import { AiError, fileBlock, type AiProvider, type ChatMessage, type ChatRequest, type Part, type StopReason, type StreamEvent } from '../types'
 
 interface ModelCaps {
   effort: boolean
@@ -29,6 +29,9 @@ function toBlocks(parts: Part[]): BetaBlockParam[] {
         break
       case 'image':
         blocks.push({ type: 'image', source: { type: 'base64', media_type: part.mediaType, data: part.data } })
+        break
+      case 'file':
+        blocks.push({ type: 'text', text: fileBlock(part) })
         break
       case 'document':
         blocks.push({

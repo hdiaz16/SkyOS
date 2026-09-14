@@ -45,9 +45,17 @@ internos lo conservan para no perder datos.
 
 **Archivos inteligentes**
 
+- Contexto dinámico: la carpeta o el archivo de la ventana activa y la selección viajan en cada petición como
+  contexto por defecto, así "resume estos archivos" o "qué hay aquí" no necesitan más explicación. Un ✨ en la
+  ventana de Archivos abre la barra ya apuntando a esa carpeta.
+- Acciones en lote sobre la selección (clic derecho): pedir algo a Sky con los archivos adjuntos, sintetizarlos en
+  un documento o extraer los pendientes de todos. Los archivos de texto viajan en línea con presupuesto por proveedor;
+  `fs.readMany` lee varios de una vez.
 - Resumir el contenido de una carpeta sin abrir nada; transformar un archivo con vista previa antes de aplicar.
 - Al importar al escritorio, la IA etiqueta y sugiere la carpeta correcta con un clic.
-- Índice de resúmenes con un modelo rápido para buscar por lo que dicen los documentos.
+- Búsqueda por significado en el dispositivo: un modelo multilingüe pequeño (Transformers.js, una descarga de unos
+  120 MB) convierte los textos en vectores dentro de un Web Worker; la barra encuentra "el reporte de los costos"
+  sin tokens ni red. Índice de resúmenes con un modelo rápido como segunda opinión.
 
 **Ventanas inteligentes**
 

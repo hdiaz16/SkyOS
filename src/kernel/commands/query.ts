@@ -107,6 +107,47 @@ registerCommand<{ query: string }, NodeSummary[]>({
   },
 })
 
+interface ReadManyItem {
+  id: string
+  name: string
+  type: FileKind
+  text?: string
+  note?: string
+}
+
+registerCommand<{ ids: string[]; maxCharsEach?: number }, ReadManyItem[]>({
+  id: 'fs.readMany',
+  title: 'Leer varios archivos',
+  description:
+    'Devuelve el contenido de varios archivos de texto en una sola llamada (hasta 12; cada uno recortado a maxCharsEach, por defecto 4000). Úsalo para resumir, comparar o extraer datos de una selección o carpeta en vez de leer uno por uno con fs.read.',
+  params: {
+    ids: { type: 'array', items: { type: 'string', description: 'Id' }, description: 'Ids de los archivos.', required: true },
+    maxCharsEach: { type: 'number', description: 'Máximo de caracteres por archivo.' },
+  },
+  async run({ ids, maxCharsEach = 4000 }) {
+    const out: ReadManyItem[] = []
+    for (const id of ids.slice(0, 12)) {
+      const node = await fs.get(id)
+      if (!node) {
+        out.push({ id, name: '?', type: 'text', note: 'Ya no existe.' })
+        continue
+      }
+      const type = fileKind(node)
+      if (type === 'folder') {
+        out.push({ id, name: node.name, type, note: 'Es una carpeta; usa fs.list.' })
+        continue
+      }
+      if (type !== 'text') {
+        out.push({ id, name: node.name, type, note: `Archivo binario (${formatBytes(node.size)}), sin vista de texto.` })
+        continue
+      }
+      const text = await fs.readText(id)
+      out.push({ id, name: node.name, type, text: text.length > maxCharsEach ? `${text.slice(0, maxCharsEach)}\n…[recortado: ${text.length - maxCharsEach} caracteres más]` : text })
+    }
+    return { result: out }
+  },
+})
+
 registerCommand<{ query: string; limit?: number }, Array<{ id: string; name: string; score: number; snippet: string }>>({
   id: 'fs.semanticSearch',
   title: 'Buscar por significado',

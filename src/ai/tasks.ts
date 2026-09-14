@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { runAgent } from './agent'
 import { getProvider } from './providers'
+import { useAiSettings } from './settings'
 import type { Attachment, ServerTool } from './types'
 import { fs } from '../kernel/fs'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
@@ -150,6 +151,9 @@ export function startTask(opts: StartTaskOptions): string {
 const MAX_FILES = 25
 const MAX_CHARS_PER_FILE = 12000
 const MAX_TOTAL_CHARS = 120000
+/** Metered free tiers (Groq: 8k tokens per minute) get a budget that leaves room for the answer. */
+const METERED_CHARS_PER_FILE = 3000
+const METERED_TOTAL_CHARS = 10000
 const MAX_PDFS = 3
 const MAX_PDF_BYTES = 4 * 1024 * 1024
 
@@ -170,24 +174,27 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(bin)
 }
 
-/** Reads a folder's documents and asks for a report, without opening any of them. */
-export async function summarizeFolder(folderId: string): Promise<string> {
-  const folder = folderId === ROOT_ID ? null : await fs.get(folderId)
-  const folderName = folder?.name ?? 'Escritorio'
-  const files: FsNode[] = []
-  await collectFiles(folderId, 2, files)
+interface Gathered {
+  sections: string[]
+  attachments: Attachment[]
+  skipped: string[]
+}
 
+/** What the model can use from a set of files: text inline within budget, PDFs attached when the provider reads them, the rest by name. */
+async function gather(files: FsNode[]): Promise<Gathered> {
   const sections: string[] = []
   const attachments: Attachment[] = []
   const skipped: string[] = []
-  let budget = MAX_TOTAL_CHARS
+  const metered = useAiSettings.getState().provider === 'groq'
+  const perFile = metered ? METERED_CHARS_PER_FILE : MAX_CHARS_PER_FILE
+  let budget = metered ? METERED_TOTAL_CHARS : MAX_TOTAL_CHARS
   const provider = getProvider()
   let pdfs = 0
 
   for (const f of files) {
     const kind = fileKind(f)
     if (kind === 'text' && budget > 0) {
-      const text = (await fs.readText(f.id)).slice(0, Math.min(MAX_CHARS_PER_FILE, budget))
+      const text = (await fs.readText(f.id)).slice(0, Math.min(perFile, budget))
       budget -= text.length
       sections.push(`### ${f.name}\n${text}`)
     } else if (kind === 'pdf' && provider?.capabilities.documents && pdfs < MAX_PDFS && f.size <= MAX_PDF_BYTES) {
@@ -200,24 +207,88 @@ export async function summarizeFolder(folderId: string): Promise<string> {
       skipped.push(`${f.name} (${kind}, ${formatBytes(f.size)})`)
     }
   }
+  return { sections, attachments, skipped }
+}
 
-  const prompt = [
-    `Carpeta: "${folderName}" con ${files.length} archivo${files.length === 1 ? '' : 's'}.`,
-    sections.length ? `Contenido de los archivos de texto:\n\n${sections.join('\n\n')}` : 'No hay archivos de texto legibles.',
-    attachments.length ? `Además se adjuntan ${attachments.length} PDF.` : '',
-    skipped.length ? `Archivos no leídos (solo nombre): ${skipped.join(', ')}.` : '',
+function describeInput(lead: string, files: FsNode[], g: Gathered): string {
+  return [
+    `${lead} con ${files.length} archivo${files.length === 1 ? '' : 's'}.`,
+    g.sections.length ? `Contenido de los archivos de texto:\n\n${g.sections.join('\n\n')}` : 'No hay archivos de texto legibles.',
+    g.attachments.length ? `Además se adjuntan ${g.attachments.length} PDF.` : '',
+    g.skipped.length ? `Archivos no leídos (solo nombre): ${g.skipped.join(', ')}.` : '',
   ]
     .filter(Boolean)
     .join('\n\n')
+}
+
+/** Reads a folder's documents and asks for a report, without opening any of them. */
+export async function summarizeFolder(folderId: string): Promise<string> {
+  const folder = folderId === ROOT_ID ? null : await fs.get(folderId)
+  const folderName = folder?.name ?? 'Escritorio'
+  const files: FsNode[] = []
+  await collectFiles(folderId, 2, files)
+  const g = await gather(files)
 
   return startTask({
     kind: 'summary',
     title: `Resumen · ${folderName}`,
-    prompt,
-    attachments,
+    prompt: describeInput(`Carpeta: "${folderName}"`, files, g),
+    attachments: g.attachments,
     extraSystem:
       'Tarea: resumir el contexto de una carpeta para alguien que no quiere abrir los archivos. Responde en Markdown breve con estas secciones: "Qué hay aquí" (2-3 frases), "Temas" (viñetas), "Fechas, pendientes y cifras" (viñetas, solo si aparecen) y "Sugerencias" (máximo 3, concretas). No inventes nada que no esté en los archivos; si algo no se pudo leer, dilo en una línea.',
     context: { folderId, saveAs: `Resumen de ${folderName}.md` },
+  })
+}
+
+/** The files behind a selection: files as they are, folders through their direct files. */
+async function selectedFiles(ids: string[]): Promise<FsNode[]> {
+  const out: FsNode[] = []
+  for (const id of ids) {
+    const node = await fs.get(id)
+    if (!node || node.trashedAt !== null) continue
+    if (node.kind === 'folder') await collectFiles(node.id, 1, out)
+    else if (out.length < MAX_FILES) out.push(node)
+  }
+  return out
+}
+
+/** The folder every file shares, when there is one, so the result can be saved next to them. */
+function commonFolder(files: FsNode[]): string | undefined {
+  const first = files[0]?.parentId
+  return first !== undefined && files.every((f) => f.parentId === first) ? first : undefined
+}
+
+const plural = (n: number) => `${n} archivo${n === 1 ? '' : 's'}`
+
+/** One document out of several: what they say together, where they agree or clash, what matters now. */
+export async function synthesizeFiles(ids: string[]): Promise<string> {
+  const files = await selectedFiles(ids)
+  if (!files.length) throw new Error('No hay archivos que leer en la selección')
+  const g = await gather(files)
+  return startTask({
+    kind: 'summary',
+    title: `Síntesis · ${plural(files.length)}`,
+    prompt: describeInput('Selección de archivos', files, g),
+    attachments: g.attachments,
+    extraSystem:
+      'Tarea: sintetizar varios archivos en un solo documento para alguien que no quiere abrirlos uno por uno. Responde en Markdown con: "En conjunto" (2-4 frases que unan las piezas), "Por archivo" (una viñeta por archivo con lo esencial), "Coincidencias y contradicciones" (solo si las hay) y "Lo que importa ahora" (máximo 3 viñetas). No inventes nada que no esté en los archivos; si algo no se pudo leer, dilo en una línea.',
+    context: { folderId: commonFolder(files), saveAs: 'Síntesis.md' },
+  })
+}
+
+/** A checklist of the commitments, pending items and dates scattered across the files. */
+export async function tasksFromFiles(ids: string[]): Promise<string> {
+  const files = await selectedFiles(ids)
+  if (!files.length) throw new Error('No hay archivos que leer en la selección')
+  const g = await gather(files)
+  return startTask({
+    kind: 'summary',
+    title: `Pendientes · ${plural(files.length)}`,
+    prompt: describeInput('Selección de archivos', files, g),
+    attachments: g.attachments,
+    extraSystem:
+      'Tarea: extraer los pendientes, compromisos y fechas que aparecen en los archivos. Responde en Markdown con una lista de tareas ("- [ ] …"), agrupada por archivo cuando ayude; cada tarea con su fecha o responsable si aparece. Cierra con "Sin fecha" para lo que no la tiene. Nada que no esté en los archivos; si algo no se pudo leer, dilo en una línea.',
+    context: { folderId: commonFolder(files), saveAs: 'Pendientes.md' },
   })
 }
 

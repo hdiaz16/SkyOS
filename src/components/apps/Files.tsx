@@ -1,6 +1,6 @@
 import { useEffect, useState, type DragEvent, type MouseEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, FilePlus2, FolderPlus, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FilePlus2, FolderPlus, Sparkles, Upload } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { ROOT_ID } from '../../kernel/types'
 import { dispatch } from '../../kernel/commands'
@@ -111,6 +111,15 @@ export function FilesApp({ win }: { win: Win }) {
         </ToolButton>
         <ToolButton label="Importar archivos" onClick={() => importInto(folderId)}>
           <Upload className="h-4 w-4" />
+        </ToolButton>
+        <ToolButton
+          label="Pedir a Sky sobre esta carpeta"
+          onClick={() => {
+            useWindows.getState().focus(win.id)
+            useUi.getState().focusComposer()
+          }}
+        >
+          <Sparkles className="h-4 w-4 text-accent" />
         </ToolButton>
       </div>
 

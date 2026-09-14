@@ -1,4 +1,4 @@
-import { AiError, sharedKeyBusy, type AiProvider, type ChatMessage, type ChatRequest, type Part, type StopReason, type StreamEvent, type ToolCallPart } from '../types'
+import { AiError, fileBlock, sharedKeyBusy, type AiProvider, type ChatMessage, type ChatRequest, type Part, type StopReason, type StreamEvent, type ToolCallPart } from '../types'
 
 /**
  * Adapter for any server that speaks the OpenAI chat-completions protocol:
@@ -50,6 +50,7 @@ function toMessages(system: string, messages: ChatMessage[]): OaMessage[] {
     for (const p of m.parts) {
       if (p.type === 'text' && p.text.trim()) content.push({ type: 'text', text: p.text })
       else if (p.type === 'image') content.push({ type: 'image_url', image_url: { url: `data:${p.mediaType};base64,${p.data}` } })
+      else if (p.type === 'file') content.push({ type: 'text', text: fileBlock(p) })
       else if (p.type === 'document') content.push({ type: 'text', text: `[Se adjuntó un PDF (${p.title ?? 'documento'}) que este proveedor no puede leer.]` })
     }
     if (content.length) out.push({ role: 'user', content: content.length === 1 && content[0].type === 'text' ? content[0].text : content })

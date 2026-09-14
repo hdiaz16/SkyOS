@@ -194,6 +194,13 @@ export function CommandBar() {
   const chatRunning = useSession((s) => s.running)
   const hasTurns = useSession((s) => s.turns.length > 0)
   const pending = useSession((s) => s.pending)
+  // The window on top is Sky's default context; the bar says so.
+  const activeContext = useWindows((s) => {
+    let top: (typeof s.windows)[number] | undefined
+    for (const w of s.windows) if (!w.minimized && (!top || w.z > top.z)) top = w
+    if (!top || (top.app !== 'files' && !top.props.nodeId)) return null
+    return top.app === 'files' && !top.props.folderId ? null : top.title
+  })
   const semantic = useSemantic()
   const aiSettings = useAiSettings()
   const aiReady = isAiConfigured(aiSettings)
@@ -401,7 +408,9 @@ export function CommandBar() {
           : 'Responde o pide algo más…'
         : selectionCount > 0
           ? `${selectionCount} ${selectionCount === 1 ? 'elemento seleccionado' : 'elementos seleccionados'} · pide algo sobre ellos…`
-          : aiReady
+          : activeContext && aiReady
+            ? `Pide algo sobre «${activeContext}» o busca…`
+            : aiReady
             ? 'Pide algo a Sky, busca un archivo o navega…'
             : 'Busca un archivo, ejecuta una acción o navega…'
 

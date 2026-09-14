@@ -5,9 +5,9 @@ import { useUi } from '../state/ui'
 import type { MenuItem } from '../state/ui'
 import { useDialog } from '../state/dialog'
 import { isAiConfigured } from '../ai/settings'
-import { summarizeFolder, TRANSFORM_PRESETS, transformFile } from '../ai/tasks'
+import { summarizeFolder, synthesizeFiles, tasksFromFiles, TRANSFORM_PRESETS, transformFile } from '../ai/tasks'
 import { suggestPlacement } from '../ai/classify'
-import { attachNodeToMesa, canAttach } from '../ai/attachments'
+import { attachNodesToSky, canAttach } from '../ai/attachments'
 import { FILE_TYPES } from './fileTypes'
 import { pickFiles } from './pickFiles'
 
@@ -107,6 +107,12 @@ function transformMenu(node: FsNode): MenuItem[] {
   ]
 }
 
+/** Puts the selection in the command bar; says so when none of it is readable. */
+async function attachSelection(ids: string[]): Promise<void> {
+  const count = await attachNodesToSky(ids)
+  if (!count) useToasts.getState().push({ message: 'Sky no puede leer estos archivos directamente; funciona con textos, imágenes y PDF.', kind: 'error' })
+}
+
 async function runTask(task: () => Promise<unknown>): Promise<void> {
   try {
     await task()
@@ -127,16 +133,24 @@ export function nodeMenu(node: FsNode, ids: string[], at?: Point): MenuItem[] {
       if (kind === 'folder') aiItems.push({ label: 'Resumir contenido con Sky', onSelect: () => void runTask(() => summarizeFolder(node.id)) })
       if (kind === 'text') {
         aiItems.push({
-          label: 'Transformar con Mesa…',
+          label: 'Transformar con Sky…',
           onSelect: () => {
             if (at) useUi.getState().openMenu(at.x, at.y, transformMenu(node))
           },
         })
       }
-      if (canAttach(node)) aiItems.push({ label: 'Analizar con Sky', onSelect: () => void attachNodeToMesa(node) })
+      if (canAttach(node)) aiItems.push({ label: 'Pedir a Sky sobre este archivo…', onSelect: () => void attachSelection([node.id]) })
       if (aiItems.length) items.push({ type: 'separator' }, ...aiItems)
     }
     items.push({ type: 'separator' })
+  } else if (isAiConfigured()) {
+    items.push(
+      { type: 'label', label: `${ids.length} elementos seleccionados` },
+      { label: 'Pedir a Sky con estos archivos…', onSelect: () => void attachSelection(ids) },
+      { label: 'Sintetizar en un documento', onSelect: () => void runTask(() => synthesizeFiles(ids)) },
+      { label: 'Extraer pendientes', onSelect: () => void runTask(() => tasksFromFiles(ids)) },
+      { type: 'separator' },
+    )
   }
   items.push({
     label: many ? `Mover ${ids.length} a la papelera` : 'Mover a la papelera',

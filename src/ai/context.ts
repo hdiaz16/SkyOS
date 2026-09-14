@@ -1,7 +1,8 @@
 import { fs } from '../kernel/fs'
-import { ROOT_ID } from '../kernel/types'
+import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { widgets } from '../kernel/widgets'
-import { useWindows } from '../state/windows'
+import { useWindows, type Win } from '../state/windows'
+import { formatBytes } from '../lib/utils'
 import { useUi } from '../state/ui'
 import { useSettings } from '../state/settings'
 import { useAuth } from '../system/auth'
@@ -25,6 +26,7 @@ Cómo trabajas:
 - Al terminar, resume en una o dos frases lo que hiciste. Si algo falló, dilo con claridad.
 - Si la persona menciona un flujo guardado por su nombre, obtén sus instrucciones con flows_run y ejecútalas. Si pide guardar algo "como flujo", usa flows_save con pasos concretos.
 - Si adjunta una imagen o captura, descríbela solo si te lo pide; normalmente quiere que hagas algo con ella (analizar, traducir, extraer datos a un archivo).
+- Contexto por defecto: la carpeta activa, el archivo activo y la selección que aparecen en el <estado>. "Estos archivos", "esta carpeta", "esto" o "aquí" se refieren a ellos; con una selección, actúa sobre todos sus elementos sin pedir la lista. Para leer varios archivos de una vez usa fs_readMany en lugar de fs_read uno por uno.
 - Apps conectadas (Notion, Slack, Google Drive, Gmail, Calendar, GitHub, Todoist, Spotify, Evernote…): sus herramientas empiezan por mcp_ y aparecen cuando la petición habla de esa app (por su nombre o por lo que guarda). Si la persona pide algo de una app que el estado marca como conectada pero no ves sus herramientas, pídele en una frase que nombre la app. Si la app no está conectada, dilo y abre el panel con ui_openApps indicando la app. Nunca inventes datos de esas apps.
 
 El bloque <estado> del mensaje describe el escritorio en este momento: úsalo como fuente de verdad inicial.`
@@ -80,6 +82,38 @@ async function describeFolder(id: string, indent: string, depth: number): Promis
   return lines
 }
 
+const CONTEXT_ITEMS = 40
+
+const describeNode = (n: FsNode) =>
+  n.kind === 'folder' ? `- [carpeta] ${n.name} (id ${n.id})` : `- ${n.name} (id ${n.id}, ${fileKind(n)}, ${formatBytes(n.size)})${n.tags?.length ? ` #${n.tags.join(' #')}` : ''}`
+
+/**
+ * The dynamic context window: whatever the person is looking at. A Files window makes its folder the context
+ * (contents listed, bounded); an editor or viewer makes its file the context. Sky reads "esto" as this.
+ */
+async function describeActive(top: Win | undefined): Promise<string[]> {
+  if (!top) return []
+  if (top.app === 'files') {
+    const folderId = top.props.folderId ?? ROOT_ID
+    if (folderId === ROOT_ID) return ['Carpeta activa (contexto por defecto): Escritorio, listado arriba.']
+    const folder = await fs.get(folderId)
+    if (!folder) return []
+    const items = await fs.list(folderId)
+    const lines = items.slice(0, CONTEXT_ITEMS).map(describeNode)
+    if (items.length > CONTEXT_ITEMS) lines.push(`- …y ${items.length - CONTEXT_ITEMS} más (fs_list para verlos)`)
+    return [`Carpeta activa (contexto por defecto): «${folder.name}» (id ${folder.id}), ${items.length} elementos:`, ...(lines.length ? lines : ['- (vacía)'])]
+  }
+  if (top.props.nodeId) {
+    const node = await fs.get(top.props.nodeId)
+    if (!node) return []
+    const parent = node.parentId === ROOT_ID ? 'Escritorio' : ((await fs.get(node.parentId))?.name ?? '?')
+    const where = node.parentId === ROOT_ID ? parent : `«${parent}» (id ${node.parentId})`
+    return [`Archivo activo (contexto por defecto): «${node.name}» (id ${node.id}, ${fileKind(node)}, ${formatBytes(node.size)}) en ${where}.`]
+  }
+  if (top.app === 'app' && top.props.app) return [`App activa: ${top.props.app}.`]
+  return []
+}
+
 /** A compact, human-readable picture of the desktop for the model. */
 export async function buildStateSnapshot(): Promise<string> {
   const now = new Date()
@@ -88,6 +122,7 @@ export async function buildStateSnapshot(): Promise<string> {
   let top: (typeof windows)[number] | undefined
   for (const w of windows) if (!w.minimized && (!top || w.z > top.z)) top = w
   const winLines = windows.map((w) => `- ${w.title} [${w.app}${w.id === top?.id ? ', activa' : ''}${w.minimized ? ', minimizada' : ''}] (id ${w.id})`)
+  const active = await describeActive(top)
   const selection = useUi.getState().selection
   const selected = (await Promise.all(selection.map((id) => fs.get(id)))).filter((n): n is NonNullable<typeof n> => !!n)
   const widgetLines = (await widgets.list()).map((w) => `- ${w.title} [${w.type}] (id ${w.id})`)
@@ -103,7 +138,8 @@ export async function buildStateSnapshot(): Promise<string> {
     ...(widgetLines.length ? widgetLines : ['- (ninguno)']),
     'Ventanas abiertas:',
     ...(winLines.length ? winLines : ['- (ninguna)']),
-    selected.length ? `Selección actual: ${selected.map((n) => `${n.name} (id ${n.id})`).join(', ')}` : 'Selección actual: ninguna',
+    ...active,
+    selected.length ? `Selección actual (${selected.length}): ${selected.map((n) => `${n.name} (id ${n.id}${n.kind === 'folder' ? ', carpeta' : ''})`).join(', ')}` : 'Selección actual: ninguna',
     'Apps conectadas:',
     ...(appLines.length ? appLines : ['- (ninguna; se conectan en Apps conectadas)']),
     '</estado>',
