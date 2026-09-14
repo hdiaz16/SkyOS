@@ -7,18 +7,17 @@ import App from '../../App'
 import { Backdrop } from '../Backdrop'
 import { Login } from './Login'
 import { Onboarding } from './Onboarding'
-import { Orb, TEMPO_BUSY, TEMPO_CALM, TEMPO_RUSH } from './Orb'
+import { Orb, TEMPO_BUSY, TEMPO_CALM } from './Orb'
 
 /** Cold start lets the arrival play out; a signed-in reload gets a shorter one. */
-const SPLASH_MS = readSession() ? 1600 : 2700
-/** The line hurries more and more before the disc opens. */
-const ACCEL_MS = 1300
-/** The disc floods the screen while the next scene is already fading in underneath. */
-const EXPAND_MS = 1000
+const SPLASH_MS = readSession() ? 1700 : 2800
 
-type Phase = 'splash' | 'accelerating' | 'expanding' | 'content'
+type Phase = 'splash' | 'content'
 
-/** Decides what is on screen: the splash, the login, the onboarding, or someone's desktop. */
+/**
+ * Decides what is on screen: the splash, the login, the onboarding, or someone's desktop.
+ * The splash only arrives (zoom in) and dissolves; the opening flood belongs to the end of the onboarding.
+ */
 export function Shell() {
   const status = useAuth((s) => s.status)
   const theme = useSettings((s) => s.theme)
@@ -36,36 +35,20 @@ export function Shell() {
     return () => window.clearTimeout(t)
   }, [])
 
-  // Each step owns its timer so a phase change never cancels the next hand-over.
   useEffect(() => {
     if (phase !== 'splash' || !minElapsed || status === 'loading') return
-    const f = requestAnimationFrame(() => setPhase('accelerating'))
+    const f = requestAnimationFrame(() => setPhase('content'))
     return () => cancelAnimationFrame(f)
   }, [phase, minElapsed, status])
 
-  useEffect(() => {
-    if (phase !== 'accelerating') return
-    const t = window.setTimeout(() => setPhase('expanding'), ACCEL_MS)
-    return () => window.clearTimeout(t)
-  }, [phase])
-
-  useEffect(() => {
-    if (phase !== 'expanding') return
-    const t = window.setTimeout(() => setPhase('content'), EXPAND_MS)
-    return () => window.clearTimeout(t)
-  }, [phase])
-
-  // The next scene mounts under the flood and fades in, so the desktop is already there when the green lifts.
-  const showContent = status !== 'loading' && (phase === 'expanding' || phase === 'content')
-
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {showContent && (
+      {phase === 'content' && (
         <motion.div
           key={status}
-          initial={{ opacity: 0, scale: 1.02 }}
+          initial={{ opacity: 0, scale: 1.015 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.3, delay: 0.5, ease: [0.2, 0.7, 0.2, 1] }}
+          transition={{ duration: 1.1, ease: [0.2, 0.7, 0.2, 1] }}
           className="absolute inset-0"
         >
           {status === 'ready' ? (
@@ -80,10 +63,10 @@ export function Shell() {
       )}
 
       <AnimatePresence>
-        {phase !== 'content' && (
-          <motion.div key="splash" exit={{ opacity: 0, transition: { duration: 0.8, ease: 'easeInOut' } }} className="absolute inset-0">
+        {phase === 'splash' && (
+          <motion.div key="splash" exit={{ opacity: 0, transition: { duration: 0.9, ease: 'easeInOut' } }} className="absolute inset-0">
             <Backdrop />
-            <Splash phase={phase} hurrying={!minElapsed || status === 'loading'} />
+            <Splash hurrying={!minElapsed || status === 'loading'} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -91,30 +74,15 @@ export function Shell() {
   )
 }
 
-/**
- * Arrival: the disc settles in from closer and draws its line while the name sharpens out of a blur.
- * Departure: the line races, then dissolves as the disc opens until its color fills the screen.
- */
-function Splash({ phase, hurrying }: { phase: Phase; hurrying: boolean }) {
-  const expanding = phase === 'expanding'
-  const tempo = phase === 'accelerating' || expanding ? TEMPO_RUSH : hurrying ? TEMPO_BUSY : TEMPO_CALM
+/** Arrival: the disc settles in from closer and draws its line while the name sharpens out of a blur. */
+function Splash({ hurrying }: { hurrying: boolean }) {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-9 select-none">
-      <motion.div
-        animate={expanding ? { scale: 24 } : { scale: 1 }}
-        transition={expanding ? { duration: EXPAND_MS / 1000, ease: [0.7, 0, 0.3, 1] } : { duration: 0 }}
-        style={{ willChange: 'transform' }}
-      >
-        <Orb size={132} enter tempo={tempo} expanding={expanding} />
-      </motion.div>
+      <Orb size={132} enter tempo={hurrying ? TEMPO_BUSY : TEMPO_CALM} />
       <motion.p
         initial={{ opacity: 0, filter: 'blur(12px)', letterSpacing: '0.35em', y: 8 }}
-        animate={
-          phase === 'splash'
-            ? { opacity: 1, filter: 'blur(0px)', letterSpacing: '0.04em', y: 0 }
-            : { opacity: 0, filter: 'blur(8px)', letterSpacing: '0.04em', y: -6 }
-        }
-        transition={phase === 'splash' ? { delay: 1.1, duration: 1.1, ease: [0.2, 0.8, 0.2, 1] } : { duration: 0.5 }}
+        animate={{ opacity: 1, filter: 'blur(0px)', letterSpacing: '0.04em', y: 0 }}
+        transition={{ delay: 1.1, duration: 1.1, ease: [0.2, 0.8, 0.2, 1] }}
         className="font-display text-[30px] font-bold text-ink"
       >
         Sky
