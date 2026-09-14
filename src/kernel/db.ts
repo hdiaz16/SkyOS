@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie'
 import type { FsNode } from './types'
 import type { Widget } from './widgets'
 import { readSession } from '../system/session'
+import type { McpServerRecord, OAuthClient } from '../mcp/types'
 
 export interface BlobRow {
   id: string
@@ -35,6 +36,10 @@ export class MesaDB extends Dexie {
   widgets!: Table<Widget, string>
   fileIndex!: Table<FileIndexRow, string>
   flows!: Table<FlowRow, string>
+  /** One row per MCP server the person has touched (catalog apps and custom ones), keyed by id. */
+  mcpServers!: Table<McpServerRecord, string>
+  /** OAuth client registrations, one per authorization server issuer. */
+  oauthClients!: Table<OAuthClient, string>
 
   constructor(name: string) {
     super(name)
@@ -48,6 +53,10 @@ export class MesaDB extends Dexie {
       widgets: 'id, type, updatedAt',
       fileIndex: 'nodeId, updatedAt',
       flows: 'id, &slug, updatedAt',
+    })
+    this.version(3).stores({
+      mcpServers: 'id, updatedAt',
+      oauthClients: 'issuer',
     })
   }
 }

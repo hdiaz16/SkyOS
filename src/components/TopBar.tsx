@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { LogOut, Settings2 } from 'lucide-react'
+import { LogOut, Plug, Settings2 } from 'lucide-react'
 import { useClock } from '../lib/hooks'
 import { cn } from '../lib/utils'
 import { dispatch } from '../kernel/commands'
@@ -75,6 +75,15 @@ export function TopBar() {
                 </div>
               )}
               <div className="my-1 h-px bg-line" />
+              <MenuButton
+                icon={<Plug className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  setMenuOpen(false)
+                  void dispatch('ui.openApps')
+                }}
+              >
+                Apps conectadas
+              </MenuButton>
               <MenuButton
                 icon={<Settings2 className="h-3.5 w-3.5" />}
                 onClick={() => {

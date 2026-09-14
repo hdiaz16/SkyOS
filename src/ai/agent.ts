@@ -3,7 +3,7 @@ import { getProvider } from './providers'
 import { useAiSettings } from './settings'
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
-import { commandTools, executeTool, type ToolExecution } from './tools'
+import { allTools, executeTool, type ToolExecution } from './tools'
 import { AiError, type Attachment, type ChatMessage, type ServerTool, type StopReason, type ToolCallPart } from './types'
 
 export interface ToolEvent {
@@ -63,7 +63,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
 
   const runId = nanoid(8)
   const emit = (e: AgentEvent) => opts.onEvent?.(e)
-  const tools = opts.tools && opts.tools.length === 0 ? [] : commandTools(opts.tools)
+  const tools = opts.tools && opts.tools.length === 0 ? [] : allTools(opts.tools)
   const base = await buildSystemPrompt()
   const system = opts.extraSystem ? `${base}\n\n${opts.extraSystem}` : base
 

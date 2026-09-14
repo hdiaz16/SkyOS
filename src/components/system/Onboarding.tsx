@@ -10,7 +10,7 @@ import { applyTheme, persistThemeFor, type Theme } from '../../state/settings'
 import { AUTO_MODEL, persistAiSettingsFor, presetFor, type ProviderId } from '../../ai/settings'
 import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
-import { currentPosition, reverseGeocode } from '../../lib/weather'
+import { currentPosition, GeoError, geocode, geolocationPossible, reverseGeocode } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 import { BELOW_ORB, useOrbStage } from './orbStore'
 
@@ -60,7 +60,9 @@ export function Onboarding() {
   const [autonomy, setAutonomy] = useState<Autonomy>('act')
   const [theme, setTheme] = useState<Theme>('light')
   const [location, setLocation] = useState<UserLocation | null>(null)
-  const [locState, setLocState] = useState<'idle' | 'asking' | 'ok' | 'denied'>('idle')
+  const [locState, setLocState] = useState<'idle' | 'asking' | 'ok' | 'denied' | 'unavailable'>('idle')
+  const [city, setCity] = useState('')
+  const [cityState, setCityState] = useState<'idle' | 'searching' | 'missing'>('idle')
   const [micState, setMicState] = useState<'idle' | 'asking' | 'granted' | 'denied'>('idle')
   const [ownKey, setOwnKey] = useState(!hasSharedGroqKey)
   const [provider, setProvider] = useState<ProviderId>('groq')
@@ -84,9 +86,31 @@ export function Onboarding() {
       const place = await reverseGeocode(pos.lat, pos.lon)
       setLocation({ lat: pos.lat, lon: pos.lon, place })
       setLocState('ok')
-    } catch {
-      setLocState('denied')
+    } catch (err) {
+      setLocState(err instanceof GeoError && err.reason === 'denied' ? 'denied' : 'unavailable')
     }
+  }
+
+  // Typing a city works everywhere: no permission, no GPS, no secure origin needed.
+  const searchCity = async () => {
+    const query = city.trim()
+    if (!query || cityState === 'searching') return
+    setCityState('searching')
+    const place = await geocode(query).catch(() => null)
+    if (!place) {
+      setCityState('missing')
+      return
+    }
+    setLocation({ lat: place.lat, lon: place.lon, place: place.name })
+    setLocState('ok')
+    setCityState('idle')
+  }
+
+  const resetLocation = () => {
+    setLocation(null)
+    setLocState('idle')
+    setCity('')
+    setCityState('idle')
   }
 
   const askMicrophone = async () => {
@@ -251,31 +275,70 @@ export function Onboarding() {
               question="¿Puedo saber dónde estás?"
               note="Solo para mostrarte el clima y la hora de tu lugar. Se guarda en tu perfil, en este navegador, y en ningún otro sitio."
             >
-              <div className="flex flex-col items-center gap-4">
-                {locState === 'ok' && location ? (
-                  <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-[14px] text-accent">
-                    <MapPin className="h-4 w-4" />
-                    {location.place}
-                    <Check className="h-4 w-4" />
-                  </p>
+              <div className="flex w-full max-w-[400px] flex-col items-center gap-4">
+                {location ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-[14px] text-accent">
+                      <MapPin className="h-4 w-4" />
+                      {location.place}
+                      <Check className="h-4 w-4" />
+                    </p>
+                    <button type="button" onClick={resetLocation} className="text-[12px] text-ink-3 transition hover:text-ink">
+                      Cambiar
+                    </button>
+                  </div>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={locState === 'asking'}
-                    onClick={() => void askLocation()}
-                    className="flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
-                  >
-                    {locState === 'asking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-                    {locState === 'asking' ? 'Esperando tu permiso…' : 'Permitir ubicación'}
-                  </button>
+                  <>
+                    {geolocationPossible() && (
+                      <button
+                        type="button"
+                        disabled={locState === 'asking'}
+                        onClick={() => void askLocation()}
+                        className="flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
+                      >
+                        {locState === 'asking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                        {locState === 'asking' ? 'Esperando tu permiso…' : 'Usar mi ubicación'}
+                      </button>
+                    )}
+                    <p className="min-h-[18px] text-center text-[12px] leading-relaxed text-ink-3">
+                      {locState === 'asking' && 'Si el navegador no te preguntó, busca el icono de ubicación en la barra de direcciones.'}
+                      {locState === 'denied' && 'El navegador no dio permiso. No pasa nada: escribe tu ciudad.'}
+                      {locState === 'unavailable' && 'No pude obtener tu posición. Escribe tu ciudad y listo.'}
+                      {locState === 'idle' && !geolocationPossible() && 'Este navegador no puede ubicarte aquí; escribe tu ciudad.'}
+                    </p>
+                    <form
+                      className="flex w-full items-center gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void searchCity()
+                      }}
+                    >
+                      <input
+                        value={city}
+                        onChange={(e) => {
+                          setCity(e.target.value)
+                          if (cityState === 'missing') setCityState('idle')
+                        }}
+                        placeholder={geolocationPossible() ? 'O escribe tu ciudad' : 'Tu ciudad'}
+                        className="glass h-11 min-w-0 flex-1 rounded-xl px-4 text-[15px] text-ink outline-none transition placeholder:text-ink-3 focus:ring-1 focus:ring-accent/50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!city.trim() || cityState === 'searching'}
+                        className="flex h-11 items-center gap-1.5 rounded-xl bg-surface-solid px-4 text-[13px] font-medium text-ink shadow-soft transition hover:brightness-105 disabled:opacity-50"
+                      >
+                        {cityState === 'searching' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Buscar'}
+                      </button>
+                    </form>
+                    {cityState === 'missing' && <p className="text-[12px] text-danger">No encontré esa ciudad. Prueba con otro nombre o añade el país.</p>}
+                  </>
                 )}
-                {locState === 'denied' && <p className="text-[13px] text-ink-3">Sin problema. Después puedes escribir tu ciudad en el widget del clima.</p>}
                 <div className="flex items-center gap-4 pt-2">
-                  {locState === 'ok' ? (
+                  {location ? (
                     <Primary onClick={next}>Continuar</Primary>
                   ) : (
                     <button type="button" onClick={next} className="text-[13px] text-ink-3 transition hover:text-ink">
-                      Ahora no
+                      Continuar sin ubicación
                     </button>
                   )}
                 </div>

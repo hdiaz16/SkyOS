@@ -12,6 +12,7 @@ import {
   Monitor,
   Moon,
   Palette,
+  Plug,
   RefreshCw,
   Sun,
   Trash2,
@@ -35,6 +36,7 @@ import { users } from '../../system/users'
 import { useDialog } from '../../state/dialog'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
+import { AppsSummary } from './Apps'
 
 const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'Sistema', icon: Monitor },
@@ -72,6 +74,10 @@ export function SettingsApp() {
 
         <Section icon={<Bot className="h-4 w-4" />} title="Inteligencia">
           <AiSection />
+        </Section>
+
+        <Section icon={<Plug className="h-4 w-4" />} title="Apps conectadas">
+          <AppsSummary onOpen={() => void dispatch('ui.openApps')} />
         </Section>
 
         <Section icon={<Zap className="h-4 w-4" />} title="Flujos guardados">

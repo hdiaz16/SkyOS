@@ -99,7 +99,7 @@ export async function geocode(name: string): Promise<Place | null> {
 export async function reverseGeocode(lat: number, lon: number): Promise<string> {
   try {
     const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`
-    const res = await fetch(url)
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
     if (!res.ok) throw new Error()
     const d = (await res.json()) as { city?: string; locality?: string; principalSubdivision?: string; countryName?: string }
     const city = d.city || d.locality
@@ -110,12 +110,43 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string> 
   }
 }
 
+export type GeoReason = 'unsupported' | 'insecure' | 'denied' | 'unavailable' | 'timeout'
+
+/** Why the browser could not give a position, so screens can react (offer a city box, explain the permission). */
+export class GeoError extends Error {
+  readonly reason: GeoReason
+
+  constructor(reason: GeoReason, message: string) {
+    super(message)
+    this.name = 'GeoError'
+    this.reason = reason
+  }
+}
+
+/** True when asking the browser for a position can work at all (API present, secure origin). */
+export function geolocationPossible(): boolean {
+  return typeof navigator !== 'undefined' && 'geolocation' in navigator && window.isSecureContext
+}
+
+/** How long to wait for a permission prompt nobody answers before giving up on top of the browser's own timeout. */
+const PROMPT_GRACE_MS = 20000
+
 export function currentPosition(timeoutMs = 8000): Promise<{ lat: number; lon: number }> {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) return reject(new Error('Sin geolocalización'))
+    if (!('geolocation' in navigator)) return reject(new GeoError('unsupported', 'Este navegador no tiene geolocalización.'))
+    if (!window.isSecureContext) return reject(new GeoError('insecure', 'La ubicación solo funciona en https o en localhost.'))
+    // The browser's own timeout only starts counting once permission is granted; this one also covers a prompt left unanswered.
+    const deadline = window.setTimeout(() => reject(new GeoError('timeout', 'El navegador no respondió a tiempo.')), timeoutMs + PROMPT_GRACE_MS)
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      (err) => reject(new Error(err.message)),
+      (pos) => {
+        window.clearTimeout(deadline)
+        resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+      },
+      (err) => {
+        window.clearTimeout(deadline)
+        const reason: GeoReason = err.code === err.PERMISSION_DENIED ? 'denied' : err.code === err.TIMEOUT ? 'timeout' : 'unavailable'
+        reject(new GeoError(reason, err.message))
+      },
       { timeout: timeoutMs, maximumAge: 10 * 60 * 1000 },
     )
   })

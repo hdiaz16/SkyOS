@@ -1,6 +1,7 @@
 import { execute, listCommands, type CommandDef } from '../kernel/commands'
 import { paramsToJsonSchema } from './schema'
 import type { ToolSpec } from './types'
+import { executeMcpTool, isMcpToolName, mcpToolSpecs } from '../mcp/tools'
 
 /** Tool names may only contain letters, digits, underscores and dashes, so "fs.move" becomes "fs_move". */
 export const toolNameFor = (commandId: string) => commandId.replace(/\./g, '_')
@@ -24,6 +25,11 @@ export function commandTools(only?: string[]): ToolSpec[] {
     }))
 }
 
+/** Every tool the model may use: Sky's commands plus the tools of every connected app. `only` restricts to commands. */
+export function allTools(only?: string[]): ToolSpec[] {
+  return only ? commandTools(only) : [...commandTools(), ...mcpToolSpecs()]
+}
+
 export interface ToolExecution {
   content: string
   isError: boolean
@@ -42,6 +48,7 @@ function serialize(value: unknown): string {
 
 /** Runs a tool call through the command bus under the AI source, so it is journaled and undoable like any user action. */
 export async function executeTool(name: string, input: Record<string, unknown>, runId: string): Promise<ToolExecution> {
+  if (isMcpToolName(name)) return executeMcpTool(name, input, runId)
   const id = commandIdForTool(name)
   if (!id) return { content: `Herramienta desconocida: ${name}`, isError: true, undoable: false }
   try {

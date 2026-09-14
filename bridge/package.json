@@ -1,0 +1,25 @@
+{
+  "name": "skyos-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Puente OAuth sin estado para SkyOS: intercambio y refresco de tokens, y proxy CORS para Notion y Evernote.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

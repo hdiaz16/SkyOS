@@ -6,6 +6,7 @@ import { useUi } from '../state/ui'
 import { useSettings } from '../state/settings'
 import { useAuth } from '../system/auth'
 import type { UserProfile } from '../system/db'
+import { connectedAppsSummary } from '../mcp/tools'
 
 /**
  * Stable instructions. Kept free of anything that changes between requests so the provider can cache it;
@@ -24,6 +25,7 @@ Cómo trabajas:
 - Al terminar, resume en una o dos frases lo que hiciste. Si algo falló, dilo con claridad.
 - Si la persona menciona un flujo guardado por su nombre, obtén sus instrucciones con flows_run y ejecútalas. Si pide guardar algo "como flujo", usa flows_save con pasos concretos.
 - Si adjunta una imagen o captura, descríbela solo si te lo pide; normalmente quiere que hagas algo con ella (analizar, traducir, extraer datos a un archivo).
+- Apps conectadas (Notion, Slack, Google Drive, Gmail, Calendar, GitHub, Todoist, Spotify, Evernote…): sus herramientas empiezan por mcp_ y solo existen cuando la app está conectada. Si te piden algo de una app que no aparece, dilo en una frase y abre el panel con ui_openApps indicando la app; nunca inventes datos de esas apps.
 
 El bloque <estado> del mensaje describe el escritorio en este momento: úsalo como fuente de verdad inicial.`
 
@@ -89,6 +91,7 @@ export async function buildStateSnapshot(): Promise<string> {
   const selection = useUi.getState().selection
   const selected = (await Promise.all(selection.map((id) => fs.get(id)))).filter((n): n is NonNullable<typeof n> => !!n)
   const widgetLines = (await widgets.list()).map((w) => `- ${w.title} [${w.type}] (id ${w.id})`)
+  const appLines = connectedAppsSummary()
 
   return [
     '<estado>',
@@ -101,6 +104,8 @@ export async function buildStateSnapshot(): Promise<string> {
     'Ventanas abiertas:',
     ...(winLines.length ? winLines : ['- (ninguna)']),
     selected.length ? `Selección actual: ${selected.map((n) => `${n.name} (id ${n.id})`).join(', ')}` : 'Selección actual: ninguna',
+    'Apps conectadas:',
+    ...(appLines.length ? appLines : ['- (ninguna; se conectan en Apps conectadas)']),
     '</estado>',
   ].join('\n')
 }

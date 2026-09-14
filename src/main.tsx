@@ -4,6 +4,7 @@ import './index.css'
 import './kernel/commands/index'
 import './ai/commands'
 import { Shell } from './components/system/Shell'
+import { handleCallbackPage, isCallbackPage } from './mcp/popup'
 import { dispatch, listCommands, useJournal } from './kernel/commands'
 import { fs } from './kernel/fs'
 import { useUi } from './state/ui'
@@ -38,8 +39,13 @@ if (import.meta.env.DEV) {
   })
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Shell />
-  </StrictMode>,
-)
+// An OAuth provider sending the person back only needs to hand its parameters over; no desktop involved.
+if (isCallbackPage()) {
+  handleCallbackPage()
+} else {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Shell />
+    </StrictMode>,
+  )
+}
