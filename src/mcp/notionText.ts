@@ -43,6 +43,13 @@ function stripTransparentTags(line: string): string {
   return out
 }
 
+const LIST_OR_ROW = /^\s*(?:[-*+]\s|\d+[.)]\s|>\s?|\|)/
+
+/** Consecutive list items, quote lines, table rows and indented continuations belong to the same block. */
+function continuesBlock(previous: string, next: string): boolean {
+  return LIST_OR_ROW.test(next) || LIST_OR_ROW.test(previous) || /^\s{2,}/.test(next)
+}
+
 /** Notion nests with tabs; Markdown nests with four spaces. A fence language like "plain text" becomes one word. */
 export function notionToMarkdown(raw: string): string {
   const body = stripWrapperBlocks(stripPreamble(raw))
@@ -60,7 +67,11 @@ export function notionToMarkdown(raw: string): string {
     }
     const line = stripTransparentTags(convertBlockTags(original))
     if (!line.trim() && original.trim()) continue // a line that was only a wrapper tag
-    out.push(line.replace(/^\t+/, (tabs) => '    '.repeat(tabs.length)))
+    const next = line.replace(/^\t+/, (tabs) => '    '.repeat(tabs.length))
+    // In Notion every line is its own block; in Markdown adjacent lines merge into one paragraph. Keep the blocks.
+    const previous = out[out.length - 1] ?? ''
+    if (next.trim() && previous.trim() && !continuesBlock(previous, next)) out.push('')
+    out.push(next)
   }
   return out
     .join('\n')
