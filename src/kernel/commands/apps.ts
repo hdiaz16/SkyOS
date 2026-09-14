@@ -14,8 +14,12 @@ interface AppStatus {
   attention?: string
 }
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const APP_WORDS = ['app', 'apps', 'aplicacion', 'aplicación', 'aplicaciones', 'conecta', 'conectar', 'conectado', 'integra', 'integracion', 'integración', 'mcp', 'notion', 'slack', 'gmail', 'correo', 'mail', 'drive', 'docs', 'calendario', 'calendar', 'github', 'todoist', 'spotify', 'evernote']
+
 registerCommand<Record<string, never>, AppStatus[]>({
   id: 'apps.status',
+  keywords: APP_WORDS,
   title: 'Apps conectadas',
   description: 'Lista las apps externas (Notion, Slack, Google Drive, Gmail, Spotify…) y cuáles están conectadas, con cuántas herramientas ofrece cada una.',
   params: {},
@@ -35,6 +39,7 @@ registerCommand<Record<string, never>, AppStatus[]>({
 
 registerCommand<{ app?: string }, void>({
   id: 'ui.openApps',
+  keywords: APP_WORDS,
   title: 'Abrir apps conectadas',
   description: 'Abre Ajustes en Apps conectadas, donde la persona autoriza Notion, Slack, Google, Gmail, GitHub, Spotify y otros servidores MCP. Úsalo cuando pida algo de una app que no está conectada. Con "app" resalta esa app.',
   params: { app: { type: 'string', description: 'Id de la app a resaltar (p. ej. notion, slack, gmail).' } },

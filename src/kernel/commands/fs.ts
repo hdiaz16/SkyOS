@@ -6,6 +6,9 @@ import { FILE_TYPE_IDS, fileTypeById } from '../../lib/fileTypes'
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const TRASH_WORDS = ['papelera', 'basura', 'restaura', 'restaurar', 'recupera', 'recuperar', 'vacia', 'vacía', 'vaciar', 'definitivamente', 'para siempre', 'purga', 'purgar', 'borrado', 'borrados', 'eliminado', 'eliminados']
+
 registerCommand<{ parentId?: string; name?: string }, FsNode>({
   id: 'fs.createFolder',
   title: 'Nueva carpeta',
@@ -115,6 +118,7 @@ registerCommand<{ ids: string[] }, void>({
 
 registerCommand<{ ids: string[] }, void>({
   id: 'fs.restore',
+  keywords: TRASH_WORDS,
   title: 'Restaurar',
   description: 'Saca elementos de la papelera y los devuelve a su carpeta original.',
   params: {
@@ -132,6 +136,7 @@ registerCommand<{ ids: string[] }, void>({
 
 registerCommand<{ ids: string[] }, void>({
   id: 'fs.purge',
+  keywords: TRASH_WORDS,
   title: 'Eliminar definitivamente',
   description: 'Borra elementos para siempre. No se puede deshacer.',
   ai: false,
@@ -146,6 +151,7 @@ registerCommand<{ ids: string[] }, void>({
 
 registerCommand<Record<string, never>, number>({
   id: 'fs.emptyTrash',
+  keywords: TRASH_WORDS,
   title: 'Vaciar papelera',
   description: 'Borra todo lo que hay en la papelera. No se puede deshacer.',
   ai: false,

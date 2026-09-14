@@ -45,8 +45,12 @@ function summarize(w: Widget) {
   return { id: w.id, type: w.type, title: w.title, detail }
 }
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const WIDGET_WORDS = ['widget', 'widgets', 'reloj', 'clima', 'tiempo', 'temporizador', 'timer', 'pomodoro', 'tareas', 'pendientes', 'nota rapida', 'nota rápida', 'divisas', 'moneda', 'dolar', 'dólar', 'html', 'panel', 'escritorio']
+
 registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: number; y?: number; w?: number; h?: number }, Widget>({
   id: 'widgets.create',
+  keywords: WIDGET_WORDS,
   title: 'Añadir widget',
   description: `Coloca un widget en el escritorio. ${TYPE_HELP}`,
   params: {
@@ -74,6 +78,7 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
 
 registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
   id: 'widgets.update',
+  keywords: WIDGET_WORDS,
   title: 'Actualizar widget',
   description: `Cambia el título o la configuración de un widget existente (la config se fusiona con la actual). ${TYPE_HELP}`,
   params: {
@@ -97,6 +102,7 @@ registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
 
 registerCommand<{ id: string }, void>({
   id: 'widgets.remove',
+  keywords: WIDGET_WORDS,
   title: 'Quitar widget',
   description: 'Quita un widget del escritorio.',
   params: { id: { type: 'string', description: 'Id del widget.', required: true } },
@@ -115,6 +121,7 @@ registerCommand<{ id: string }, void>({
 
 registerCommand<Record<string, never>, unknown>({
   id: 'widgets.list',
+  keywords: WIDGET_WORDS,
   title: 'Widgets del escritorio',
   description: `Lista los widgets presentes en el escritorio con un resumen de su contenido. Tipos disponibles: ${WIDGET_TYPES.map((t) => `${t} (${WIDGET_META[t].label})`).join(', ')}.`,
   params: {},

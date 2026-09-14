@@ -158,11 +158,13 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
       if (!res.ok || !res.body) {
         const retryAfterMs = retryAfterFrom(res.headers)
         const transient = res.status === 429 || res.status >= 500
+        const detail = await res.text().catch(() => '')
+        // Diagnostics stay in the console; what the person reads is decided below.
+        console.warn(`[ai] ${cfg.name} ${res.status} (${req.model}, ${Math.round(JSON.stringify(body).length / 1024)} KB enviados): ${detail.slice(0, 400)}`)
         if (cfg.shared) {
           yield { type: 'error', error: sharedKeyBusy(res.status, retryAfterMs) }
           return
         }
-        const detail = await res.text().catch(() => '')
         const msg =
           res.status === 401
             ? `La llave de ${cfg.name} no es válida.`

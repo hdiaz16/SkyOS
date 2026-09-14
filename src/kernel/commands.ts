@@ -33,6 +33,12 @@ export interface CommandDef<P = unknown, R = unknown> {
   params: Record<string, ParamSpec>
   /** Whether the AI may call this command as a tool. Defaults to true. */
   ai?: boolean
+  /**
+   * Words (lowercase, accents optional) that make this command relevant to a request. When set, the tool is
+   * sent to the model only if the request or the recent conversation mentions one of them; commands without
+   * keywords always travel. Keeps requests small for providers that meter tokens per minute.
+   */
+  keywords?: string[]
   run: (params: P, ctx: CommandContext) => Promise<CommandOutcome<R>>
 }
 

@@ -4,7 +4,8 @@ import { presetFor, useAiSettings, type AiSettingsState } from './settings'
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
 import { allTools, executeTool, type ToolExecution } from './tools'
-import { AiError, type Attachment, type ChatMessage, type ServerTool, type StopReason, type ToolCallPart } from './types'
+import { DEFAULT_MCP_BUDGET_BYTES, MIN_MCP_BUDGET_BYTES } from '../mcp/tools'
+import { AiError, type Attachment, type ChatMessage, type ServerTool, type StopReason, type ToolCallPart, type Usage } from './types'
 
 export interface ToolEvent {
   call: ToolCallPart
@@ -48,10 +49,20 @@ export interface AgentResult {
   toolEvents: ToolEvent[]
   model: string
   tier: Tier | null
+  /** Tokens the whole run cost, summed over every model request. */
+  usage: Usage
 }
 
 const MAX_ITERATIONS = 16
 const MAX_RETRIES = 2
+/** Old tool results in history keep only their head: the model already acted on them. */
+const HISTORY_RESULT_CHARS = 1500
+/** Fresh tool results per provider: metered free tiers get a tight cap, the rest can read whole documents. */
+const RESULT_CHARS = { metered: 6000, roomy: 60_000 }
+
+function clip(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max)}\n…[recortado: ${text.length - max} caracteres más]`
+}
 const BASE_BACKOFF_MS = 1500
 const MAX_WAIT_MS = 20_000
 
@@ -76,10 +87,15 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-/** Older turns keep their words but not the desktop snapshot they carried: it is stale, and it is expensive. */
-function withoutSnapshot(m: ChatMessage): ChatMessage {
+/**
+ * Older turns keep their words but not the desktop snapshot they carried (stale and expensive), and their
+ * tool results are trimmed to a head: the model already acted on them.
+ */
+function slimHistory(m: ChatMessage): ChatMessage {
   if (m.role !== 'user') return m
-  const parts = m.parts.filter((p) => !(p.type === 'text' && p.text.startsWith('<estado>')))
+  const parts = m.parts
+    .filter((p) => !(p.type === 'text' && p.text.startsWith('<estado>')))
+    .map((p) => (p.type === 'tool_result' ? { ...p, content: clip(p.content, HISTORY_RESULT_CHARS) } : p))
   return parts.length ? { ...m, parts } : m
 }
 
@@ -94,7 +110,15 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
 
   const runId = nanoid(8)
   const emit = (e: AgentEvent) => opts.onEvent?.(e)
-  const tools = opts.tools && opts.tools.length === 0 ? [] : allTools(opts.tools)
+  const recent = (opts.history ?? [])
+    .slice(-4)
+    .flatMap((m) => m.parts)
+    .map((p) => (p.type === 'text' ? p.text : p.type === 'tool_call' ? p.name : ''))
+    .join(' ')
+  // Free tiers cap tokens per minute; other providers can carry far more app tooling per request.
+  let mcpBudget = settings.provider === 'groq' ? DEFAULT_MCP_BUDGET_BYTES : DEFAULT_MCP_BUDGET_BYTES * 5
+  const buildTools = () => (opts.tools && opts.tools.length === 0 ? [] : allTools(opts.tools, { prompt: opts.prompt, recent, budgetBytes: mcpBudget }))
+  let tools = buildTools()
   const base = await buildSystemPrompt()
   const system = opts.extraSystem ? `${base}\n\n${opts.extraSystem}` : base
 
@@ -108,7 +132,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   for (const a of opts.attachments ?? []) userParts.push(a)
   userParts.push({ type: 'text', text: opts.prompt })
 
-  const messages: ChatMessage[] = [...(opts.history ?? []).map(withoutSnapshot), { role: 'user', parts: userParts }]
+  const messages: ChatMessage[] = [...(opts.history ?? []).map(slimHistory), { role: 'user', parts: userParts }]
+  const resultCap = settings.provider === 'groq' ? RESULT_CHARS.metered : RESULT_CHARS.roomy
+  const usage: Usage = { inputTokens: 0, outputTokens: 0 }
   let model = route.model
   const tried = new Set<string>([route.model])
   const toolEvents: ToolEvent[] = []
@@ -153,6 +179,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
               assistant = ev.assistant
               stopReason = ev.stopReason
               refusal = ev.refusal
+              usage.inputTokens += ev.usage.inputTokens
+              usage.outputTokens += ev.usage.outputTokens
               break
             case 'error':
               throw ev.error
@@ -160,7 +188,15 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
         }
         break
       } catch (err) {
-        if (!(err instanceof AiError) || !err.retryable || streamed || opts.signal?.aborted) throw err
+        if (!(err instanceof AiError) || streamed || opts.signal?.aborted) throw err
+        // "Request too large": carry fewer, smaller app tools and try again before anything else.
+        if (err.status === 413 && mcpBudget > MIN_MCP_BUDGET_BYTES) {
+          mcpBudget = Math.max(MIN_MCP_BUDGET_BYTES, Math.floor(mcpBudget / 2))
+          tools = buildTools()
+          emit({ type: 'status', message: 'Ajustando la petición…' })
+          continue
+        }
+        if (!err.retryable) throw err
         const next = route.auto ? nextModel(settings, model, tried, tools.length > 0) : undefined
         if (next) {
           tried.add(model)
@@ -198,7 +234,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
       const result = await executeTool(call.name, call.input, runId)
       toolEvents.push({ call, result })
       emit({ type: 'tool_end', call, result })
-      results.push({ type: 'tool_result', toolCallId: call.id, content: result.content, isError: result.isError })
+      results.push({ type: 'tool_result', toolCallId: call.id, content: clip(result.content, resultCap), isError: result.isError })
     }
     if (opts.signal?.aborted) {
       stopReason = 'aborted'
@@ -208,5 +244,5 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     if (text) text += '\n\n'
   }
 
-  return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier }
+  return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier, usage }
 }

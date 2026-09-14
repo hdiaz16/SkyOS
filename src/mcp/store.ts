@@ -13,13 +13,10 @@ export const mcpStore = {
       await db.mcpServers.put(record)
       return record
     },
-    /** Merges a patch into the stored record; a no-op when the record is gone. */
+    /** Merges a patch into the stored record atomically (Dexie's update touches only the given keys); a no-op when the record is gone. */
     async patch(id: string, patch: Partial<McpServerRecord>): Promise<McpServerRecord | undefined> {
-      const current = await db.mcpServers.get(id)
-      if (!current) return undefined
-      const next = { ...current, ...patch, updatedAt: Date.now() }
-      await db.mcpServers.put(next)
-      return next
+      const changed = await db.mcpServers.update(id, { ...patch, updatedAt: Date.now() })
+      return changed ? db.mcpServers.get(id) : undefined
     },
     remove: (id: string): Promise<void> => db.mcpServers.delete(id),
   },

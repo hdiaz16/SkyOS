@@ -6,6 +6,9 @@ import { useUi } from '../../state/ui'
 import { useSettings, type Theme } from '../../state/settings'
 import { GOOGLE_HOME, googleSearchUrl, titleForUrl, toNavigableUrl } from '../../lib/web'
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const LOOK_WORDS = ['tema', 'oscuro', 'claro', 'modo noche', 'luz', 'apariencia', 'color', 'colores', 'paleta', 'fondo']
+
 registerCommand<{ id: string }, void>({
   id: 'ui.open',
   title: 'Abrir',
@@ -107,6 +110,7 @@ const THEME_NAMES: Record<Theme, string> = { system: 'del sistema', light: 'clar
 
 registerCommand<{ theme?: Theme }, Theme>({
   id: 'ui.theme',
+  keywords: LOOK_WORDS,
   title: 'Cambiar tema',
   description: 'Cambia entre tema claro, oscuro o el del sistema. Sin parámetro alterna al siguiente.',
   params: { theme: { type: 'string', description: 'system, light o dark', enum: ['system', 'light', 'dark'] } },
@@ -121,6 +125,7 @@ registerCommand<{ theme?: Theme }, Theme>({
 
 registerCommand<Record<string, never>, void>({
   id: 'ui.palette',
+  keywords: LOOK_WORDS,
   title: 'Barra de Sky',
   description: 'Lleva el foco a la barra principal.',
   ai: false,

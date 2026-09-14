@@ -1,7 +1,7 @@
 import { execute, listCommands, type CommandDef } from '../kernel/commands'
 import { paramsToJsonSchema } from './schema'
 import type { ToolSpec } from './types'
-import { executeMcpTool, isMcpToolName, mcpToolSpecs } from '../mcp/tools'
+import { executeMcpTool, isMcpToolName, mcpToolSpecs, mentions, normalize, type ToolContext } from '../mcp/tools'
 
 /** Tool names may only contain letters, digits, underscores and dashes, so "fs.move" becomes "fs_move". */
 export const toolNameFor = (commandId: string) => commandId.replace(/\./g, '_')
@@ -14,10 +14,15 @@ export function commandIdForTool(name: string): string | undefined {
   return aiCommands().find((c) => toolNameFor(c.id) === name)?.id
 }
 
-/** Every AI-visible command, exposed as a tool. Order is stable (registration order) to keep prompt caches warm. */
-export function commandTools(only?: string[]): ToolSpec[] {
+/**
+ * Every AI-visible command, exposed as a tool. Order is stable (registration order) to keep prompt caches
+ * warm. With a context, commands that declared keywords travel only when the request mentions one.
+ */
+export function commandTools(only?: string[], context?: ToolContext): ToolSpec[] {
+  const text = context ? normalize(`${context.prompt} ${context.recent ?? ''}`) : ''
   return aiCommands()
     .filter((c) => !only || only.includes(c.id))
+    .filter((c) => !context || !c.keywords || mentions(text, c.keywords))
     .map((c) => ({
       name: toolNameFor(c.id),
       description: c.description,
@@ -25,9 +30,12 @@ export function commandTools(only?: string[]): ToolSpec[] {
     }))
 }
 
-/** Every tool the model may use: Sky's commands plus the tools of every connected app. `only` restricts to commands. */
-export function allTools(only?: string[]): ToolSpec[] {
-  return only ? commandTools(only) : [...commandTools(), ...mcpToolSpecs()]
+/**
+ * Every tool the model may use: Sky's commands plus the tools of the connected apps the request is about.
+ * `only` restricts to those commands and leaves the apps out.
+ */
+export function allTools(only?: string[], context?: ToolContext): ToolSpec[] {
+  return only ? commandTools(only) : [...commandTools(undefined, context), ...mcpToolSpecs(context)]
 }
 
 export interface ToolExecution {

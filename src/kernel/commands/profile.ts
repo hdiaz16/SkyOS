@@ -14,8 +14,12 @@ async function saveLocation(location: UserLocation | undefined): Promise<void> {
   await useAuth.getState().refreshCurrent()
 }
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const LOCATION_WORDS = ['ubicacion', 'ubicación', 'vivo en', 'estoy en', 'ciudad', 'lugar', 'clima', 'donde estoy', 'dónde estoy', 'me mude', 'me mudé', 'zona horaria']
+
 registerCommand<{ place: string }, { place: string; lat: number; lon: number }>({
   id: 'user.setLocation',
+  keywords: LOCATION_WORDS,
   title: 'Cambiar ubicación',
   description:
     'Guarda la ciudad o lugar donde vive o está la persona (sirve para el clima, la hora y las referencias locales). Los widgets de clima sin lugar propio la siguen. Úsalo cuando diga dónde está o pida cambiar su ubicación.',

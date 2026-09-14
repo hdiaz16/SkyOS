@@ -5,6 +5,7 @@ import { speak, speechAvailable, stopSpeaking } from '../ai/speech'
 import { useSession, type Turn } from '../ai/session'
 import { commandIdForTool } from '../ai/tools'
 import { modelLabel, TIER_LABELS, type Tier } from '../ai/router'
+import type { Usage } from '../ai/types'
 import { useAiSettings } from '../ai/settings'
 import type { ToolEvent } from '../ai/agent'
 import { getCommand, undoEntry, undoRun, useJournal } from '../kernel/commands'
@@ -147,7 +148,7 @@ function TurnView({ turn }: { turn: Turn }) {
       {turn.status === 'stopped' && <p className="mt-1 text-[12px] text-ink-3">Detenido.</p>}
       {turn.runId && turn.status !== 'streaming' && <UndoAll runId={turn.runId} />}
       <div className="mt-1.5 flex items-center gap-3">
-        {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} />}
+        {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} usage={turn.usage} />}
         {turn.status === 'done' && turn.text && speechAvailable() && <Listen text={turn.text} />}
       </div>
     </div>
@@ -179,12 +180,16 @@ function Listen({ text }: { text: string }) {
   )
 }
 
-function ModelTag({ model, tier }: { model: string; tier: Tier | null }) {
+const tokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n))
+
+function ModelTag({ model, tier, usage }: { model: string; tier: Tier | null; usage?: Usage }) {
   const settings = useAiSettings()
+  const total = usage ? usage.inputTokens + usage.outputTokens : 0
   return (
-    <p className="text-[11px] text-ink-3">
+    <p className="text-[11px] text-ink-3" title={usage ? `${usage.inputTokens} de entrada · ${usage.outputTokens} de salida` : undefined}>
       {modelLabel(settings, model)}
       {tier ? ` · ${TIER_LABELS[tier]}` : ''}
+      {total ? ` · ${tokens(total)} tokens` : ''}
     </p>
   )
 }

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { runAgent, type ToolEvent } from './agent'
 import type { Tier } from './router'
-import type { Attachment, ChatMessage } from './types'
+import type { Attachment, ChatMessage, Usage } from './types'
 
 export interface Turn {
   id: string
@@ -17,6 +17,7 @@ export interface Turn {
   /** Which model answered and, when routed automatically, at what tier. */
   model?: string
   tier?: Tier | null
+  usage?: Usage
 }
 
 /** Something the user picked to send with the next message: a capture, an image, a PDF. */
@@ -138,6 +139,7 @@ export const useSession = create<SessionState>((set, get) => ({
           runId: result.runId,
           model: result.model,
           tier: result.tier,
+          usage: result.usage,
           statusMessage: undefined,
         }),
       }))

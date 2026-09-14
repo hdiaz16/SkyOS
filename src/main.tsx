@@ -11,7 +11,7 @@ import { useUi } from './state/ui'
 import { useWindows } from './state/windows'
 import { useSession } from './ai/session'
 import { useAiSettings } from './ai/settings'
-import { commandTools } from './ai/tools'
+import { allTools, commandTools } from './ai/tools'
 import { useTasks } from './ai/tasks'
 import { useSnap } from './ai/snap'
 import { widgets } from './kernel/widgets'
@@ -35,7 +35,7 @@ if (import.meta.env.DEV) {
       useUi,
       useWindows,
       useJournal,
-      ai: { useSession, useAiSettings, useTasks, useSnap, commandTools },
+      ai: { useSession, useAiSettings, useTasks, useSnap, commandTools, allTools },
       system: { useAuth, users },
       mcp: { mcp, useMcp, auth: { parseChallenge, discoverProtectedResource, discoverAuthorizationServer, obtainClient } },
     },

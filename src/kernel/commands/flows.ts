@@ -4,8 +4,12 @@ import type { FlowRow } from '../db'
 
 const summarize = (f: FlowRow) => ({ id: f.id, name: f.name, instructions: f.instructions, uses: f.uses })
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const FLOW_WORDS = ['flujo', 'flujos', 'rutina', 'rutinas', 'guarda esto', 'guardar como', 'automatiza', 'atajo']
+
 registerCommand<{ name: string; instructions: string }, ReturnType<typeof summarize>>({
   id: 'flows.save',
+  keywords: FLOW_WORDS,
   title: 'Guardar flujo',
   description:
     'Guarda una rutina con nombre para repetirla después escribiendo su nombre en la barra. Las instrucciones son los pasos en lenguaje natural que ejecutarás cuando se invoque (por ejemplo: "abre la carpeta Proyecto X, crea una nota Acta con la fecha de hoy y la plantilla de reunión"). Si ya existe un flujo con ese nombre, se reemplaza.',
@@ -28,6 +32,7 @@ registerCommand<{ name: string; instructions: string }, ReturnType<typeof summar
 
 registerCommand<Record<string, never>, ReturnType<typeof summarize>[]>({
   id: 'flows.list',
+  keywords: FLOW_WORDS,
   title: 'Flujos guardados',
   description: 'Lista los flujos guardados con sus instrucciones.',
   params: {},
@@ -52,6 +57,7 @@ registerCommand<{ name: string }, { name: string; instructions: string }>({
 
 registerCommand<{ name: string }, void>({
   id: 'flows.delete',
+  keywords: FLOW_WORDS,
   title: 'Eliminar flujo',
   description: 'Elimina un flujo guardado por nombre.',
   params: { name: { type: 'string', description: 'Nombre del flujo.', required: true } },

@@ -43,6 +43,10 @@ export interface CatalogEntry {
   preregistered?: () => Preregistered | undefined
   /** Vendor documentation. */
   docsUrl?: string
+  /** Words in a request that point at this app; its tools travel to the model only then (keeps requests small). */
+  keywords: string[]
+  /** Tools that cover most requests; they win the size budget unless the request clearly asks for others. */
+  featuredTools?: string[]
 }
 
 const google = (): Preregistered | undefined => (GOOGLE_OAUTH.clientId ? GOOGLE_OAUTH : undefined)
@@ -56,6 +60,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Buscar archivos', 'Leer contenido', 'Crear y descargar'],
     color: '#1FA463',
     abbr: 'Dr',
+    keywords: ['drive', 'google drive', 'nube', 'archivo de google', 'archivos de google'],
     url: 'https://drivemcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file'],
     preregistered: google,
@@ -69,6 +74,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Leer documentos', 'Crear y editar'],
     color: '#4285F4',
     abbr: 'Do',
+    keywords: ['docs', 'google docs', 'documento de google', 'doc de google'],
     url: 'https://docsmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file'],
     preregistered: google,
@@ -82,6 +88,8 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Buscar páginas', 'Leer contenido', 'Crear y ampliar'],
     color: '#37352F',
     abbr: 'N',
+    keywords: ['notion', 'página', 'páginas', 'pagina', 'paginas', 'workspace', 'base de datos'],
+    featuredTools: ['notion-search', 'notion-fetch', 'notion-list-recent-pages', 'notion-create-pages', 'notion-update-page', 'notion-create-comment', 'notion-get-comments'],
     url: 'https://mcp.notion.com/mcp',
     docsUrl: 'https://developers.notion.com/guides/mcp/get-started-with-mcp',
   },
@@ -93,6 +101,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Buscar notas', 'Leer notas', 'Crear notas'],
     color: '#00A82D',
     abbr: 'Ev',
+    keywords: ['evernote', 'libreta', 'libretas', 'nota', 'notas'],
     url: 'https://mcp.evernote.com/mcp',
     docsUrl: 'https://dev.evernote.com/mcp/clients/any',
   },
@@ -104,6 +113,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Leer y buscar correos', 'Redactar', 'Enviar'],
     color: '#EA4335',
     abbr: 'Gm',
+    keywords: ['gmail', 'correo', 'correos', 'mail', 'email', 'bandeja', 'mensaje de correo'],
     url: 'https://gmailmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send'],
     preregistered: google,
@@ -117,6 +127,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Ver canales y mensajes', 'Buscar', 'Enviar mensajes', 'Canvas'],
     color: '#4A154B',
     abbr: 'Sl',
+    keywords: ['slack', 'canal', 'canales', 'mensaje', 'mensajes', 'equipo', 'chat'],
     url: 'https://mcp.slack.com/mcp',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/slack',
   },
@@ -128,6 +139,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Ver eventos', 'Crear y mover eventos'],
     color: '#1967D2',
     abbr: 'Ca',
+    keywords: ['calendario', 'calendar', 'agenda', 'evento', 'eventos', 'reunión', 'reunion', 'cita', 'citas'],
     url: 'https://calendarmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/calendar.events'],
     preregistered: google,
@@ -141,6 +153,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Ver tareas', 'Crear y completar', 'Proyectos y etiquetas'],
     color: '#E44332',
     abbr: 'Td',
+    keywords: ['todoist', 'tarea', 'tareas', 'pendiente', 'pendientes', 'to do', 'proyecto de tareas'],
     url: 'https://ai.todoist.net/mcp',
     docsUrl: 'https://github.com/Doist/todoist-ai',
   },
@@ -152,6 +165,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Issues y PRs', 'Leer código', 'Buscar en repos'],
     color: '#24292F',
     abbr: 'Gh',
+    keywords: ['github', 'repo', 'repositorio', 'issue', 'issues', 'pull request', 'pr', 'commit', 'rama', 'código'],
     url: 'https://api.githubcopilot.com/mcp/',
     docsUrl: 'https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md',
   },
@@ -163,6 +177,7 @@ export const CATALOG: CatalogEntry[] = [
     abilities: ['Buscar música', 'Recomendaciones', 'Playlists'],
     color: '#1DB954',
     abbr: 'Sp',
+    keywords: ['spotify', 'música', 'musica', 'canción', 'cancion', 'canciones', 'playlist', 'artista', 'álbum', 'album', 'podcast'],
     url: 'https://mcp-gateway-external-pilot.spotify.net/mcp',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/spotify',
   },

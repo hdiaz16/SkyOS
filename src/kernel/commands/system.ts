@@ -19,8 +19,12 @@ function activeId(windows: Win[]): string | undefined {
   return top?.id
 }
 
+/** Words that make these commands relevant; without one of them in the request, their tools stay home. */
+const WINDOW_WORDS = ['ventana', 'ventanas', 'minimiza', 'minimizar', 'cierra', 'cerrar', 'ordena', 'ordenar', 'acomoda', 'acomodar', 'cascada', 'cuadricula', 'cuadrícula', 'limpia', 'limpiar', 'despeja', 'abiertas', 'sesion', 'sesión', 'salir', 'logout', 'sistema', 'estado', 'hora', 'fecha', 'almacenamiento', 'espacio', 'version', 'versión']
+
 registerCommand<Record<string, never>, WindowSummary[]>({
   id: 'ui.windows',
+  keywords: WINDOW_WORDS,
   title: 'Ventanas abiertas',
   description: 'Lista las ventanas abiertas: aplicación, título, cuál está activa y cuáles están minimizadas.',
   params: {},
@@ -53,6 +57,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.closeWindows',
+  keywords: WINDOW_WORDS,
   title: 'Cerrar ventanas',
   description:
     'Cierra ventanas por id o por alcance: "all" (todas), "inactive" (todas menos la activa), "minimized" (solo minimizadas).',
@@ -78,6 +83,7 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
 
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.minimizeWindows',
+  keywords: WINDOW_WORDS,
   title: 'Minimizar ventanas',
   description: 'Minimiza ventanas por id o por alcance: "all" o "inactive" (todas menos la activa).',
   params: {
@@ -138,6 +144,7 @@ function computeLayout(wins: Win[], layout: Layout): Array<Partial<Win> & { id: 
 
 registerCommand<{ layout?: Layout }, number>({
   id: 'ui.arrangeWindows',
+  keywords: WINDOW_WORDS,
   title: 'Ordenar ventanas',
   description: 'Acomoda las ventanas visibles: "grid" (cuadrícula), "cascade" (cascada), "columns" o "rows".',
   params: { layout: { type: 'string', description: 'Disposición.', enum: ['grid', 'cascade', 'columns', 'rows'] } },
@@ -157,6 +164,7 @@ registerCommand<{ layout?: Layout }, number>({
 
 registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
   id: 'ui.cleanDesktop',
+  keywords: WINDOW_WORDS,
   title: 'Limpiar escritorio',
   description: 'Deja solo la ventana activa. Por defecto minimiza las demás; con mode "close" las cierra. Quita la selección.',
   params: { mode: { type: 'string', description: 'minimize (por defecto) o close.', enum: ['minimize', 'close'] } },
@@ -185,6 +193,7 @@ registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
 
 registerCommand<Record<string, never>, void>({
   id: 'system.logout',
+  keywords: WINDOW_WORDS,
   title: 'Cerrar sesión',
   description: 'Cierra la sesión de la persona actual y vuelve a la pantalla de inicio. Sus archivos se conservan.',
   params: {},
@@ -196,6 +205,7 @@ registerCommand<Record<string, never>, void>({
 
 registerCommand<Record<string, never>, unknown>({
   id: 'system.info',
+  keywords: WINDOW_WORDS,
   title: 'Estado del sistema',
   description: 'Fecha y hora, tema, conteo de archivos y carpetas, ventanas abiertas y motor de almacenamiento.',
   params: {},
