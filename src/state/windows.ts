@@ -24,6 +24,8 @@ export interface Win {
   z: number
   minimized: boolean
   props: WindowProps
+  /** Last time the window was opened or brought to the front; lets Sky tell what the person has not used in a while. */
+  touchedAt: number
 }
 
 interface OpenOptions {
@@ -94,7 +96,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
     set((s) => ({
       windows: [
         ...s.windows,
-        { id, app, title: opts.title ?? d.title, x, y, w, h, z: s.nextZ, minimized: false, props: opts.props ?? {} },
+        { id, app, title: opts.title ?? d.title, x, y, w, h, z: s.nextZ, minimized: false, props: opts.props ?? {}, touchedAt: Date.now() },
       ],
       nextZ: s.nextZ + 1,
     }))
@@ -108,7 +110,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
 
   focus: (id) =>
     set((s) => ({
-      windows: s.windows.map((w) => (w.id === id ? { ...w, z: s.nextZ, minimized: false } : w)),
+      windows: s.windows.map((w) => (w.id === id ? { ...w, z: s.nextZ, minimized: false, touchedAt: Date.now() } : w)),
       nextZ: s.nextZ + 1,
     })),
 
@@ -137,7 +139,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
     set((s) =>
       s.windows.some((w) => w.id === win.id)
         ? s
-        : { windows: [...s.windows, { ...win, z: s.nextZ, minimized: false }], nextZ: s.nextZ + 1 },
+        : { windows: [...s.windows, { ...win, z: s.nextZ, minimized: false, touchedAt: Date.now() }], nextZ: s.nextZ + 1 },
     ),
 
   patchMany: (patches) =>

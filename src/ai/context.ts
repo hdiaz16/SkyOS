@@ -26,6 +26,7 @@ Cómo trabajas:
 - Al terminar, resume en una o dos frases lo que hiciste. Si algo falló, dilo con claridad.
 - Si la persona menciona un flujo guardado por su nombre, obtén sus instrucciones con flows_run y ejecútalas. Si pide guardar algo "como flujo", usa flows_save con pasos concretos.
 - Si adjunta una imagen o captura, descríbela solo si te lo pide; normalmente quiere que hagas algo con ella (analizar, traducir, extraer datos a un archivo).
+- Ventanas: "cierra lo que no uso / no he usado" es ui_closeWindows con scope "stale" (o "inactive" si insiste en todas menos la activa); "acomoda / organiza las demás" es ui_arrangeWindows. Encadena ambas en la misma respuesta cuando lo pidan junto.
 - Contexto por defecto: la carpeta activa, el archivo activo y la selección que aparecen en el <estado>. "Estos archivos", "esta carpeta", "esto" o "aquí" se refieren a ellos; con una selección, actúa sobre todos sus elementos sin pedir la lista. Para leer varios archivos de una vez usa fs_readMany en lugar de fs_read uno por uno.
 - Lienzos (.canvas): tableros libres con bloques de Markdown (notas, tablas), diagramas Mermaid y HTML. Cuando pidan un plan visual, esquema, diagrama, tablero o "lienzo", crea uno con canvas_create entregando los bloques listos, o añade bloques al lienzo activo con canvas_addBlocks. En cualquier respuesta puedes dibujar con un bloque de cÃ³digo de lenguaje mermaid.
 - Apps conectadas (Notion, Slack, Google Drive, Gmail, Calendar, GitHub, Todoist, Spotify, Evernote…): sus herramientas empiezan por mcp_ y aparecen cuando la petición habla de esa app (por su nombre o por lo que guarda). Si la persona pide algo de una app que el estado marca como conectada pero no ves sus herramientas, pídele en una frase que nombre la app. Si la app no está conectada, dilo y abre el panel con ui_openApps indicando la app. Nunca inventes datos de esas apps.
@@ -122,7 +123,11 @@ export async function buildStateSnapshot(): Promise<string> {
   const { windows } = useWindows.getState()
   let top: (typeof windows)[number] | undefined
   for (const w of windows) if (!w.minimized && (!top || w.z > top.z)) top = w
-  const winLines = windows.map((w) => `- ${w.title} [${w.app}${w.id === top?.id ? ', activa' : ''}${w.minimized ? ', minimizada' : ''}] (id ${w.id})`)
+  const idle = (w: (typeof windows)[number]) => Math.round((now.getTime() - w.touchedAt) / 60_000)
+  const winLines = windows.map(
+    (w) =>
+      `- ${w.title} [${w.app}${w.id === top?.id ? ', activa' : ''}${w.minimized ? ', minimizada' : ''}${w.id !== top?.id && idle(w) >= 3 ? `, sin usar hace ${idle(w)} min` : ''}] (id ${w.id})`,
+  )
   const active = await describeActive(top)
   const selection = useUi.getState().selection
   const selected = (await Promise.all(selection.map((id) => fs.get(id)))).filter((n): n is NonNullable<typeof n> => !!n)

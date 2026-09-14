@@ -11,7 +11,13 @@ interface WindowSummary {
   title: string
   minimized: boolean
   active: boolean
+  /** Minutes since the window was last opened or brought to the front. */
+  idleMinutes: number
 }
+
+/** A window nobody has touched for this long counts as stale. */
+const STALE_MS = 10 * 60_000
+const idleMinutes = (w: Win) => Math.round((Date.now() - w.touchedAt) / 60_000)
 
 function activeId(windows: Win[]): string | undefined {
   let top: Win | undefined
@@ -26,18 +32,18 @@ registerCommand<Record<string, never>, WindowSummary[]>({
   id: 'ui.windows',
   keywords: WINDOW_WORDS,
   title: 'Ventanas abiertas',
-  description: 'Lista las ventanas abiertas: aplicación, título, cuál está activa y cuáles están minimizadas.',
+  description: 'Lista las ventanas abiertas: aplicación, título, cuál está activa, cuáles están minimizadas y cuántos minutos lleva cada una sin usarse.',
   params: {},
   async run() {
     const { windows } = useWindows.getState()
     const active = activeId(windows)
     return {
-      result: windows.map((w) => ({ id: w.id, app: w.app, title: w.title, minimized: w.minimized, active: w.id === active })),
+      result: windows.map((w) => ({ id: w.id, app: w.app, title: w.title, minimized: w.minimized, active: w.id === active, idleMinutes: idleMinutes(w) })),
     }
   },
 })
 
-type Scope = 'all' | 'inactive' | 'minimized'
+type Scope = 'all' | 'inactive' | 'minimized' | 'stale'
 
 function targets(scope: Scope, ids?: string[]): Win[] {
   const { windows } = useWindows.getState()
@@ -50,6 +56,8 @@ function targets(scope: Scope, ids?: string[]): Win[] {
       return windows.filter((w) => w.id !== active)
     case 'minimized':
       return windows.filter((w) => w.minimized)
+    case 'stale':
+      return windows.filter((w) => w.id !== active && (w.minimized || Date.now() - w.touchedAt >= STALE_MS))
   }
 }
 
@@ -60,13 +68,12 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   keywords: WINDOW_WORDS,
   title: 'Cerrar ventanas',
   description:
-    'Cierra ventanas por id o por alcance: "all" (todas), "inactive" (todas menos la activa), "minimized" (solo minimizadas).',
+    'Cierra ventanas por id o por alcance: "all" (todas), "inactive" (todas menos la activa), "minimized" (solo minimizadas), "stale" (las que llevan 10 minutos o más sin usarse o están minimizadas; ideal para "cierra lo que no estoy usando").',
   params: {
     ids: { type: 'array', items: { type: 'string', description: 'Id de ventana' }, description: 'Ventanas concretas.' },
-    scope: { type: 'string', description: 'Alcance cuando no se dan ids.', enum: ['all', 'inactive', 'minimized'] },
+    scope: { type: 'string', description: 'Alcance cuando no se dan ids.', enum: ['all', 'inactive', 'minimized', 'stale'] },
   },
-  async run({ ids, scope = 'inactive' }) {
-    const wins = targets(scope, ids)
+XX    const wins = targets(scope, ids)
     if (!wins.length) return { result: 0 }
     const wm = useWindows.getState()
     for (const w of wins) wm.close(w.id)
@@ -85,13 +92,12 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.minimizeWindows',
   keywords: WINDOW_WORDS,
   title: 'Minimizar ventanas',
-  description: 'Minimiza ventanas por id o por alcance: "all" o "inactive" (todas menos la activa).',
+  description: 'Minimiza ventanas por id o por alcance: "all", "inactive" (todas menos la activa) o "stale" (sin usar 10 minutos o más).',
   params: {
     ids: { type: 'array', items: { type: 'string', description: 'Id de ventana' }, description: 'Ventanas concretas.' },
-    scope: { type: 'string', description: 'Alcance cuando no se dan ids.', enum: ['all', 'inactive'] },
+    scope: { type: 'string', description: 'Alcance cuando no se dan ids.', enum: ['all', 'inactive', 'stale'] },
   },
-  async run({ ids, scope = 'inactive' }) {
-    const wins = targets(scope, ids).filter((w) => !w.minimized)
+XX    const wins = targets(scope, ids).filter((w) => !w.minimized)
     if (!wins.length) return { result: 0 }
     const wm = useWindows.getState()
     for (const w of wins) wm.minimize(w.id)
