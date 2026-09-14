@@ -8,6 +8,15 @@ export interface BridgeEnv {
   readonly allowedOrigins: readonly string[];
   /** Let proxy targets point at loopback/private hosts (local MCP servers during development). */
   readonly allowLocalTargets: boolean;
+  /** When ALLOWED_ORIGINS is not set, any localhost/LAN origin (any port) may use the bridge. */
+  readonly allowLocalOrigins: boolean;
+}
+
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/i;
+
+/** A browser origin on this machine or its LAN: where SkyOS runs while someone develops or tests it. */
+export function isLocalOrigin(origin: string): boolean {
+  return LOCAL_ORIGIN.test(origin);
 }
 
 const DEFAULT_PORT = 8787;
@@ -63,5 +72,6 @@ export function loadEnv(): BridgeEnv {
     port: readPort(),
     allowedOrigins: readOrigins(),
     allowLocalTargets: readBoolean('MCP_PROXY_ALLOW_LOCAL', false),
+    allowLocalOrigins: readString('ALLOWED_ORIGINS') === undefined,
   };
 }

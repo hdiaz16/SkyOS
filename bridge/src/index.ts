@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 
-import { loadEnv, type BridgeEnv } from './env.js';
+import { isLocalOrigin, loadEnv, type BridgeEnv } from './env.js';
 import { BridgeError, internalError, notFound, payloadTooLarge } from './errors.js';
 import { MCP_POLICY, OAUTH_POLICY, forward, type TargetRules } from './proxy.js';
 
@@ -26,10 +26,11 @@ export function createApp(env: BridgeEnv): Hono {
   app.use(
     '*',
     cors({
-      origin: (origin) => (allowedOrigins.has(origin) ? origin : null),
+      origin: (origin) => (allowedOrigins.has(origin) || (env.allowLocalOrigins && isLocalOrigin(origin)) ? origin : null),
       allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Authorization', 'Content-Type', 'Accept', 'Mcp-Session-Id', 'MCP-Protocol-Version', 'Last-Event-ID'],
-      exposeHeaders: ['Mcp-Session-Id', 'MCP-Protocol-Version', 'WWW-Authenticate'],
+      // No allowHeaders: Hono reflects Access-Control-Request-Headers, so every Mcp-* header the spec
+      // defines (Mcp-Method, Mcp-Name, Mcp-Param-*, MCP-Protocol-Version, Mcp-Session-Id) passes.
+      exposeHeaders: ['Content-Type', 'Mcp-Session-Id', 'MCP-Protocol-Version', 'WWW-Authenticate'],
       maxAge: 600,
     }),
   );

@@ -76,8 +76,10 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   `VITE_GOOGLE_CLIENT_SECRET`, o Apps conectadas › Avanzado).
 - Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
   (p. ej. `ms-365-mcp-server`) por URL.
-- Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores
-  (`VITE_BRIDGE_URL`).
+- Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores.
+  En local: `npm run bridge:install` una vez y `npm run bridge` (escucha en 8787), con
+  `VITE_BRIDGE_URL=http://127.0.0.1:8787` en `.env.local`. Sky intenta primero directo y solo usa el puente cuando
+  el navegador bloquea la llamada.
 
 ## Proveedores y modelo automático
 

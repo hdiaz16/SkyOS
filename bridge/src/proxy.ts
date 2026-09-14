@@ -22,6 +22,8 @@ export interface ProxyPolicy {
   readonly allowedMethods?: ReadonlySet<string>;
   /** Request headers copied from the browser when present. */
   readonly requestHeaders: readonly string[];
+  /** Header-name prefixes copied wholesale (the MCP spec mirrors body fields into Mcp-* headers). */
+  readonly requestHeaderPrefixes?: readonly string[];
   /** Upstream response headers relayed to the browser. */
   readonly responseHeaders: readonly string[];
   /** Relayed headers the browser is allowed to read cross-origin. */
@@ -41,7 +43,8 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]
 
 export const MCP_POLICY: ProxyPolicy = {
   label: 'el servidor MCP',
-  requestHeaders: ['Authorization', 'Content-Type', 'Accept', 'Mcp-Session-Id', 'MCP-Protocol-Version', 'Last-Event-ID'],
+  requestHeaders: ['Authorization', 'Content-Type', 'Accept', 'Last-Event-ID'],
+  requestHeaderPrefixes: ['mcp-'],
   responseHeaders: ['Content-Type', 'Mcp-Session-Id', 'MCP-Protocol-Version', 'WWW-Authenticate', 'Cache-Control'],
   exposeHeaders: ['Mcp-Session-Id', 'MCP-Protocol-Version', 'WWW-Authenticate'],
 };
@@ -173,11 +176,16 @@ export function resolveTarget(raw: string | undefined, rules: TargetRules): URL 
 
 // --- Forwarding ---------------------------------------------------------------------
 
-function pickHeaders(source: Headers, names: readonly string[]): Headers {
+function pickHeaders(source: Headers, names: readonly string[], prefixes: readonly string[] = []): Headers {
   const picked = new Headers();
   for (const name of names) {
     const value = source.get(name);
     if (value !== null) picked.set(name, value);
+  }
+  if (prefixes.length) {
+    source.forEach((value, name) => {
+      if (prefixes.some((p) => name.toLowerCase().startsWith(p.toLowerCase()))) picked.set(name, value);
+    });
   }
   return picked;
 }
@@ -256,7 +264,7 @@ export async function forward(c: Context, policy: ProxyPolicy, rules: TargetRule
   }
 
   const url = resolveTarget(c.req.query('target'), rules);
-  const headers = pickHeaders(c.req.raw.headers, policy.requestHeaders);
+  const headers = pickHeaders(c.req.raw.headers, policy.requestHeaders, policy.requestHeaderPrefixes);
   headers.set('User-Agent', USER_AGENT);
   const body = await readRequestBody(c, method);
 
