@@ -34,6 +34,8 @@ interface SessionState {
   controller: AbortController | null
   pending: PendingAttachment[]
   setOpen: (open: boolean) => void
+  /** Adds a message from Sky without calling the model (greetings, system notes). Opens the panel. */
+  say: (text: string) => void
   attach: (part: Attachment, label: string) => void
   detach: (id: string) => void
   clearPending: () => void
@@ -59,6 +61,12 @@ export const useSession = create<SessionState>((set, get) => ({
   pending: [],
 
   setOpen: (open) => set({ open }),
+
+  say: (text) => {
+    const turn: Turn = { id: nanoid(6), role: 'assistant', text, toolEvents: [], status: 'done' }
+    const message: ChatMessage = { role: 'assistant', parts: [{ type: 'text', text }] }
+    set((s) => ({ open: true, turns: [...s.turns, turn], history: [...s.history, message].slice(-MAX_HISTORY_MESSAGES) }))
+  },
 
   attach: (part, label) => set((s) => ({ pending: [...s.pending.slice(-(MAX_PENDING - 1)), { id: nanoid(6), label, part }] })),
   detach: (id) => set((s) => ({ pending: s.pending.filter((p) => p.id !== id) })),

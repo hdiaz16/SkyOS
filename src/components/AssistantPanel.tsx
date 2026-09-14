@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { AlertCircle, Check, Loader2, Sparkles, Square, Trash2, Undo2, X, FileText } from 'lucide-react'
+import { AlertCircle, Check, Loader2, Sparkles, Square, Trash2, Undo2, Volume2, VolumeX, X, FileText } from 'lucide-react'
+import { speak, speechAvailable, stopSpeaking } from '../ai/speech'
 import { useSession, type Turn } from '../ai/session'
 import { commandIdForTool } from '../ai/tools'
 import { modelLabel, TIER_LABELS, type Tier } from '../ai/router'
@@ -145,15 +146,43 @@ function TurnView({ turn }: { turn: Turn }) {
       )}
       {turn.status === 'stopped' && <p className="mt-1 text-[12px] text-ink-3">Detenido.</p>}
       {turn.runId && turn.status !== 'streaming' && <UndoAll runId={turn.runId} />}
-      {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} />}
+      <div className="mt-1.5 flex items-center gap-3">
+        {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} />}
+        {turn.status === 'done' && turn.text && speechAvailable() && <Listen text={turn.text} />}
+      </div>
     </div>
+  )
+}
+
+function Listen({ text }: { text: string }) {
+  const [speaking, setSpeaking] = useState(false)
+  const toggle = async () => {
+    if (speaking) {
+      stopSpeaking()
+      setSpeaking(false)
+      return
+    }
+    setSpeaking(true)
+    await speak(text)
+    setSpeaking(false)
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => void toggle()}
+      className="flex items-center gap-1 text-[11px] text-ink-3 transition hover:text-ink"
+      title={speaking ? 'Silenciar' : 'Escuchar'}
+    >
+      {speaking ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+      {speaking ? 'Silenciar' : 'Escuchar'}
+    </button>
   )
 }
 
 function ModelTag({ model, tier }: { model: string; tier: Tier | null }) {
   const settings = useAiSettings()
   return (
-    <p className="mt-1.5 text-[11px] text-ink-3">
+    <p className="text-[11px] text-ink-3">
       {modelLabel(settings, model)}
       {tier ? ` · ${TIER_LABELS[tier]}` : ''}
     </p>

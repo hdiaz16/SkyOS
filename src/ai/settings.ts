@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { sessionSuffix } from '../system/session'
+import { DEFAULT_GROQ_KEY, hasSharedGroqKey } from '../config'
 import type { Effort, ModelInfo } from './types'
 
 export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'openrouter' | 'ollama' | 'custom' | 'mock'
@@ -35,20 +36,21 @@ export const PROVIDERS: ProviderPreset[] = [
   {
     id: 'groq',
     name: 'Groq',
-    tagline: 'Gratis para empezar y casi instantáneo: 8B para el día a día, 70B solo para lo complejo.',
+    tagline: 'Gratis para empezar y casi instantáneo: GPT-OSS 20B para el día a día, 120B solo para lo complejo.',
     needsKey: true,
     keyUrl: 'https://console.groq.com/keys',
     baseUrl: 'https://api.groq.com/openai/v1',
+    // Verified against the account on 2026-09-13; the Llama 3.x ids are no longer served there.
     models: [
-      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', tier: 'fast', vision: false },
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', tier: 'deep', vision: false },
+      { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B', tier: 'fast', vision: false },
       { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B', tier: 'deep', vision: false },
-      { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B', tier: 'balanced', vision: false },
       { id: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B', tier: 'balanced', vision: false },
+      { id: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B', tier: 'balanced', vision: false },
+      { id: 'groq/compound-mini', label: 'Compound Mini (con búsqueda web)', tier: 'balanced', vision: false },
     ],
-    // The 8B model has by far the most generous free limits, so it carries everything but the heavy work.
-    tiers: { fast: 'llama-3.1-8b-instant', balanced: 'llama-3.1-8b-instant', deep: 'llama-3.3-70b-versatile' },
-    modelHint: 'llama-3.1-8b-instant',
+    // The 20B model carries everything but the heavy work; it is the cheapest on the free tier.
+    tiers: { fast: 'openai/gpt-oss-20b', balanced: 'openai/gpt-oss-20b', deep: 'openai/gpt-oss-120b' },
+    modelHint: 'openai/gpt-oss-20b',
     vision: false,
   },
   {
@@ -152,14 +154,25 @@ const DEFAULTS: Persisted = {
   discovered: {},
 }
 
+/** Every account starts with the shared Groq key unless the person stored one of their own. */
+function withSharedKey(keys: Partial<Record<ProviderId, string>>): Partial<Record<ProviderId, string>> {
+  return hasSharedGroqKey && !keys.groq ? { ...keys, groq: DEFAULT_GROQ_KEY } : keys
+}
+
 function load(): Persisted {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return DEFAULTS
+    if (!raw) return { ...DEFAULTS, keys: withSharedKey({}) }
     const parsed = JSON.parse(raw) as Partial<Persisted>
-    return { ...DEFAULTS, ...parsed, keys: parsed.keys ?? {}, baseUrls: parsed.baseUrls ?? {}, discovered: parsed.discovered ?? {} }
+    return {
+      ...DEFAULTS,
+      ...parsed,
+      keys: withSharedKey(parsed.keys ?? {}),
+      baseUrls: parsed.baseUrls ?? {},
+      discovered: parsed.discovered ?? {},
+    }
   } catch {
-    return DEFAULTS
+    return { ...DEFAULTS, keys: withSharedKey({}) }
   }
 }
 
@@ -182,7 +195,7 @@ function persist(state: AiSettingsState): void {
 /** Writes AI settings for an account that is not signed in yet (onboarding). */
 export function persistAiSettingsFor(userId: string, data: Partial<Persisted>): void {
   try {
-    localStorage.setItem(`mesa:ai:${userId}`, JSON.stringify({ ...DEFAULTS, ...data }))
+    localStorage.setItem(`mesa:ai:${userId}`, JSON.stringify({ ...DEFAULTS, ...data, keys: withSharedKey(data.keys ?? {}) }))
   } catch {
     /* ignore */
   }

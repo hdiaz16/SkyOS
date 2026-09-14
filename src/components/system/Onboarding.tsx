@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, Check, ExternalLink, Loader2, MapPin, XCircle } from 'lucide-react'
-import type { Autonomy, Purpose, Tone, UserLocation, UserProfile } from '../../system/db'
+import { ArrowRight, Check, ExternalLink, Loader2, MapPin, Mic, XCircle } from 'lucide-react'
+import type { Autonomy, Permission, Purpose, Tone, UserLocation, UserProfile } from '../../system/db'
+import { hasSharedGroqKey } from '../../config'
 import { users } from '../../system/users'
 import { useAuth } from '../../system/auth'
 import { startSession } from '../../system/session'
@@ -11,11 +12,11 @@ import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
 import { currentPosition, reverseGeocode } from '../../lib/weather'
 import { cn } from '../../lib/utils'
-import { Orb } from './Orb'
+import { Orb, TEMPO_BUSY, TEMPO_CALM, TEMPO_RUSH } from './Orb'
 
-type Step = 'hello' | 'name' | 'tone' | 'purpose' | 'autonomy' | 'theme' | 'location' | 'ai' | 'pin' | 'setup'
+type Step = 'hello' | 'name' | 'tone' | 'purpose' | 'autonomy' | 'theme' | 'location' | 'microphone' | 'ai' | 'pin' | 'setup'
 
-const ORDER: Step[] = ['hello', 'name', 'tone', 'purpose', 'autonomy', 'theme', 'location', 'ai', 'pin', 'setup']
+const ORDER: Step[] = ['hello', 'name', 'tone', 'purpose', 'autonomy', 'theme', 'location', 'microphone', 'ai', 'pin', 'setup']
 
 interface Choice<T extends string> {
   value: T
@@ -60,6 +61,8 @@ export function Onboarding() {
   const [theme, setTheme] = useState<Theme>('light')
   const [location, setLocation] = useState<UserLocation | null>(null)
   const [locState, setLocState] = useState<'idle' | 'asking' | 'ok' | 'denied'>('idle')
+  const [micState, setMicState] = useState<'idle' | 'asking' | 'granted' | 'denied'>('idle')
+  const [ownKey, setOwnKey] = useState(!hasSharedGroqKey)
   const [provider, setProvider] = useState<ProviderId>('groq')
   const [apiKey, setApiKey] = useState('')
   const [keyTest, setKeyTest] = useState<{ state: 'idle' | 'running' | 'ok' | 'fail'; message?: string }>({ state: 'idle' })
@@ -83,6 +86,17 @@ export function Onboarding() {
       setLocState('ok')
     } catch {
       setLocState('denied')
+    }
+  }
+
+  const askMicrophone = async () => {
+    setMicState('asking')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach((t) => t.stop())
+      setMicState('granted')
+    } catch {
+      setMicState('denied')
     }
   }
 
@@ -114,14 +128,16 @@ export function Onboarding() {
   }
 
   const finish = async () => {
-    const profile: UserProfile = { tone, purpose, autonomy, location: location ?? undefined }
+    const microphone: Permission = micState === 'granted' ? 'granted' : micState === 'denied' ? 'denied' : 'skipped'
+    const profile: UserProfile = { tone, purpose, autonomy, location: location ?? undefined, microphone, voice: true }
     const user = await users.create({ name, profile, pin: pin.length >= 4 ? pin : undefined })
     persistThemeFor(user.id, theme)
-    const preset = presetFor(provider)
+    const chosen = ownKey ? provider : 'groq'
+    const preset = presetFor(chosen)
     persistAiSettingsFor(user.id, {
-      provider,
+      provider: chosen,
       model: preset.tiers ? AUTO_MODEL : preset.models[0]?.id ?? '',
-      keys: apiKey.trim() ? { [provider]: apiKey.trim() } : {},
+      keys: ownKey && apiKey.trim() ? { [chosen]: apiKey.trim() } : {},
     })
     return user
   }
@@ -259,7 +275,64 @@ export function Onboarding() {
             </Screen>
           )}
 
-          {step === 'ai' && (
+          {step === 'microphone' && (
+            <Screen
+              question="¿Puedo usar tu micrófono?"
+              note="Para que le dictes a Sky en vez de escribir. Solo escucha cuando tú activas el micrófono en la barra, y se apaga al terminar."
+            >
+              <div className="flex flex-col items-center gap-4">
+                {micState === 'granted' ? (
+                  <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-[14px] text-accent">
+                    <Mic className="h-4 w-4" />
+                    Micrófono listo
+                    <Check className="h-4 w-4" />
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={micState === 'asking'}
+                    onClick={() => void askMicrophone()}
+                    className="flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
+                  >
+                    {micState === 'asking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                    {micState === 'asking' ? 'Esperando tu permiso…' : 'Permitir micrófono'}
+                  </button>
+                )}
+                {micState === 'denied' && <p className="text-[13px] text-ink-3">Sin problema. Podrás activarlo desde el navegador cuando quieras dictar.</p>}
+                <div className="flex items-center gap-4 pt-2">
+                  {micState === 'granted' ? (
+                    <Primary onClick={next}>Continuar</Primary>
+                  ) : (
+                    <button type="button" onClick={next} className="text-[13px] text-ink-3 transition hover:text-ink">
+                      Ahora no
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Screen>
+          )}
+
+          {step === 'ai' && !ownKey && (
+            <Screen
+              question="Sky piensa con Groq."
+              note="Es rápido y gratuito, y todos empiezan con él. Cuando quieras, podrás cambiar al proveedor de tu preferencia en Ajustes: Claude, OpenAI, OpenRouter o un modelo local."
+            >
+              <div className="flex flex-col items-center gap-4">
+                <p className="glass flex items-center gap-2 rounded-full px-4 py-2 text-[13px] text-ink-2">
+                  <Check className="h-4 w-4 text-accent" />
+                  GPT-OSS 20B para lo cotidiano · GPT-OSS 120B para lo complejo
+                </p>
+                <div className="flex items-center gap-5 pt-2">
+                  <Primary onClick={next}>Continuar</Primary>
+                  <button type="button" onClick={() => setOwnKey(true)} className="text-[13px] text-ink-3 transition hover:text-ink">
+                    Prefiero usar mi propia llave
+                  </button>
+                </div>
+              </div>
+            </Screen>
+          )}
+
+          {step === 'ai' && ownKey && (
             <Screen
               question="Sky piensa con un modelo de lenguaje."
               note="Groq es gratuito para empezar y responde casi al instante. Puedes cambiar de proveedor cuando quieras en Ajustes."
@@ -475,6 +548,7 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
   const [shown, setShown] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [rushing, setRushing] = useState(false)
   const [expanding, setExpanding] = useState(false)
   // The account must be created exactly once, even though React runs effects twice in development.
   const started = useRef(false)
@@ -491,9 +565,10 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
       .then((user) => {
         window.setTimeout(() => {
           setDone(true)
-          // A beat to read "Listo", then the orb opens into the desktop.
-          window.setTimeout(() => setExpanding(true), 1300)
-          window.setTimeout(() => startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }), 1300 + 950)
+          // A beat to read "Listo", then the line races, the disc opens and the desktop takes over.
+          window.setTimeout(() => setRushing(true), 1200)
+          window.setTimeout(() => setExpanding(true), 1200 + 1300)
+          window.setTimeout(() => startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }), 1200 + 1300 + 1000)
         }, total)
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Algo salió mal'))
@@ -503,13 +578,13 @@ function Setup({ name, providerName, finish }: { name: string; providerName: str
   return (
     <div className="flex flex-col items-center gap-10">
       <motion.div
-        animate={expanding ? { scale: 22, opacity: [1, 1, 0] } : { scale: 1, opacity: 1 }}
-        transition={expanding ? { duration: 0.95, times: [0, 0.7, 1], ease: [0.65, 0, 0.35, 1] } : { duration: 0.3 }}
-        style={{ willChange: 'transform, opacity' }}
+        animate={expanding ? { scale: 24 } : { scale: 1 }}
+        transition={expanding ? { duration: 1, ease: [0.7, 0, 0.3, 1] } : { duration: 0.3 }}
+        style={{ willChange: 'transform' }}
       >
-        <Orb size={160} active={!done || expanding} expanding={expanding} />
+        <Orb size={160} tempo={rushing ? TEMPO_RUSH : done ? TEMPO_CALM : TEMPO_BUSY} expanding={expanding} />
       </motion.div>
-      <motion.div animate={{ opacity: expanding ? 0 : 1 }} transition={{ duration: 0.25 }} className="flex min-h-[96px] flex-col items-center gap-1.5 text-center">
+      <motion.div animate={{ opacity: rushing || expanding ? 0 : 1 }} transition={{ duration: 0.5 }} className="flex min-h-[96px] flex-col items-center gap-1.5 text-center">
         {done ? (
           <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-display text-[40px] font-bold tracking-tight text-ink">
             Listo, {name.trim().split(' ')[0]}.

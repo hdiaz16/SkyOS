@@ -196,7 +196,7 @@ input, textarea {
   cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='%2316201c' stroke='%23e6efe9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4'/><path d='M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2'/><path d='M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5'/><path d='M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2'/><path d='M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0'/></svg>") 12 12, grabbing;
 }
 
-/* Mesa's presence: a flat warm disc, a thin looping line, a soft halo. */
+/* Sky's presence: a flat disc, a thin looping line, a soft halo. The line's motion lives in Orb.tsx. */
 .orb {
   position: relative;
   display: flex;
@@ -231,84 +231,38 @@ input, textarea {
 .orb-glyph {
   display: block;
   overflow: visible;
+  transition: opacity 0.35s ease-out;
 }
 
-/* A lit segment that travels the whole loop; pathLength="100" makes the dash units percentages. */
-.orb-trace {
-  stroke-dasharray: 28 72;
-  animation: orb-trace 7s linear infinite;
-}
-
-.orb-active .orb-halo {
-  animation-duration: 2.4s;
-  opacity: 1;
-}
-
-.orb-active .orb-disc {
-  animation-duration: 2.4s;
-}
-
-.orb-active .orb-trace {
-  animation-duration: 2.2s;
-}
-
-@keyframes orb-trace {
-  to { stroke-dashoffset: -100; }
-}
-
-/* Arrival: the disc grows from a point, the line draws itself, the halo blooms, then everything breathes. */
+/* Arrival: the disc settles in from closer, the line draws itself, the halo blooms, then everything breathes. */
 .orb-enter .orb-disc {
   animation:
-    orb-pop 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.15) both,
-    orb-breathe 6s ease-in-out 0.9s infinite;
+    orb-arrive 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    orb-breathe 6s ease-in-out 1.2s infinite;
 }
 
 .orb-enter .orb-base {
   stroke-dasharray: 100 100;
   stroke-dashoffset: 100;
-  animation: orb-draw 1.4s cubic-bezier(0.4, 0, 0.2, 1) 0.45s forwards;
+  animation: orb-draw 1.4s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
 }
 
 .orb-enter .orb-trace {
   opacity: 0;
-  animation:
-    orb-trace 7s linear infinite,
-    orb-appear 0.6s ease-out 1.9s forwards;
+  animation: orb-appear 0.6s ease-out 1.9s forwards;
 }
 
 .orb-enter .orb-halo {
   animation:
-    orb-bloom 1.3s ease-out 0.25s both,
-    orb-halo 6s ease-in-out 1.55s infinite;
+    orb-bloom 1.4s ease-out 0.3s both,
+    orb-halo 6s ease-in-out 1.7s infinite;
 }
 
-.orb-enter.orb-active .orb-trace {
-  animation-duration: 2.2s, 0.6s;
-}
-
-/* Opening into the screen: only the color remains, the line and halo step aside. */
+/* Opening into the screen: the line and the halo dissolve so only the color floods. */
 .orb-expanding .orb-glyph,
 .orb-expanding .orb-halo {
   opacity: 0;
-  transition: opacity 0.25s ease-out;
-}
-
-@keyframes orb-pop {
-  from { transform: scale(0.15); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@keyframes orb-draw {
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes orb-appear {
-  to { opacity: 1; }
-}
-
-@keyframes orb-bloom {
-  from { opacity: 0; transform: scale(0.35); }
-  to { opacity: 0.9; transform: scale(1); }
+  transition: opacity 0.3s ease-out;
 }
 
 @keyframes orb-breathe {
@@ -321,10 +275,28 @@ input, textarea {
   50% { transform: scale(1.06); opacity: 1; }
 }
 
+@keyframes orb-arrive {
+  from { transform: scale(1.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes orb-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes orb-appear {
+  to { opacity: 1; }
+}
+
+@keyframes orb-bloom {
+  from { opacity: 0; transform: scale(1.6); }
+  to { opacity: 0.9; transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .orb-halo, .orb-disc, .orb-trace, .orb-base { animation: none; }
+  .orb-halo, .orb-disc, .orb-base { animation: none; }
   .orb-enter .orb-base { stroke-dashoffset: 0; }
-  .orb-enter .orb-trace { opacity: 1; }
+  .orb-enter .orb-trace { opacity: 1; animation: none; }
 }
 
 @keyframes loading-bar {

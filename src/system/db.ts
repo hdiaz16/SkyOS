@@ -10,12 +10,18 @@ export interface UserLocation {
   place: string
 }
 
+export type Permission = 'granted' | 'denied' | 'skipped'
+
 /** Answers from the onboarding. They shape how Sky talks and how far it acts on its own. */
 export interface UserProfile {
   tone: Tone
   purpose: Purpose
   autonomy: Autonomy
   location?: UserLocation
+  /** Whether the person allowed the microphone during onboarding (the browser still owns the real permission). */
+  microphone?: Permission
+  /** Whether Sky may speak out loud. */
+  voice?: boolean
 }
 
 export interface UserRow {
