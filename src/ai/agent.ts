@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { getProvider } from './providers'
-import { presetFor, useAiSettings, type AiSettingsState } from './settings'
+import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, useAiSettings, type AiSettingsState, type ProviderId } from './settings'
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
 import { allTools, executeTool, type ToolExecution } from './tools'
@@ -103,10 +103,27 @@ function slimHistory(m: ChatMessage): ChatMessage {
  * One request from the user, resolved to completion: the model streams text, calls tools through the
  * command bus, receives their results and continues until it has nothing more to do.
  */
+/**
+ * Another provider the person set up with their own key, to lean on when the current one is out of breath.
+ * The included Groq key is what we are escaping, so only personal keys count.
+ */
+function alternateProvider(current: AiSettingsState, exclude: Set<ProviderId>): AiSettingsState | undefined {
+  for (const preset of PROVIDERS) {
+    if (exclude.has(preset.id) || preset.devOnly || !preset.needsKey || !current.keys[preset.id]) continue
+    const model = preset.tiers ? AUTO_MODEL : (current.discovered[preset.id]?.[0] ?? preset.models[0]?.id ?? '')
+    const candidate: AiSettingsState = { ...current, provider: preset.id, model }
+    if (isAiConfigured(candidate) && getProvider(candidate)) return candidate
+  }
+  return undefined
+}
+
 export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   const settings = useAiSettings.getState()
-  const provider = getProvider(settings)
+  let provider = getProvider(settings)
   if (!provider) throw new AiError('Configura un proveedor de IA en Ajustes para empezar.')
+  // The provider actually answering; it changes if the first one cannot keep up and another is configured.
+  let active = settings
+  const triedProviders = new Set<ProviderId>([settings.provider])
 
   const runId = nanoid(8)
   const emit = (e: AgentEvent) => opts.onEvent?.(e)
@@ -133,7 +150,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   userParts.push({ type: 'text', text: opts.prompt })
 
   const messages: ChatMessage[] = [...(opts.history ?? []).map(slimHistory), { role: 'user', parts: userParts }]
-  const resultCap = settings.provider === 'groq' ? RESULT_CHARS.metered : RESULT_CHARS.roomy
+  const resultCap = () => (active.provider === 'groq' ? RESULT_CHARS.metered : RESULT_CHARS.roomy)
   const usage: Usage = { inputTokens: 0, outputTokens: 0 }
   let model = route.model
   const tried = new Set<string>([route.model])
@@ -159,7 +176,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
           messages,
           tools,
           serverTools: provider.capabilities.serverWebFetch ? opts.serverTools : undefined,
-          effort: settings.effort,
+          effort: active.effort,
           maxTokens: opts.maxTokens,
           signal: opts.signal,
         })) {
@@ -197,7 +214,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
           continue
         }
         if (!err.retryable) throw err
-        const next = route.auto ? nextModel(settings, model, tried, tools.length > 0) : undefined
+        const next = route.auto ? nextModel(active, model, tried, tools.length > 0) : undefined
         if (next) {
           tried.add(model)
           model = next
@@ -205,7 +222,24 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
           emit({ type: 'model', model, tier: route.tier })
           continue
         }
-        if (attempt >= MAX_RETRIES) throw err
+        if (attempt >= MAX_RETRIES) {
+          // Out of options here: hand the conversation to another provider the person configured, quietly.
+          const alt = alternateProvider(active, triedProviders)
+          const altProvider = alt ? getProvider(alt) : null
+          if (alt && altProvider) {
+            triedProviders.add(alt.provider)
+            active = alt
+            provider = altProvider
+            model = resolveModel(alt, { prompt: opts.prompt, attachments: opts.attachments, historyLength: opts.history?.length, textOnly: opts.withoutState }, opts.tier).model
+            tried.clear()
+            tried.add(model)
+            attempt = 0
+            emit({ type: 'status', message: `Cambiando a ${presetFor(alt.provider).name}…` })
+            emit({ type: 'model', model, tier: route.tier })
+            continue
+          }
+          throw err
+        }
         attempt++
         emit({ type: 'status', message: 'Sky está esperando su turno…' })
         await pause(Math.min(err.retryAfterMs ?? BASE_BACKOFF_MS * 2 ** attempt, MAX_WAIT_MS), opts.signal)
@@ -234,7 +268,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
       const result = await executeTool(call.name, call.input, runId)
       toolEvents.push({ call, result })
       emit({ type: 'tool_end', call, result })
-      results.push({ type: 'tool_result', toolCallId: call.id, content: clip(result.content, resultCap), isError: result.isError })
+      results.push({ type: 'tool_result', toolCallId: call.id, content: clip(result.content, resultCap()), isError: result.isError })
     }
     if (opts.signal?.aborted) {
       stopReason = 'aborted'

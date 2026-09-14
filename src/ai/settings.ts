@@ -3,7 +3,7 @@ import { sessionSuffix } from '../system/session'
 import { DEFAULT_GROQ_KEY, hasSharedGroqKey } from '../config'
 import type { Effort, ModelInfo } from './types'
 
-export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'openrouter' | 'ollama' | 'custom' | 'mock'
+export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'gemini' | 'openrouter' | 'ollama' | 'custom' | 'mock'
 
 /** Model of each speed tier, used by the automatic router and by background chores. */
 export interface ModelTiers {
@@ -77,6 +77,21 @@ export const PROVIDERS: ProviderPreset[] = [
     baseUrl: 'https://api.openai.com/v1',
     models: [],
     modelHint: 'p. ej. gpt-5',
+    vision: true,
+  },
+  {
+    id: 'gemini',
+    name: 'Google Gemini',
+    tagline: 'Gemini con tu llave de AI Studio: rápido, con visión, y el relevo natural cuando Groq está saturado.',
+    needsKey: true,
+    keyUrl: 'https://aistudio.google.com/apikey',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    models: [
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tier: 'fast', vision: true },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tier: 'deep', vision: true },
+    ],
+    tiers: { fast: 'gemini-2.5-flash', balanced: 'gemini-2.5-flash', deep: 'gemini-2.5-pro' },
+    modelHint: 'gemini-2.5-flash',
     vision: true,
   },
   {

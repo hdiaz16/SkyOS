@@ -148,7 +148,7 @@ function TurnView({ turn }: { turn: Turn }) {
       {turn.status === 'stopped' && <p className="mt-1 text-[12px] text-ink-3">Detenido.</p>}
       {turn.runId && turn.status !== 'streaming' && <UndoAll runId={turn.runId} />}
       <div className="mt-1.5 flex items-center gap-3">
-        {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} usage={turn.usage} />}
+        {turn.model && turn.status !== 'streaming' && <ModelTag model={turn.model} tier={turn.tier ?? null} usage={turn.usage} latencyMs={turn.latencyMs} />}
         {turn.status === 'done' && turn.text && speechAvailable() && <Listen text={turn.text} />}
       </div>
     </div>
@@ -182,7 +182,7 @@ function Listen({ text }: { text: string }) {
 
 const tokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n))
 
-function ModelTag({ model, tier, usage }: { model: string; tier: Tier | null; usage?: Usage }) {
+function ModelTag({ model, tier, usage, latencyMs }: { model: string; tier: Tier | null; usage?: Usage; latencyMs?: number }) {
   const settings = useAiSettings()
   const total = usage ? usage.inputTokens + usage.outputTokens : 0
   return (
@@ -190,6 +190,7 @@ function ModelTag({ model, tier, usage }: { model: string; tier: Tier | null; us
       {modelLabel(settings, model)}
       {tier ? ` · ${TIER_LABELS[tier]}` : ''}
       {total ? ` · ${tokens(total)} tokens` : ''}
+      {latencyMs ? ` · ${(latencyMs / 1000).toFixed(latencyMs >= 10_000 ? 0 : 1)} s` : ''}
     </p>
   )
 }

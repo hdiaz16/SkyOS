@@ -7,6 +7,7 @@ import { dispatch } from '../kernel/commands'
 import { useAuth } from '../system/auth'
 import { Avatar } from './system/Login'
 import { Calendar } from './Calendar'
+import { StatusPill } from './StatusPill'
 
 function greetingFor(hour: number): string {
   if (hour < 12) return 'Buenos días'
@@ -101,7 +102,9 @@ export function TopBar() {
         </AnimatePresence>
       </div>
 
-      <div className="pointer-events-auto relative">
+      <div className="pointer-events-auto flex items-center gap-2">
+        <StatusPill />
+        <div className="relative">
         <button
           type="button"
           data-clock
@@ -115,6 +118,7 @@ export function TopBar() {
           {time}
         </button>
         <AnimatePresence>{calendarOpen && <Calendar onClose={() => setCalendarOpen(false)} />}</AnimatePresence>
+        </div>
       </div>
     </div>
   )

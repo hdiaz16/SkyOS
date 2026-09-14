@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { play } from '../system/sound'
 import { nanoid } from 'nanoid'
 
 export type AppId = 'files' | 'editor' | 'image' | 'pdf' | 'browser' | 'result' | 'terminal' | 'trash' | 'settings' | 'office' | 'app' | 'canvas'
@@ -125,6 +126,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
       state.focus(existing.id)
       return existing.id
     }
+    play('open')
     const d = DEFAULTS[app]
     const w = Math.min(opts.w ?? d.w, window.innerWidth - 32)
     const h = Math.min(opts.h ?? d.h, window.innerHeight - 96)
@@ -142,7 +144,10 @@ export const useWindows = create<WindowsState>((set, get) => ({
     return id
   },
 
-  close: (id) => set((s) => ({ windows: s.windows.filter((w) => w.id !== id) })),
+  close: (id) => {
+    if (get().windows.some((w) => w.id === id)) play('close')
+    set((s) => ({ windows: s.windows.filter((w) => w.id !== id) }))
+  },
 
   closeForNode: (nodeId) =>
     set((s) => ({ windows: s.windows.filter((w) => w.props.nodeId !== nodeId && w.props.folderId !== nodeId) })),
@@ -183,6 +188,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
 
   snap: (id, target) =>
     set((s) => ({
+      ...(play('snap'), {}),
       windows: s.windows.map((w) => (w.id === id ? place(w, snapGeometry(target), { prev: w.maximized ? w.prev : { x: w.x, y: w.y, w: w.w, h: w.h }, maximized: target === 'max' }) : w)),
     })),
 

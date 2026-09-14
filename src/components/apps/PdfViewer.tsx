@@ -1,30 +1,21 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
-import { Languages, Lightbulb, Loader2, Minus, Plus, Scan, Sparkles } from 'lucide-react'
+import { Loader2, Minus, Plus, Scan, Sparkles } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import type { Win } from '../../state/windows'
 import { useBlobUrl } from '../../lib/hooks'
-import { useSession } from '../../ai/session'
-import { cn } from '../../lib/utils'
 
 // pdf.js renders in a worker; Vite bundles it from the installed package.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
-const MAX_SELECTION_CHARS = 6000
-
-interface Selection {
-  text: string
-  x: number
-  y: number
-}
 
 /**
- * PDFs rendered page by page with pdf.js: real text you can select. Select a passage and Sky offers to
- * summarize, translate or explain it; the browser's own find (Ctrl F) works on the text layer.
+ * PDFs rendered page by page with pdf.js: real text you can select. Selecting a passage brings up the window's
+ * in-context menu (summarize, translate, explain); the browser's own find (Ctrl F) works on the text layer.
  */
 export function PdfViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
@@ -35,7 +26,6 @@ export function PdfViewer({ win }: { win: Win }) {
   const [zoom, setZoom] = useState(1)
   const [pages, setPages] = useState(0)
   const [failed, setFailed] = useState(false)
-  const [selection, setSelection] = useState<Selection | null>(null)
 
   useEffect(() => {
     const el = container.current
@@ -46,35 +36,6 @@ export function PdfViewer({ win }: { win: Win }) {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-
-  const onMouseUp = (e: MouseEvent) => {
-    const el = container.current
-    const sel = window.getSelection()
-    const text = sel?.toString().trim() ?? ''
-    if (!el || !sel || !text || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) {
-      if (!(e.target instanceof HTMLElement && e.target.closest('[data-selection-menu]'))) setSelection(null)
-      return
-    }
-    const rect = sel.getRangeAt(0).getBoundingClientRect()
-    const box = el.getBoundingClientRect()
-    setSelection({ text, x: rect.left - box.left + rect.width / 2, y: rect.top - box.top + el.scrollTop })
-  }
-
-  const ask = (intent: 'summary' | 'translate' | 'explain') => {
-    if (!selection) return
-    const name = node?.name ?? 'el PDF'
-    const lead =
-      intent === 'summary'
-        ? `Resume este fragmento de «${name}»:`
-        : intent === 'translate'
-          ? `Traduce al español este fragmento de «${name}» (si ya está en español, tradúcelo al inglés):`
-          : `Explícame con claridad este fragmento de «${name}»:`
-    const text = selection.text.slice(0, MAX_SELECTION_CHARS)
-    setSelection(null)
-    window.getSelection()?.removeAllRanges()
-    useSession.getState().setOpen(true)
-    void useSession.getState().send(`${lead}\n\n"""\n${text}\n"""`)
-  }
 
   const step = (dir: 1 | -1) => {
     const i = ZOOM_STEPS.findIndex((z) => Math.abs(z - zoom) < 0.01)
@@ -107,7 +68,7 @@ export function PdfViewer({ win }: { win: Win }) {
         </span>
       </div>
 
-      <div ref={container} onMouseUp={onMouseUp} className="scrollbar-thin relative flex-1 select-text overflow-auto px-6 py-4">
+      <div ref={container} className="scrollbar-thin relative flex-1 select-text overflow-auto px-6 py-4">
         <Document
           file={url}
           onLoadSuccess={(doc) => setPages(doc.numPages)}
@@ -127,29 +88,8 @@ export function PdfViewer({ win }: { win: Win }) {
             />
           ))}
         </Document>
-
-        {selection && (
-          <div
-            data-selection-menu
-            className={cn('glass absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-xl p-1 shadow-win')}
-            style={{ left: Math.max(120, Math.min(width - 120, selection.x)), top: Math.max(8, selection.y - 8) }}
-          >
-            <SelectionAction icon={<Sparkles className="h-3.5 w-3.5" />} label="Resumir" onClick={() => ask('summary')} />
-            <SelectionAction icon={<Languages className="h-3.5 w-3.5" />} label="Traducir" onClick={() => ask('translate')} />
-            <SelectionAction icon={<Lightbulb className="h-3.5 w-3.5" />} label="Explicar" onClick={() => ask('explain')} />
-          </div>
-        )}
       </div>
     </div>
-  )
-}
-
-function SelectionAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-ink transition hover:bg-surface-2">
-      {icon}
-      {label}
-    </button>
   )
 }
 

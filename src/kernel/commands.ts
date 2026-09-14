@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
+import { play } from '../system/sound'
 
 /** Who asked for the command. The AI and the user share the same command surface. */
 export type Source = 'user' | 'ai' | 'system'
@@ -103,6 +104,7 @@ export const useToasts = create<ToastState>((set) => ({
   toasts: [],
   push: (toast) => {
     const id = nanoid(6)
+    if (toast.kind === 'error') play('error')
     set((s) => ({ toasts: [...s.toasts.slice(-3), { ...toast, id }] }))
     setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), toast.duration ?? 5200)
   },

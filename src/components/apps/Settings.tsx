@@ -76,7 +76,7 @@ const SECTIONS: SectionMeta[] = [
     icon: Plug,
   },
   { id: 'flows', label: 'Flujos', title: 'Flujos guardados', description: 'Rutinas que guardaste con Sky para pedirlas por su nombre desde la barra.', icon: Zap },
-  { id: 'appearance', label: 'Apariencia', title: 'Apariencia', description: 'La luz del escritorio: clara, oscura o la que marque tu sistema.', icon: Palette },
+  { id: 'appearance', label: 'Apariencia', title: 'Apariencia', description: 'La luz del escritorio (clara, oscura o la de tu sistema) y los sonidos discretos del sistema.', icon: Palette },
   { id: 'storage', label: 'Almacenamiento', title: 'Almacenamiento', description: 'Dónde viven tus archivos, cuánto ocupan y qué sale de este navegador.', icon: HardDrive },
   { id: 'about', label: 'Acerca de', title: 'Acerca de SkyOS', description: 'Versión, estándares que usa y dónde está el código.', icon: Info },
 ]
@@ -135,12 +135,35 @@ export function SettingsApp({ win }: { win: Win }) {
 function AppearanceSection() {
   const theme = useSettings((s) => s.theme)
   const setTheme = useSettings((s) => s.setTheme)
+  const sounds = useSettings((s) => s.sounds)
+  const setSounds = useSettings((s) => s.setSounds)
   return (
-    <Segmented
-      value={theme}
-      onChange={setTheme}
-      options={THEMES.map((t) => ({ value: t.value, label: t.label, icon: <t.icon className="h-4 w-4" strokeWidth={1.75} /> }))}
-    />
+    <div className="flex flex-col gap-4">
+      <Segmented
+        value={theme}
+        onChange={setTheme}
+        options={THEMES.map((t) => ({ value: t.value, label: t.label, icon: <t.icon className="h-4 w-4" strokeWidth={1.75} /> }))}
+      />
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-ink">Sonidos del sistema</p>
+          <p className="text-[12px] leading-relaxed text-ink-3">
+            Un clic suave al abrir una ventana, un tono amortiguado cuando una tarea termina en segundo plano, un chasquido al llamar a la barra. Sintetizados al
+            momento, sin archivos.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sounds}
+          aria-label="Sonidos del sistema"
+          onClick={() => setSounds(!sounds)}
+          className={cn('relative h-6 w-11 shrink-0 rounded-full transition', sounds ? 'bg-accent' : 'bg-line-2')}
+        >
+          <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition', sounds ? 'left-[22px]' : 'left-0.5')} />
+        </button>
+      </div>
+    </div>
   )
 }
 

@@ -107,6 +107,26 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   `VITE_BRIDGE_URL=http://127.0.0.1:8787` en `.env.local`. Sky intenta primero directo y solo usa el puente cuando
   el navegador bloquea la llamada.
 
+## Principios de diseño
+
+- **Vidrio funcional, noche por defecto.** Superficies esmeriladas (`.glass`: blur 24 px), bordes con luz propia en
+  oscuro (blanco al 10 %), sombras profundas; el contenido lleva la luz y la interfaz se aparta. Tema claro disponible.
+- **Teclado primero.** Ctrl+K sube la barra al centro (Spotlight), atenúa el escritorio y muestra resultados debajo;
+  Escape la devuelve al dock. Ctrl+Mayús+Z entra y sale del modo Zen. Ctrl+Z deshace la última acción.
+- **Ventanas modulares.** Cabecera de 36 px con tres puntos discretos (cerrar, minimizar, maximizar), doble clic para
+  llenar el espacio, ✨ para preguntarle a Sky sobre esa ventana. Arrastrar a un borde encaja a la mitad o a todo con
+  resorte (SnapPreview + Motion). Doble clic en el fondo apila las ventanas detrás de la activa por uso reciente.
+- **Ayuda en contexto.** Seleccionar texto en cualquier ventana (PDF, Word, Notion, respuestas, lienzos) muestra un
+  menú flotante: Resumir, Traducir, Explicar y, si parece tabular, A tabla. El editor conserva su copiloto propio.
+- **Cápsula de estado.** Arriba a la derecha: apps conectadas, tokens y latencia de la última respuesta, trabajos de
+  fondo con progreso, red y audio; clic para el detalle. Las tarjetas de fondo se van solas.
+- **Micro-sonidos y audio de enfoque.** Earcons sintetizados (abrir/cerrar ventana, tarea terminada, Ctrl+K, error,
+  snap) con interruptor en Ajustes › Apariencia; lluvia, viento, ruido blanco y café generados en Web Audio desde el
+  dock, con volumen.
+- **Degradación elegante.** Si Groq agota su cuota y la persona tiene otra llave (Gemini, Anthropic, OpenAI,
+  OpenRouter), Sky cambia de proveedor a mitad de la respuesta sin error rojo. Sin red, todo lo local sigue; los
+  mensajes a Sky quedan en cola y salen al volver la conexión; la cápsula lo muestra.
+
 ## Nube: almacenamiento híbrido
 
 Todo vive en el navegador (OPFS + IndexedDB, por cuenta). En Ajustes › Almacenamiento se elige una nube propia y
@@ -126,14 +146,14 @@ Box (`mcp.box.com`) está en el catálogo para las herramientas de Sky; su MCP e
 
 ## Archivos de Office y tipos de archivo
 
-Word, Excel y PowerPoint se leen dentro de Sky, en el navegador y sin que el archivo salga de la mÃ¡quina:
+Word, Excel y PowerPoint se leen dentro de Sky, en el navegador y sin que el archivo salga de la máquina:
 `docx-preview` maqueta los documentos, SheetJS lee los libros (hojas, filas, columnas) y `pptx-preview` dibuja las
 diapositivas. Los iconos del escritorio muestran el logo oficial del programa o del lenguaje (Word, Excel, PowerPoint,
 PDF, HTML, CSS, JavaScript, TypeScript, React, Python, Markdown, Go, Rust, Dockerâ¦) sobre una hoja con una banda de su
 color; el resto usa un glifo tintado por tipo (`src/lib/fileIcons.ts`, logos en `public/filetypes`).
 
-Editar con la paqueterÃ­a completa dentro de Sky requiere un servidor de documentos (ONLYOFFICE Docs o Collabora,
-autoalojados) o la cuenta de Microsoft 365 a travÃ©s de Microsoft Graph; ambos estÃ¡n en la fase siguiente.
+Editar con la paquetería completa dentro de Sky requiere un servidor de documentos (ONLYOFFICE Docs o Collabora,
+autoalojados) o la cuenta de Microsoft 365 a través de Microsoft Graph; ambos están en la fase siguiente.
 
 ## Proveedores y modelo automático
 

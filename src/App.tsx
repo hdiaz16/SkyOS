@@ -19,6 +19,8 @@ import { firstBoot } from './system/firstBoot'
 import { useSession } from './ai/session'
 import { mcp } from './mcp/manager'
 import { startSync } from './system/sync'
+import { watchNetwork } from './system/network'
+import { armAudio, play } from './system/sound'
 import { isEditableTarget } from './lib/utils'
 
 export default function App() {
@@ -42,9 +44,13 @@ export default function App() {
     const stopMcp = mcp.start()
     // Cloud sync: finish a OneDrive sign-in, then keep the person's cloud in step.
     const stopSync = startSync()
+    const stopNetwork = watchNetwork()
+    const disarmAudio = armAudio()
     return () => {
       stopMcp()
       stopSync()
+      stopNetwork()
+      disarmAudio()
     }
   }, [])
 
@@ -54,6 +60,7 @@ export default function App() {
       const ui = useUi.getState()
       if (mod && e.key.toLowerCase() === 'k') {
         e.preventDefault()
+        play('tap')
         ui.focusComposer()
         return
       }

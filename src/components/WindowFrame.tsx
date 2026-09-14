@@ -1,9 +1,10 @@
-import { useState, type PointerEvent, type ReactNode } from 'react'
+import { useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { Sparkles } from 'lucide-react'
 import { useWindows, type SnapTarget, type Win } from '../state/windows'
 import { useUi } from '../state/ui'
 import { cn } from '../lib/utils'
+import { SelectionMenu } from './SelectionMenu'
 
 interface Props {
   win: Win
@@ -32,6 +33,7 @@ function zoneFor(x: number, y: number): SnapTarget | null {
  */
 export function WindowFrame({ win, active, children }: Props) {
   const [interacting, setInteracting] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
   // A placement made by the system (snap, arrange, stack) glides into place; once it lands, drags follow the hand instantly.
   const settling = !!win.settling
 
@@ -163,7 +165,10 @@ export function WindowFrame({ win, active, children }: Props) {
         </div>
       </div>
 
-      <div className={cn('relative min-h-0 flex-1', interacting && 'pointer-events-none')}>{children}</div>
+      <div ref={contentRef} className={cn('relative min-h-0 flex-1', interacting && 'pointer-events-none')}>
+        {children}
+        {win.app !== 'editor' && <SelectionMenu frameRef={contentRef} source={win.title} />}
+      </div>
 
       <div className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize" onPointerDown={startResize} aria-hidden />
     </motion.div>

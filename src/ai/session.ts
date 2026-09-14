@@ -4,6 +4,7 @@ import { runAgent, type ToolEvent } from './agent'
 import type { Tier } from './router'
 import type { Attachment, ChatMessage, Usage } from './types'
 import { conversationStore, type StoredTurn } from './conversation'
+import { useNetwork, whenOnline } from '../system/network'
 
 export interface Turn {
   id: string
@@ -11,8 +12,10 @@ export interface Turn {
   text: string
   attachments?: Attachment[]
   toolEvents: ToolEvent[]
-  status: 'streaming' | 'done' | 'error' | 'stopped'
+  status: 'streaming' | 'done' | 'error' | 'stopped' | 'queued'
   statusMessage?: string
+  /** Wall time of the whole answer, tools included. */
+  latencyMs?: number
   runId?: string
   error?: string
   /** Which model answered and, when routed automatically, at what tier. */
@@ -49,6 +52,16 @@ interface SessionState {
   send: (prompt: string, attachments?: Attachment[]) => Promise<void>
   stop: () => void
   clear: () => void
+  /** Messages written without network; they go out, in order, when it is back. */
+  queue: QueuedSend[]
+  flushQueue: () => Promise<void>
+}
+
+interface QueuedSend {
+  userId: string
+  replyId: string
+  prompt: string
+  parts: Attachment[]
 }
 
 const MAX_HISTORY_MESSAGES = 24
@@ -62,7 +75,8 @@ const MEMORY_LEAD = 'Resumen de la conversación previa con esta persona; úsalo
 const memoryFor = (summary: string | null) => (summary ? `${MEMORY_LEAD}\n${summary}` : undefined)
 
 function toStored(t: Turn): StoredTurn | null {
-  if (t.status === 'streaming') return null
+  // Turns still streaming or waiting for the network are not history yet.
+  if (t.status === 'streaming' || t.status === 'queued') return null
   return {
     id: t.id,
     role: t.role,
@@ -170,12 +184,32 @@ export const useSession = create<SessionState>((set, get) => ({
   detach: (id) => set((s) => ({ pending: s.pending.filter((p) => p.id !== id) })),
   clearPending: () => set({ pending: [] }),
 
+  queue: [],
+
+  flushQueue: async () => {
+    while (get().queue.length && useNetwork.getState().online && !get().running) {
+      const [item, ...rest] = get().queue
+      set((s) => ({ queue: rest, turns: s.turns.filter((t) => t.id !== item.userId && t.id !== item.replyId) }))
+      await get().send(item.prompt, item.parts)
+    }
+  },
+
   send: async (prompt, attachments) => {
     if (get().running) return
     const parts = attachments ?? get().pending.map((p) => p.part)
-    const controller = new AbortController()
     const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, attachments: parts, toolEvents: [], status: 'done' }
     const replyId = nanoid(6)
+
+    // No network: the message waits in the conversation and leaves on its own when the connection is back.
+    if (!useNetwork.getState().online) {
+      const waiting: Turn = { id: replyId, role: 'assistant', text: 'Sin conexión por ahora. Lo envío en cuanto vuelva la red.', toolEvents: [], status: 'queued' }
+      set((s) => ({ open: true, pending: [], turns: [...s.turns, userTurn, waiting], queue: [...s.queue, { userId: userTurn.id, replyId, prompt, parts }] }))
+      void whenOnline().then(() => get().flushQueue())
+      return
+    }
+
+    const controller = new AbortController()
+    const startedAt = Date.now()
     const reply: Turn = { id: replyId, role: 'assistant', text: '', toolEvents: [], status: 'streaming' }
     set((s) => ({ open: true, running: true, controller, pending: [], turns: [...s.turns, userTurn, reply] }))
 
@@ -238,6 +272,7 @@ export const useSession = create<SessionState>((set, get) => ({
           model: result.model,
           tier: result.tier,
           usage: result.usage,
+          latencyMs: Date.now() - startedAt,
           statusMessage: undefined,
         }),
       }))

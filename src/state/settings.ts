@@ -4,6 +4,15 @@ import { sessionSuffix } from '../system/session'
 export type Theme = 'system' | 'light' | 'dark'
 
 const KEY = `mesa:theme${sessionSuffix()}`
+const SOUND_KEY = `mesa:sounds${sessionSuffix()}`
+
+function readSounds(): boolean {
+  try {
+    return localStorage.getItem(SOUND_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
 
 function readTheme(): Theme {
   try {
@@ -35,6 +44,9 @@ interface SettingsState {
   theme: Theme
   setTheme: (theme: Theme) => void
   cycleTheme: () => void
+  /** Earcons: the soft sounds of windows, tasks and the bar. */
+  sounds: boolean
+  setSounds: (on: boolean) => void
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
@@ -52,5 +64,14 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const order: Theme[] = ['system', 'light', 'dark']
     const next = order[(order.indexOf(get().theme) + 1) % order.length]
     get().setTheme(next)
+  },
+  sounds: readSounds(),
+  setSounds: (sounds) => {
+    try {
+      localStorage.setItem(SOUND_KEY, sounds ? 'on' : 'off')
+    } catch {
+      /* ignore */
+    }
+    set({ sounds })
   },
 }))

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
+import { play } from './sound'
 
 /**
  * Background work the desktop keeps track of: reading documents, indexing, AI tasks that finish while the
@@ -81,6 +82,7 @@ export const useJobs = create<JobsState>((set, get) => ({
       open: opts.open ?? job.open,
     }
     const quiet = opts.quiet ?? job.quiet
+    if (!quiet) play(status === 'error' ? 'error' : 'done')
     set((s) => ({
       jobs: { ...s.jobs, [id]: finished },
       cards: quiet
