@@ -59,7 +59,7 @@ export async function suggestPlacement(created: FsNode[]): Promise<void> {
     text = (
       await runAgent({
         prompt,
-        extraSystem: 'Tarea de clasificación de archivos. Responde únicamente con JSON válido, sin explicaciones.',
+        systemOverride: 'Clasificas archivos recién llegados a un escritorio. Responde únicamente con JSON válido, sin explicaciones ni texto alrededor.',
         tools: [],
         withoutState: true,
         model: fastModelFor(),

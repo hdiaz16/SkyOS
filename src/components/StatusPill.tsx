@@ -137,16 +137,29 @@ export function StatusPill() {
                 <p className="px-1 text-ink-3">Nada corriendo.</p>
               ) : (
                 <>
-                  {running.map((j) => (
-                    <div key={j.id} className="px-1 py-0.5">
-                      <div className="flex items-center gap-1.5 text-ink">
-                        <Loader2 className="h-3 w-3 animate-spin text-accent" />
-                        <span className="truncate">{j.title}</span>
-                        {j.progress !== undefined && <span className="ml-auto tabular-nums text-ink-3">{Math.round(j.progress * 100)}%</span>}
+                  {/* A job in flight is not just a line of text: this opens its window, which is where Detener lives.
+                      Until now the synthesis you asked for "en segundo plano" could not be watched or stopped. */}
+                  {running.map((j) =>
+                    j.open ? (
+                      <button key={j.id} type="button" onClick={() => j.open?.()} className="w-full rounded-md px-1 py-0.5 text-left transition hover:bg-surface-2">
+                        <div className="flex items-center gap-1.5 text-ink">
+                          <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                          <span className="truncate">{j.title}</span>
+                          {j.progress !== undefined && <span className="ml-auto tabular-nums text-ink-3">{Math.round(j.progress * 100)}%</span>}
+                        </div>
+                        {j.detail && <p className="truncate pl-[18px] text-ink-3">{j.detail}</p>}
+                      </button>
+                    ) : (
+                      <div key={j.id} className="px-1 py-0.5">
+                        <div className="flex items-center gap-1.5 text-ink">
+                          <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                          <span className="truncate">{j.title}</span>
+                          {j.progress !== undefined && <span className="ml-auto tabular-nums text-ink-3">{Math.round(j.progress * 100)}%</span>}
+                        </div>
+                        {j.detail && <p className="truncate pl-[18px] text-ink-3">{j.detail}</p>}
                       </div>
-                      {j.detail && <p className="truncate pl-[18px] text-ink-3">{j.detail}</p>}
-                    </div>
-                  ))}
+                    ),
+                  )}
                   {finishedJobs(jobs)
                     .slice(0, 4)
                     .map((j) => (

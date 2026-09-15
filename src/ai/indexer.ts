@@ -58,7 +58,7 @@ export function indexPending(signal?: AbortSignal): Promise<number> {
         text = (
           await runAgent({
             prompt,
-            extraSystem: 'Tarea de indexación de documentos. Responde únicamente con JSON válido.',
+            systemOverride: 'Indexas documentos para poder buscarlos después. Responde únicamente con JSON válido, sin texto alrededor.',
             tools: [],
             withoutState: true,
             model: fastModelFor(),
@@ -139,7 +139,7 @@ export async function semanticSearch(query: string, limit = 8): Promise<Semantic
   const text = (
     await runAgent({
       prompt,
-      extraSystem: 'Tarea de búsqueda por significado sobre un índice. Responde únicamente con JSON válido.',
+      systemOverride: 'Buscas por significado sobre un índice de archivos. Responde únicamente con JSON válido, sin texto alrededor.',
       tools: [],
       withoutState: true,
       model: fastModelFor(),

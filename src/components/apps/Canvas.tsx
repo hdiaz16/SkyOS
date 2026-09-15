@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { Check, Code2, GitBranch, Pencil, Plus, Sparkles, StickyNote, Trash2, type LucideIcon } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { useToasts } from '../../kernel/commands'
@@ -42,6 +42,10 @@ export function CanvasApp({ win }: { win: Win }) {
   const loadedVersion = useRef(0)
   const dirty = useRef(false)
   const timer = useRef<number | undefined>(undefined)
+  /** Blocks removed here, so a merge with what arrived from outside does not bring them back to life. */
+  const removed = useRef(new Set<string>())
+  /** The first block of a batch that arrived from outside, to be brought into view once it is painted. */
+  const arrived = useRef<string | null>(null)
   const aiReady = isAiConfigured(useAiSettings())
 
   // Load once, then follow external changes (Sky adding blocks, undo) while not mid-edit.
@@ -52,7 +56,16 @@ export function CanvasApp({ win }: { win: Win }) {
       (t) => {
         if (!alive) return
         loadedVersion.current = node.updatedAt
-        setDoc(parseCanvas(t))
+        const next = parseCanvas(t)
+        // A board is wider than its window: Sky said «1 bloque añadido» and the visible part did not change,
+        // because the new block had landed at x=952 or on a second row. The first one gets scrolled to.
+        setDoc((before) => {
+          if (before) {
+            const had = new Set(before.blocks.map((b) => b.id))
+            arrived.current = next.blocks.find((b) => !had.has(b.id))?.id ?? null
+          }
+          return next
+        })
       },
       () => alive && setUnreadable(true),
     )
@@ -60,6 +73,13 @@ export function CanvasApp({ win }: { win: Win }) {
       alive = false
     }
   }, [node, nodeId])
+
+  useLayoutEffect(() => {
+    const id = arrived.current
+    if (!id) return
+    arrived.current = null
+    document.querySelector(`[data-block="${id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [doc])
 
   // Moving a block and closing the window within the same half second used to lose the move: the timer was
   // cleared and nobody wrote. Whatever is pending goes to disk on the way out.
@@ -79,7 +99,25 @@ export function CanvasApp({ win }: { win: Win }) {
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(async () => {
       try {
-        await fs.writeText(nodeId, serializeCanvas(next))
+        // Saving replaces the whole document, and someone else may have written during the half second this was
+        // dirty — Sky adding a block to the board you are moving things on. That block used to disappear while
+        // the assistant announced it. What arrived is merged back in by id; what was removed here stays removed.
+        let toWrite = next
+        const current = await fs.get(nodeId)
+        if (current && current.updatedAt !== loadedVersion.current) {
+          const text = await fs.readText(nodeId).catch(() => null)
+          if (text !== null) {
+            const mine = new Set(next.blocks.map((b) => b.id))
+            const extra = parseCanvas(text).blocks.filter((b) => !mine.has(b.id) && !removed.current.has(b.id))
+            if (extra.length) {
+              toWrite = { ...next, blocks: [...next.blocks, ...extra] }
+              arrived.current = extra[0].id
+              pending.current = toWrite
+              setDoc(toWrite)
+            }
+          }
+        }
+        await fs.writeText(nodeId, serializeCanvas(toWrite))
       } catch {
         // Saying nothing here is how a canvas quietly stops saving; the person has to know to copy it out.
         useToasts.getState().push({ message: 'No pude guardar el lienzo. Copia lo que necesites antes de cerrarlo.', kind: 'error' })
@@ -97,6 +135,7 @@ export function CanvasApp({ win }: { win: Win }) {
   }
   const removeBlock = (id: string) => {
     if (doc) commit({ ...doc, blocks: doc.blocks.filter((b) => b.id !== id) })
+    removed.current.add(id)
     if (editing === id) setEditing(null)
   }
   const addBlock = (kind: BlockKind) => {
@@ -107,7 +146,7 @@ export function CanvasApp({ win }: { win: Win }) {
   }
   const askSky = (block?: CanvasBlock) => {
     if (block) {
-      const label = block.title ?? BLOCK_LABELS[block.kind]
+      const label = block.title?.trim() || BLOCK_LABELS[block.kind]
       useSession.getState().attach({ type: 'file', name: `${node?.name ?? 'Lienzo'} · ${label}`, text: block.content, nodeId }, label)
     }
     useUi.getState().focusComposer()
@@ -190,7 +229,9 @@ function Block({ block, editing, onEdit, onDone, onChange, onRemove, onAsk }: Bl
   const areaRef = useRef<HTMLTextAreaElement>(null)
   const shown = geo ?? block
   const Icon = KIND_ICON[block.kind]
-  const label = block.title ?? BLOCK_LABELS[block.kind]
+  // Not `??`: typing a title and then erasing it leaves '', and an empty header said nothing at all — that
+  // same '' travelled as the name of the attachment and as the title of the HTML block's frame.
+  const label = block.title?.trim() || BLOCK_LABELS[block.kind]
 
   useEffect(() => {
     if (editing) areaRef.current?.focus()
@@ -234,6 +275,7 @@ function Block({ block, editing, onEdit, onDone, onChange, onRemove, onAsk }: Bl
 
   return (
     <div
+      data-block={block.id}
       style={{ left: shown.x, top: shown.y, width: shown.w, height: shown.h }}
       className={cn(
         'group absolute flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft transition-shadow hover:shadow-win',
@@ -247,7 +289,7 @@ function Block({ block, editing, onEdit, onDone, onChange, onRemove, onAsk }: Bl
           <input
             value={block.title ?? ''}
             placeholder={BLOCK_LABELS[block.kind]}
-            onChange={(e) => onChange({ title: e.target.value })}
+            onChange={(e) => onChange({ title: e.target.value.trim() ? e.target.value : undefined })}
             aria-label="Título del bloque"
             className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-ink outline-none placeholder:text-ink-3"
           />

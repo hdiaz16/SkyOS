@@ -135,6 +135,9 @@ async function condense(get: Get, set: Set): Promise<void> {
       .join('\n')
     const result = await runAgent({
       prompt: `${summary ? `Resumen previo:\n${summary}\n\n` : ''}Conversación a resumir:\n${transcript}\n\nEscribe un resumen breve (máximo 12 líneas) con lo que la persona quiere, lo que ya se hizo, los nombres de archivos, carpetas y apps mencionados y cualquier preferencia expresada. Solo el resumen.`,
+      // Written without Sky's voice on top: this text travels as memory in every later turn, and with the
+      // desktop prompt it could come back as «Claro, aquí va el resumen…» and carry that forever.
+      systemOverride: 'Resumes una conversación para conservarla como memoria. Devuelves solo el resumen, en español, sin encabezados ni comentarios.',
       withoutState: true,
       tools: [],
       tier: 'fast',

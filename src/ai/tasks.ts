@@ -79,6 +79,8 @@ interface StartTaskOptions {
   context?: TaskContext
   /** Open a Result window for this task (default true). */
   openWindow?: boolean
+  /** The answer is already on screen somewhere else (the browser's side panel), so finishing needs no card. */
+  quiet?: boolean
 }
 
 export interface TaskRunOptions {
@@ -104,6 +106,14 @@ function showResult(taskId: string, title: string): void {
   else wm.open('result', { title, props: { taskId } })
 }
 
+/**
+ * The whole prompt for a one-shot job: its own brief and nothing else. Sky's desktop rules do not belong here —
+ * who the person is, how to use tools it does not have, and a couple of lines that openly contradict the task.
+ * Because the rules are gone, the language has to be said out loud.
+ */
+const taskSystem = (brief: string): string =>
+  `Eres el motor de tareas de SkyOS: haces exactamente lo que pide la instrucción y devuelves solo eso, sin saludos ni comentarios sobre lo que hiciste. Escribe en español de México, salvo que la instrucción pida otro idioma.\n\n${brief}`
+
 /** Starts a task, opens its window and streams the model's answer into it. Returns the task id. */
 export function startTask(opts: StartTaskOptions): string {
   const id = nanoid(6)
@@ -120,8 +130,10 @@ export function startTask(opts: StartTaskOptions): string {
   if (opts.openWindow !== false) {
     useWindows.getState().open('result', { title: opts.title, props: { taskId: id } })
   }
-  useJobs.getState().start({ id, kind: 'ai', title: opts.title, detail: 'Sky está trabajando…' })
+  // The way to its window travels from the start. Attaching it only at the end left a background job with no
+  // route to the one place where "Detener" lives: it could not be watched or stopped until it ended by itself.
   const open = () => showResult(id, opts.title)
+  useJobs.getState().start({ id, kind: 'ai', title: opts.title, detail: 'Sky está trabajando…', open })
 
   let pending = ''
   let frame: number | null = null
@@ -135,7 +147,7 @@ export function startTask(opts: StartTaskOptions): string {
 
   void runAgent({
     prompt: opts.prompt,
-    extraSystem: opts.extraSystem,
+    systemOverride: taskSystem(opts.extraSystem),
     attachments: opts.attachments,
     serverTools: opts.serverTools,
     tools: [],
@@ -161,7 +173,7 @@ export function startTask(opts: StartTaskOptions): string {
         controller: null,
         statusMessage: undefined,
       })
-      useJobs.getState().finish(id, { detail: aborted ? 'Detenida' : 'Resultado listo', open, quiet: aborted || resultVisible(id) })
+      useJobs.getState().finish(id, { detail: aborted ? 'Detenida' : 'Resultado listo', open, quiet: aborted || opts.quiet === true || resultVisible(id) })
     })
     .catch((err: unknown) => {
       if (frame !== null) cancelAnimationFrame(frame)
@@ -173,7 +185,7 @@ export function startTask(opts: StartTaskOptions): string {
         controller: null,
         statusMessage: undefined,
       })
-      useJobs.getState().finish(id, { error: message, open, quiet: resultVisible(id) })
+      useJobs.getState().finish(id, { error: message, open, quiet: opts.quiet === true || resultVisible(id) })
     })
 
   return id
@@ -239,9 +251,11 @@ async function gather(files: FsNode[]): Promise<Gathered> {
         pdfs++
       }
     } else if (kind !== 'text' && budget > 0 && (await textOf(f))?.trim()) {
-      const text = ((await textOf(f)) ?? '').slice(0, Math.min(perFile, budget))
+      const whole = (await textOf(f)) ?? ''
+      const text = whole.slice(0, Math.min(perFile, budget))
       budget -= text.length
-      sections.push(`### ${f.name}\n${text}`)
+      const cut = text.length < whole.length ? `\n…[recortado: se leyeron ${text.length} de ${whole.length} caracteres]` : ''
+      sections.push(`### ${f.name}\n${text}${cut}`)
     } else {
       skipped.push(`${f.name} (${kind}, ${formatBytes(f.size)})`)
     }
@@ -351,6 +365,9 @@ export function keyPointsForUrl(url: string): string {
       'Tarea: resumir una página web para alguien con prisa. Usa web_fetch para leer la URL. Responde en Markdown: una línea con de qué trata, luego "Puntos clave" con 4 a 7 viñetas concretas (cifras, nombres, fechas si aparecen) y, si aplica, "Para tener en cuenta" con máximo 2 viñetas. Si la página no se pudo leer, dilo en una línea y no inventes.',
     context: { url, saveAs: `Puntos clave - ${host}.md` },
     openWindow: false,
+    // They are written straight into the browser's side panel, where the person is already reading them: the
+    // chime and the «Resultado listo» card opened a second copy of the same text in a window.
+    quiet: true,
   })
 }
 

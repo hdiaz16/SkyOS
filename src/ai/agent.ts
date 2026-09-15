@@ -27,6 +27,14 @@ export interface AgentRunOptions {
   history?: ChatMessage[]
   /** Extra instructions for this run only (appended to the system prompt). */
   extraSystem?: string
+  /**
+   * The entire system prompt for this run, in place of Sky's. One-shot jobs — a summary, a translation, a
+   * classification — used to carry nine hundred tokens of desktop rules that also fought the task: «responde
+   * en español» against «traduce al inglés», and «al terminar resume en una frase lo que hiciste» against
+   * «devuelve únicamente el texto, listo para guardarse en el archivo» — that closing sentence went into the
+   * file. Whoever passes this owns the whole instruction, language included.
+   */
+  systemOverride?: string
   /** Restrict the tool surface to these command ids; omit for everything, [] for none. */
   tools?: string[]
   serverTools?: ServerTool[]
@@ -140,8 +148,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   let mcpBudget = settings.provider === 'groq' ? DEFAULT_MCP_BUDGET_BYTES : DEFAULT_MCP_BUDGET_BYTES * 5
   const buildTools = () => (opts.tools && opts.tools.length === 0 ? [] : allTools(opts.tools, { prompt: opts.prompt, recent, budgetBytes: mcpBudget }))
   let tools = buildTools()
-  const base = await buildSystemPrompt()
-  const system = opts.extraSystem ? `${base}\n\n${opts.extraSystem}` : base
+  let system = opts.systemOverride
+  if (!system) {
+    const base = await buildSystemPrompt()
+    system = opts.extraSystem ? `${base}\n\n${opts.extraSystem}` : base
+  }
 
   const route = opts.model
     ? { model: opts.model, tier: null, auto: false }

@@ -14,6 +14,17 @@ export interface NodeSummary {
   updatedAt: string
 }
 
+/**
+ * The clock the person is looking at. toISOString is UTC, so a file saved in Mexico at eight in the evening
+ * reached the model as two in the morning of the next day: Sky answered that it had been edited today when it
+ * was last night, and «lo que toqué ayer» came out sorted wrong.
+ */
+const localStamp = (ms: number): string => {
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function summarizeNode(n: FsNode): NodeSummary {
   return {
     id: n.id,
@@ -21,7 +32,7 @@ export function summarizeNode(n: FsNode): NodeSummary {
     kind: n.kind,
     type: n.kind === 'file' ? fileKind(n) : undefined,
     size: n.kind === 'file' ? formatBytes(n.size) : undefined,
-    updatedAt: new Date(n.updatedAt).toISOString().slice(0, 16),
+    updatedAt: localStamp(n.updatedAt),
   }
 }
 
@@ -35,6 +46,13 @@ registerCommand<{ parentId?: string }, { folder: string; items: NodeSummary[] }>
   description: 'Lista el contenido de una carpeta. Usa "root" para el escritorio.',
   params: { parentId: { type: 'string', description: 'Id de la carpeta. "root" es el escritorio.' } },
   async run({ parentId = ROOT_ID }) {
+    // Any id used to pass: a deleted folder answered «está vacía» and a file answered the same thing about
+    // itself. Both are things Sky then said out loud.
+    if (parentId !== ROOT_ID) {
+      const folder = await fs.get(parentId)
+      if (!folder) throw new Error('Esa carpeta ya no existe')
+      if (folder.kind !== 'folder') throw new Error('Eso es un archivo, no una carpeta; usa fs.read')
+    }
     const items = await fs.list(parentId)
     return { result: { folder: await folderName(parentId), items: items.map(summarizeNode) } }
   },
@@ -128,6 +146,11 @@ registerCommand<{ ids: string[]; maxCharsEach?: number }, ReadManyItem[]>({
   },
   async run({ ids, maxCharsEach = 4000 }) {
     const out: ReadManyItem[] = []
+    // Twelve at a time, and the rest used to be dropped in silence: «resume estos 20 documentos» came back as a
+    // summary of twelve, written as if it were of twenty. What was left out is named, so it can be asked for.
+    for (const id of ids.slice(12)) {
+      out.push({ id, name: '?', type: 'text', note: 'No lo leí: solo caben 12 por llamada. Pídelo en otra tanda.' })
+    }
     for (const id of ids.slice(0, 12)) {
       const node = await fs.get(id)
       if (!node) {
@@ -164,7 +187,7 @@ registerCommand<{ id: string }, unknown>({
         ...summarizeNode(node),
         path: ['Escritorio', ...path.map((p) => p.name)].join(' / '),
         parentId: node.parentId,
-        createdAt: new Date(node.createdAt).toISOString().slice(0, 16),
+        createdAt: localStamp(node.createdAt),
       },
     }
   },
