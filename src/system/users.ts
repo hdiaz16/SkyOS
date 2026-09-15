@@ -32,11 +32,28 @@ export interface NewUser {
   name: string
   profile: UserProfile
   pin?: string
+  /** The verified account this desktop belongs to, when there is one. */
+  authId?: string
+  email?: string
 }
 
 export const users = {
   list: () => systemDb.users.orderBy('lastLoginAt').reverse().toArray(),
   get: (id: string) => systemDb.users.get(id),
+
+  /** The desktop that belongs to an account on this device, if it has one here yet. */
+  byAccount: (authId: string) => systemDb.users.where('authId').equals(authId).first(),
+
+  /**
+   * Desktops made before accounts existed. Signing in for the first time on a machine that already had one
+   * offers to adopt it, so nobody's files are stranded behind a login that did not exist when they made them.
+   */
+  async orphans(): Promise<UserRow[]> {
+    return (await systemDb.users.toArray()).filter((u) => !u.authId)
+  },
+
+  /** Hands an existing desktop to an account. From then on it opens by signing in. */
+  adopt: (id: string, authId: string, email: string) => systemDb.users.update(id, { authId, email }),
 
   /**
    * Creates a user. The first person to sign up adopts the pre-accounts desktop, if there is one,
@@ -60,6 +77,8 @@ export const users = {
       createdAt: t,
       lastLoginAt: t,
       setupPending: true,
+      ...(input.authId ? { authId: input.authId } : {}),
+      ...(input.email ? { email: input.email } : {}),
     }
     if (input.pin) {
       row.pinSalt = toHex(crypto.getRandomValues(new Uint8Array(16)))

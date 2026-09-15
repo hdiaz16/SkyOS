@@ -5,6 +5,7 @@ import { readSession, takeHandoff } from '../../system/session'
 import { applyTheme, useSettings } from '../../state/settings'
 import App from '../../App'
 import { Backdrop } from '../Backdrop'
+import { AccountGate } from './AccountGate'
 import { Login } from './Login'
 import { SessionEnded } from './SessionEnded'
 import { Onboarding } from './Onboarding'
@@ -93,7 +94,7 @@ export function Shell() {
                 transition={{ duration: 0.7, ease: 'easeOut' }}
                 className="absolute inset-0"
               >
-                {screen === 'splash' ? <SplashText /> : screen === 'login' ? <Login /> : <Onboarding />}
+                {screen === 'splash' ? <SplashText /> : screen === 'account' ? <AccountGate /> : screen === 'login' ? <Login /> : <Onboarding />}
               </motion.div>
             )}
           </AnimatePresence>

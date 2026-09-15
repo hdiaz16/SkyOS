@@ -67,9 +67,13 @@ Esto importa tanto como lo anterior.
   abrir la base de cualquier perfil. Los perfiles son comodidad, no una frontera de seguridad.
 - **Los datos no están cifrados en reposo.** Viven como cualquier dato de sitio web. Cifrarlos en serio exige
   una llave que el usuario aporte en cada arranque, y hoy SkyOS no la pide.
-- **No hay autenticación de servidor.** No hay cuentas remotas que verificar, así que tampoco hay permisos que
-  comprobar en el servidor. Si algún día algo se guarda fuera del dispositivo, esa pieza tendrá que verificar
-  identidad y pertenencia en cada operación; no la hay todavía.
+- **La cuenta verifica quién eres, no qué puedes ver.** Con Supabase configurado, entrar exige un código
+  enviado a tu correo y la sesión la valida un servidor, así que «mi sesión» ya significa algo fuera de este
+  navegador. Pero los archivos siguen siendo locales y no hay nada remoto que autorizar: el escritorio se abre
+  porque la cuenta coincide con la que lo creó, no porque un servidor conceda permisos sobre datos. Quien tenga
+  acceso al navegador y a sus herramientas puede seguir abriendo la base de cualquier perfil de ese equipo. El
+  día que algo se guarde fuera del dispositivo, esa pieza tendrá que verificar identidad y pertenencia en cada
+  operación.
 - **La llave incluida es gastable.** El sitio es público y la llave vive en el servidor. La puerta de mismo
   origen aparta a quien pasa por ahí, y el presupuesto por IP pone un techo, pero esas cabeceras se pueden
   falsificar y el contador vive en la memoria de cada instancia del borde. Es un freno, no una cerradura: quien

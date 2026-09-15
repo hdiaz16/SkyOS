@@ -27,6 +27,12 @@ export interface UserProfile {
 export interface UserRow {
   id: string
   name: string
+  /**
+   * The account this desktop belongs to, when the deployment verifies accounts. Absent on a profile made
+   * before accounts existed, or on a SkyOS without them: those stay reachable from the same screen.
+   */
+  authId?: string
+  email?: string
   initials: string
   /** Accent hue for the avatar, 0-360. */
   hue: number
@@ -48,6 +54,8 @@ class SystemDB extends Dexie {
   constructor() {
     super('mesa-system')
     this.version(1).stores({ users: 'id, name, lastLoginAt' })
+    // Accounts: a desktop can now say whose it is. Indexed because signing in looks a person up by account.
+    this.version(2).stores({ users: 'id, name, lastLoginAt, authId' })
   }
 }
 

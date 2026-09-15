@@ -39,6 +39,9 @@ export function Onboarding() {
   const [keyTest, setKeyTest] = useState<{ state: 'idle' | 'running' | 'ok' | 'fail'; message?: string }>({ state: 'idle' })
 
   const hasUsers = useAuth((s) => s.users.length > 0)
+  const account = useAuth((s) => s.account)
+  const adoptable = useAuth((s) => s.adoptable)
+  const [skipAdopt, setSkipAdopt] = useState(false)
 
   const index = ORDER.indexOf(step)
   const next = () => setStep(ORDER[Math.min(index + 1, ORDER.length - 1)])
@@ -91,7 +94,9 @@ export function Onboarding() {
     // microphone asked for the first time you press dictate.
     const profile: UserProfile = { tone: 'warm', purpose: 'mixed', autonomy: 'act', location: location ?? undefined, microphone: 'skipped', voice: true }
     // A PIN is set later, in Ajustes › Cuenta: asking for one before the desktop even exists slows everybody down.
-    const user = await users.create({ name, profile })
+    // With accounts on, the desktop is stamped with the one that just signed in: that is what makes it yours.
+    const account = useAuth.getState().account
+    const user = await users.create({ name, profile, ...(account ? { authId: account.id, email: account.email } : {}) })
     // Entering SkyOS is daylight: the arrival is light and the desktop that follows starts light too. Night is
     // a choice the person makes in Ajustes › Apariencia, not the state they are handed.
     persistThemeFor(user.id, 'light')
@@ -114,6 +119,39 @@ export function Onboarding() {
   useEffect(() => {
     useOrbStage.getState().setMode(step === 'hello' ? 'idle' : step === 'setup' ? 'busy' : 'hidden')
   }, [step])
+
+  // Signing in for the first time on a machine that already had a desktop: that work is somebody's, and it
+  // is almost certainly this person's. Asking is one screen; losing it behind a login is forever.
+  if (account && adoptable.length > 0 && !skipAdopt) {
+    return (
+      <div className="absolute inset-x-0 flex flex-col items-center px-6 select-none" style={{ top: BELOW_ORB }}>
+        <Screen question="Aquí ya había un escritorio">
+          <p className="max-w-[420px] text-center text-[13.5px] leading-relaxed text-ink-2">
+            Alguien lo armó en esta computadora antes de que existieran las cuentas. Si era tuyo, sigue siendo tuyo: sus archivos, sus proyectos y lo que hablamos.
+          </p>
+          <div className="mt-6 flex w-full max-w-[380px] flex-col gap-2">
+            {adoptable.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => void useAuth.getState().adopt(u)}
+                className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3 text-left transition hover:border-accent/60 hover:bg-accent-soft/40"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-medium text-accent">{u.initials}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[14px] text-ink">{u.name}</span>
+                  <span className="block text-[12px] text-ink-3">La última vez fue el {new Date(u.lastLoginAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => setSkipAdopt(true)} className="mt-5 text-[12.5px] text-ink-3 transition hover:text-ink">
+            No es mío, quiero uno nuevo
+          </button>
+        </Screen>
+      </div>
+    )
+  }
 
   return (
     <div className="absolute inset-0 select-none">

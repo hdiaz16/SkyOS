@@ -35,6 +35,14 @@ export const BRIDGE_URL = (env.VITE_BRIDGE_URL?.trim() ?? '').replace(/\/+$/, ''
 
 export const hasBridge = BRIDGE_URL !== ''
 
+/**
+ * Where accounts are verified. Both values are meant to be public — the URL of the project and its publishable
+ * key, which is what a browser is supposed to hold — and without them SkyOS falls back to local profiles on
+ * this device, which is what a copy without a server gets.
+ */
+export const ACCOUNTS_URL = (env.VITE_SUPABASE_URL?.trim() ?? '').replace(/\/+$/, '')
+export const ACCOUNTS_KEY = env.VITE_SUPABASE_ANON_KEY?.trim() ?? ''
+
 /** Public https origin where SkyOS is served; enables Client ID Metadata Documents for MCP authorization. */
 export const APP_ORIGIN = (env.VITE_APP_ORIGIN?.trim() ?? '').replace(/\/+$/, '')
 
