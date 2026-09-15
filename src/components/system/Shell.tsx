@@ -22,6 +22,9 @@ const handoff = takeHandoff()
 /** Cold start lets the arrival play out; a signed-in reload gets a shorter one. */
 const SPLASH_MS = readSession() ? 1700 : 2800
 
+/** Lo que tarda el orbe en abrirse y desaparecer. El escritorio espera exactamente esto antes de entrar. */
+const ORB_EXIT = 0.32
+
 type Phase = 'splash' | 'content'
 
 /**
@@ -76,7 +79,9 @@ export function Shell() {
         <motion.div
           initial={handoff === 'flood' ? { opacity: 1, scale: 1.03 } : { opacity: 0, scale: 1.015 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.1, ease: [0.2, 0.7, 0.2, 1] }}
+          // Una cosa después de la otra, no las dos encima: el orbe termina de irse y entonces entra el
+          // escritorio. Llegando del diluvio no hay orbe que esperar, y el velo se encarga de la entrega.
+          transition={{ duration: 0.62, delay: handoff === 'flood' ? 0 : ORB_EXIT, ease: [0.2, 0.7, 0.2, 1] }}
           className="absolute inset-0"
         >
           <App />
@@ -101,9 +106,18 @@ export function Shell() {
         </>
       )}
 
+      {/*
+        El orbe se iba en 0.8 s mientras el escritorio entraba en 1.1: durante casi un segundo se veían las dos
+        cosas a la vez y parecían dos animaciones peleadas. Ahora se abre hacia afuera y desaparece rápido, de
+        modo que lo que se ve es un solo gesto: el orbe se convierte en el escritorio.
+      */}
       <AnimatePresence>
         {!desktop && handoff !== 'flood' && (
-          <motion.div key="orb" exit={{ opacity: 0, transition: { duration: 0.8 } }} className="pointer-events-none absolute inset-0">
+          <motion.div
+            key="orb"
+            exit={{ opacity: 0, scale: 1.14, transition: { duration: ORB_EXIT, ease: [0.4, 0, 1, 1] } }}
+            className="pointer-events-none absolute inset-0"
+          >
             <OrbStage arrive={handoff === null} />
           </motion.div>
         )}

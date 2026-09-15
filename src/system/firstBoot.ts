@@ -7,6 +7,24 @@ import type { UserRow } from './db'
 
 let done: Promise<void> | null = null
 
+/** A greeting that waited longer than this is not a greeting any more; it is an interruption. */
+const STILL_A_WELCOME_MS = 90_000
+
+/**
+ * Sky says hello out loud. A browser refuses to speak on a page nobody has touched yet, and the desktop
+ * arrives right after a reload, so the very first attempt is usually silenced — which is why the welcome
+ * seemed to have lost its voice. When that happens it waits for the first click and speaks then, once, and
+ * only while it still counts as a welcome. The "Escuchar" button under the message is always there anyway.
+ */
+async function greet(text: string): Promise<void> {
+  if (await speak(text)) return
+  const since = Date.now()
+  const onTouch = () => {
+    if (Date.now() - since < STILL_A_WELCOME_MS) void speak(text)
+  }
+  window.addEventListener('pointerdown', onTouch, { once: true, capture: true })
+}
+
 /**
  * What Sky says the first time the desktop appears. Nothing was asked beyond a name, so this is where Sky
  * explains itself: who it is, what it already did, and one concrete thing to try right now. Short on purpose,
@@ -42,7 +60,7 @@ export function firstBoot(): Promise<void> {
     const text = greetingFor(user)
     window.setTimeout(() => {
       useSession.getState().say(text)
-      if (user.profile.voice !== false) void speak(text)
+      if (user.profile.voice !== false) void greet(text)
     }, 1600)
   })()
   return done
