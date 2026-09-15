@@ -285,6 +285,32 @@ export function CommandBar() {
       : []
 
     const semanticItems: Item[] = []
+    // Buscando, sin coincidencias y no pude buscar son tres respuestas distintas, y callar dos de ellas hace
+    // que la búsqueda parezca rota cuando solo está trabajando, o vacía cuando en realidad falló.
+    if (semanticForQuery?.status === 'running') {
+      semanticItems.push({
+        key: 'sem:running',
+        title: 'Buscando por significado…',
+        hint: 'Mientras tanto, la búsqueda por nombre ya está arriba',
+        icon: <Loader2 className="h-[18px] w-[18px] animate-spin text-ink-3" />,
+        run: () => undefined,
+        section: 'Por significado',
+        keepFocus: true,
+        keepQuery: true,
+      })
+    }
+    if (semanticForQuery?.status === 'error') {
+      semanticItems.push({
+        key: 'sem:error',
+        title: 'No pude buscar por significado',
+        hint: semanticForQuery.error ?? 'La búsqueda por nombre sigue funcionando',
+        icon: <ScanSearch className="h-[18px] w-[18px] text-danger" />,
+        run: () => undefined,
+        section: 'Por significado',
+        keepFocus: true,
+        keepQuery: true,
+      })
+    }
     if (semanticForQuery?.status === 'done') {
       const hits = semanticForQuery.result?.hits ?? []
       if (hits.length === 0) {

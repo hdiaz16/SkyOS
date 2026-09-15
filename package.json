@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "bridge": "npm --prefix bridge run build && npm --prefix bridge start",
-    "bridge:install": "npm --prefix bridge install"
+    "bridge:install": "npm --prefix bridge install",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -42,6 +44,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
   }
 }

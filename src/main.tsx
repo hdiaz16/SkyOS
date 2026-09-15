@@ -8,6 +8,7 @@ import { Shell } from './components/system/Shell'
 import { handleCallbackPage, isCallbackPage } from './mcp/popup'
 import { dispatch, execute, listCommands, useJournal } from './kernel/commands'
 import { useDialog } from './state/dialog'
+import { recoverJobs, useJobs } from './system/jobs'
 import { fs } from './kernel/fs'
 import { useUi } from './state/ui'
 import { useWindows } from './state/windows'
@@ -39,6 +40,7 @@ if (import.meta.env.DEV) {
       useUi,
       useWindows,
       useJournal,
+      useJobs,
       ai: { useSession, useAiSettings, useTasks, useSnap, commandTools, allTools },
       system: { useAuth, users },
       mcp: { mcp, useMcp, auth: { parseChallenge, discoverProtectedResource, discoverAuthorizationServer, obtainClient } },
@@ -50,6 +52,10 @@ if (import.meta.env.DEV) {
 if (isCallbackPage()) {
   handleCallbackPage()
 } else {
+  // Work that was still running when the last tab went away could not survive it. Reconciling that is the
+  // first thing the desktop does, before anything else can start a job of its own.
+  recoverJobs()
+
   createRoot(document.getElementById('root')!).render(
     // "Reducir movimiento" es una preferencia del sistema operativo de la persona, no un ajuste más:
     // con ella puesta, las animaciones se quedan en su estado final en vez de recorrerlo.

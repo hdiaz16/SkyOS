@@ -29,7 +29,7 @@ const weight = (inv: Inverse): number => {
  * The entry as it will come back tomorrow: same words, and the inverse only when it will still work. Built
  * field by field on purpose — whatever goes into the database has to survive being cloned.
  */
-function storable(entry: JournalEntry): JournalEntry {
+export function storable(entry: JournalEntry): JournalEntry {
   const row: JournalEntry = {
     id: entry.id,
     commandId: entry.commandId,

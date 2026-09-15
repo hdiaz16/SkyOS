@@ -26,7 +26,7 @@ Los hallazgos vienen de leer el código, no de suponer.
 | C4 | Proyecto: objetivo, decisiones, pendientes, bitácora. | hecho | Vive en `Proyecto.md` dentro de la carpeta; editable a mano. |
 | C5 | Conversación propia por proyecto. | hecho | Dos proyectos conservan hilos separados; cambiar de proyecto cambia el contexto y el panel dice en cuál estás. |
 | C6 | Memoria corregible desde la interfaz. | hecho | El objetivo se edita desde la franja; el archivo completo se abre desde el menú. |
-| C7 | Trabajos interrumpidos al cerrar la pestaña. | pendiente | Al volver figuran como interrumpidos, no como corriendo. |
+| C7 | Trabajos interrumpidos al cerrar la pestaña. | hecho | Se anotan al empezar y al arrancar vuelven como tarjeta: «se interrumpió al cerrar la pestaña». |
 
 ## P2 · Recorridos, acabado y rendimiento
 
@@ -34,11 +34,15 @@ Los hallazgos vienen de leer el código, no de suponer.
 |---|---|---|---|
 | U1 | Estado de archivo ausente en toda ventana. | hecho | Restaurar o cerrar, nunca un cargador infinito. |
 | U2 | Organización: nombres duplicados, destinos inválidos, ciclos de carpetas. | hecho | Se valida todo antes de mover nada: o se mueve completo o no se mueve nada, con el motivo dicho. |
-| U3 | Teclado y foco en menús y diálogos. | pendiente | Todo operable sin ratón; Escape consistente; foco devuelto. |
+| U3 | Teclado y foco en menús y diálogos. | parcial | Los diálogos ya son `role="dialog"`, cierran con Escape y devuelven el foco a donde estaba. Los menús contextuales siguen sin recorrido con flechas. |
 | U4 | Ctrl+Z dentro de un editor no revierte operaciones de archivos. | hecho | Campos de texto y apps con historial propio (hoja de cálculo) se quedan con su Ctrl+Z. |
 | U5 | Movimiento reducido respetado. | hecho | `MotionConfig reducedMotion="user"` en la raíz: la preferencia del sistema manda. |
-| U6 | Degradación de búsqueda sin modelo local. | pendiente | Distingue «sin coincidencias», «índice pendiente» y «error». |
+| U6 | Degradación de búsqueda sin modelo local. | hecho | Buscando, sin coincidencias y no pude buscar son tres filas distintas; la búsqueda por nombre nunca se detiene. |
 
 ## Verificación
 
-Perfiles sintéticos, nunca la cuenta personal de Hector ni archivos privados.
+Perfiles sintéticos (Ana, Beto, Prueba Producción) en un origen aparte, nunca la cuenta personal ni archivos
+privados. Comprobado en el navegador y con `npm test`.
+
+Pendiente de una sesión futura: recorrido con teclado en menús contextuales, y pruebas automatizadas sobre
+IndexedDB (migraciones y aislamiento) que hoy solo están verificadas a mano.

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { play } from './sound'
+import { sessionSuffix } from './session'
 
 /**
  * Background work the desktop keeps track of: reading documents, indexing, AI tasks that finish while the
@@ -57,6 +58,60 @@ interface JobsState {
 const KEEP_FINISHED_MS = 10 * 60_000
 const MAX_CARDS = 4
 
+/**
+ * Background work lives in this tab and dies with it: there is no server to carry on. Pretending otherwise
+ * would be the worst outcome, so the ones that were running are written down, and on the next boot they come
+ * back as what they are — interrupted — instead of disappearing as if they had finished.
+ */
+const RUNNING_KEY = `mesa:trabajos${sessionSuffix()}`
+
+interface Interrupted {
+  title: string
+  detail?: string
+  startedAt: number
+}
+
+function remember(jobs: Record<string, Job>): void {
+  try {
+    const running = Object.values(jobs)
+      .filter((j) => j.status === 'running')
+      .map<Interrupted>((j) => ({ title: j.title, detail: j.detail, startedAt: j.startedAt }))
+    if (running.length) localStorage.setItem(RUNNING_KEY, JSON.stringify(running))
+    else localStorage.removeItem(RUNNING_KEY)
+  } catch {
+    // Without localStorage the desktop simply forgets, which is where it started.
+  }
+}
+
+/**
+ * What was running when the tab went away. Called once at boot: the work cannot be resumed — nothing kept the
+ * documents, the model call or the progress — so each one says so and the person decides whether to ask again.
+ */
+export function recoverJobs(): void {
+  let pending: Interrupted[] = []
+  try {
+    const raw = localStorage.getItem(RUNNING_KEY)
+    localStorage.removeItem(RUNNING_KEY)
+    if (raw) pending = JSON.parse(raw) as Interrupted[]
+  } catch {
+    return
+  }
+  if (!pending.length) return
+  useJobs.setState((s) => ({
+    cards: [
+      ...s.cards,
+      ...pending.slice(-MAX_CARDS).map((j) => ({
+        id: nanoid(6),
+        jobId: nanoid(6),
+        title: j.title,
+        detail: 'Se interrumpió al cerrar la pestaña; vuelve a pedirlo cuando quieras.',
+        kind: 'error' as const,
+        at: Date.now(),
+      })),
+    ],
+  }))
+}
+
 export const useJobs = create<JobsState>((set, get) => ({
   jobs: {},
   cards: [],
@@ -64,6 +119,7 @@ export const useJobs = create<JobsState>((set, get) => ({
   start: (job) => {
     const id = job.id ?? nanoid(6)
     set((s) => ({ jobs: { ...s.jobs, [id]: { ...job, id, status: 'running', startedAt: Date.now() } } }))
+    remember(get().jobs)
     return id
   },
 
@@ -92,6 +148,7 @@ export const useJobs = create<JobsState>((set, get) => ({
             { id: nanoid(6), jobId: id, title: finished.title, detail: finished.detail, kind: status === 'error' ? 'error' : 'done', open: finished.open, at: Date.now() },
           ],
     }))
+    remember(get().jobs)
     get().sweep()
   },
 
