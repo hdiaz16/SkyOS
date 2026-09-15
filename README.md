@@ -26,7 +26,7 @@ internos lo conservan para no perder datos.
 - Pantalla de inicio con las personas que usan este navegador; PIN opcional (PBKDF2). Cerrar sesión vuelve al inicio.
 - Aislamiento real: cada cuenta tiene su base de datos, su carpeta de archivos, sus ajustes, su llave de IA, sus widgets,
   flujos e índice. Nada se comparte entre cuentas.
-- Splash de arranque y onboarding en una pregunta por pantalla, con el orbe de Sky; las respuestas se integran al prompt
+- Splash de arranque y onboarding de cuatro pantallas (saludo, nombre, cómo trabajamos, tu espacio) con el orbe de Sky; las respuestas se integran al prompt
   del sistema para que Sky hable y actúe como cada persona pidió.
 
 **Escritorio**
