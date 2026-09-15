@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { flows } from '../../kernel/flows'
+import { speak } from '../../ai/speech'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
 import { AUTO_MODEL, baseUrlFor, isAiConfigured, presetFor, PROVIDERS, resolveKey, useAiSettings, usesSharedKey, type ProviderId } from '../../ai/settings'
@@ -145,6 +146,7 @@ function AppearanceSection() {
         onChange={setTheme}
         options={THEMES.map((t) => ({ value: t.value, label: t.label, icon: <t.icon className="h-4 w-4" strokeWidth={1.75} /> }))}
       />
+      <VoiceRow />
       <div className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-ink">Sonidos del sistema</p>
@@ -164,6 +166,68 @@ function AppearanceSection() {
           <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition', sounds ? 'left-[22px]' : 'left-0.5')} />
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Con qué voz habla Sky. La del navegador viene de fábrica y se nota; la de Gemini está hecha para hablar y
+ * acepta que le digan cómo decirlo. La llave se pega aquí porque es aquí donde a alguien se le ocurre que la
+ * voz podría sonar mejor, no en la sección de proveedores.
+ */
+function VoiceRow() {
+  const keys = useAiSettings((s) => s.keys)
+  const setKey = useAiSettings((s) => s.setKey)
+  const [probando, setProbando] = useState(false)
+  const natural = !!(keys.gemini || keys.openai)
+
+  const probar = async () => {
+    setProbando(true)
+    await speak('Hola. Soy Sky. Así es como sueno cuando me dejas hablar con calma.')
+    setProbando(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-ink">La voz de Sky</p>
+          <p className="text-[12px] leading-relaxed text-ink-3">
+            {natural
+              ? 'Ahora mismo habla con una voz hecha para hablar: respira entre frases y se le puede pedir el tono.'
+              : 'Ahora mismo usa la voz del navegador. Cumple, pero se le oye la máquina. Con una llave de Gemini habla de verdad, y su nivel gratis alcanza de sobra.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void probar()}
+          disabled={probando}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:border-line-2 hover:text-ink disabled:opacity-50"
+        >
+          <Volume2 className="h-3.5 w-3.5" />
+          {probando ? 'Hablando…' : 'Escúchala'}
+        </button>
+      </div>
+      {!natural && (
+        <div className="flex items-center gap-2">
+          <input
+            type="password"
+            value={keys.gemini ?? ''}
+            onChange={(e) => setKey('gemini', e.target.value)}
+            placeholder="Llave de Gemini para la voz"
+            aria-label="Llave de Gemini para la voz"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface-solid px-3 text-[13px] text-ink outline-none transition focus:border-accent"
+          />
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 text-[12px] font-medium text-accent transition hover:underline"
+          >
+            Conseguir una
+          </a>
+        </div>
+      )}
     </div>
   )
 }

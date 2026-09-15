@@ -1,9 +1,12 @@
 import { useAiSettings } from './settings'
 
 /**
- * Sky's voice. Two engines, one behaviour:
- * - With an OpenAI key stored, a neural Spanish voice (gpt-4o-mini-tts, "nova": warm, female).
- * - Otherwise the browser's own synthesis, choosing the most natural female Spanish voice it has.
+ * Sky's voice, best first:
+ * - With a Gemini key stored, a model made for speech that takes direction: it is told how to say the line,
+ *   not only what to say, which is the difference between reading and talking.
+ * - With an OpenAI key, gpt-4o-mini-tts and the "nova" voice.
+ * - Otherwise the browser's own synthesis, which is free and always there, choosing the most modern Spanish
+ *   voice the machine has and cutting the text into sentences so it breathes.
  * Groq is not an option here: its speech models only speak English and Arabic.
  * Speaking without a user gesture can be refused by the browser, so callers treat false as
  * "offer a button to listen instead".
@@ -108,6 +111,79 @@ function speakWithBrowser(text: string): Promise<boolean> {
   )
 }
 
+/**
+ * How Sky sounds, said in words because this model is directed rather than configured. Kept short: the longer
+ * the direction, the more the model performs it instead of simply speaking.
+ */
+const DIRECCION = 'Dilo con calidez y cercanía, sin prisa, como quien habla de cerca y no como quien narra o locuta.'
+
+/** A warm, unhurried voice among the ones the model offers. */
+const VOZ_GEMINI = 'Aoede'
+const MODELO_GEMINI = 'gemini-2.5-flash-preview-tts'
+
+/** The model answers with raw samples; a player needs the little header that says what they are. */
+function wavDesdePcm(pcm: Uint8Array<ArrayBuffer>, rate: number): Blob {
+  const header = new ArrayBuffer(44)
+  const v = new DataView(header)
+  const texto = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i))
+  }
+  texto(0, 'RIFF')
+  v.setUint32(4, 36 + pcm.length, true)
+  texto(8, 'WAVE')
+  texto(12, 'fmt ')
+  v.setUint32(16, 16, true)
+  v.setUint16(20, 1, true)
+  v.setUint16(22, 1, true)
+  v.setUint32(24, rate, true)
+  v.setUint32(28, rate * 2, true)
+  v.setUint16(32, 2, true)
+  v.setUint16(34, 16, true)
+  texto(36, 'data')
+  v.setUint32(40, pcm.length, true)
+  return new Blob([header, pcm], { type: 'audio/wav' })
+}
+
+function reproducir(blob: Blob): Promise<boolean> {
+  const url = URL.createObjectURL(blob)
+  return new Promise((resolve) => {
+    stopSpeaking()
+    const a = new Audio(url)
+    audio = a
+    const acabar = (ok: boolean) => {
+      URL.revokeObjectURL(url)
+      if (audio === a) audio = null
+      resolve(ok)
+    }
+    a.onended = () => acabar(true)
+    a.onerror = () => acabar(false)
+    a.play().catch(() => acabar(false))
+  })
+}
+
+async function speakWithGemini(text: string, apiKey: string): Promise<boolean> {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `${DIRECCION}\n\n${text.slice(0, 4000)}` }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOZ_GEMINI } } },
+      },
+    }),
+  })
+  if (!res.ok) return false
+  const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> } }> }
+  const parte = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData
+  if (!parte?.data) return false
+  const bytes = atob(parte.data)
+  const pcm = new Uint8Array(new ArrayBuffer(bytes.length))
+  for (let i = 0; i < bytes.length; i++) pcm[i] = bytes.charCodeAt(i)
+  const rate = Number(/rate=(\d+)/.exec(parte.mimeType ?? '')?.[1] ?? 24000)
+  return reproducir(wavDesdePcm(pcm, rate))
+}
+
 async function speakWithOpenAI(text: string, apiKey: string): Promise<boolean> {
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
@@ -115,20 +191,7 @@ async function speakWithOpenAI(text: string, apiKey: string): Promise<boolean> {
     body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'nova', input: text.slice(0, 4000), response_format: 'mp3', speed: 1 }),
   })
   if (!res.ok) return false
-  const url = URL.createObjectURL(await res.blob())
-  return new Promise((resolve) => {
-    stopSpeaking()
-    const a = new Audio(url)
-    audio = a
-    const finish = (ok: boolean) => {
-      URL.revokeObjectURL(url)
-      if (audio === a) audio = null
-      resolve(ok)
-    }
-    a.onended = () => finish(true)
-    a.onerror = () => finish(false)
-    a.play().catch(() => finish(false))
-  })
+  return reproducir(await res.blob())
 }
 
 /** Speaks the text. Resolves true when it finished, false when nothing could speak or the browser refused. */
@@ -141,12 +204,20 @@ export async function speak(text: string): Promise<boolean> {
     .replace(/\s+/g, ' ')
     .trim()
   if (!clean) return false
-  const openaiKey = useAiSettings.getState().keys.openai
-  if (openaiKey) {
+  const { keys } = useAiSettings.getState()
+  // Best available wins, and every one of them falls through to the next without saying a word about it.
+  if (keys.gemini) {
     try {
-      if (await speakWithOpenAI(clean, openaiKey)) return true
+      if (await speakWithGemini(clean, keys.gemini)) return true
     } catch {
-      /* fall back to the browser voice */
+      /* siguiente */
+    }
+  }
+  if (keys.openai) {
+    try {
+      if (await speakWithOpenAI(clean, keys.openai)) return true
+    } catch {
+      /* siguiente */
     }
   }
   if (!speechAvailable()) return false
