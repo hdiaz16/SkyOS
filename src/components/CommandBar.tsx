@@ -125,6 +125,9 @@ async function snapScreen(): Promise<void> {
   // The selector listens for Escape and Enter on the window, and a focused text field eats both. Letting go
   // of the focus first is what makes the keyboard belong to the selection while it lasts.
   ;(document.activeElement as HTMLElement | null)?.blur?.()
+  // Letting go also takes the spotlight veil away, but it fades out rather than vanishing: the picture used to
+  // arrive with the whole desktop dimmed and blurred, which is precisely what nobody wants to send.
+  await new Promise((done) => window.setTimeout(done, 260))
   try {
     const shot = await captureScreen()
     if (shot) useSnap.getState().open(shot.dataUrl, shot.width, shot.height)
@@ -412,21 +415,36 @@ export function CommandBar() {
 
     const strongFile = files.length > 0 && norm(files[0].name).startsWith(nq)
     const strongAction = matched.length > 0 && norm(matched[0].title).startsWith(nq)
-    const head = [...calcItems, ...flowItems, ...vectorItems, ...semanticItems.filter((s) => !vectorItems.some((v) => v.key.slice(4) === s.key.slice(4)))]
+    // What the typing itself already answers — a sum, a saved flow — and nothing else: these appear with the
+    // first keystroke and never move afterwards.
+    const head = [...calcItems, ...flowItems]
+    // Hits by meaning arrive up to a fifth of a second later. Up here they pushed the highlighted row down on
+    // their own, and the Enter that was about to open «presupuesto» opened whatever had taken its place.
+    const meaningHits = [...vectorItems, ...semanticItems.filter((s) => !vectorItems.some((v) => v.key.slice(4) === s.key.slice(4)))]
     const tail = meaning ? [meaning, web] : [web]
-    if (isUrl) return [...head, web, ask, ...fileItems, ...actionItems]
-    if (strongFile || strongAction) return [...head, ...fileItems, ...actionItems, ask, ...tail]
-    if (aiReady) return calc ? [...head, ...fileItems, ...actionItems, ask, ...tail] : [...head, ask, ...fileItems, ...actionItems, ...tail]
-    return [...head, ...fileItems, ...actionItems, web, ask]
+    if (isUrl) return [...head, web, ask, ...fileItems, ...actionItems, ...meaningHits]
+    if (strongFile || strongAction) return [...head, ...fileItems, ...actionItems, ...meaningHits, ask, ...tail]
+    if (aiReady) {
+      return calc
+        ? [...head, ...fileItems, ...actionItems, ...meaningHits, ask, ...tail]
+        : [...head, ask, ...fileItems, ...actionItems, ...meaningHits, ...tail]
+    }
+    return [...head, ...fileItems, ...actionItems, ...meaningHits, web, ask]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, flowMatches, query, aiReady, semanticForQuery])
 
-  const resultsOpen = focused && !chatOpen && query.length > 0
+  // With something attached, Enter goes to Sky — submit() says so. Leaving the list open under it meant the
+  // highlighted row showed the ↵ icon and then did something else: the mouse opened the file, the keyboard sent
+  // the question. One row, two answers.
+  const resultsOpen = focused && !chatOpen && query.length > 0 && pending.length === 0
+  /** The list grows and shrinks underneath (searches by meaning arrive late, Sky may delete a file while you
+   *  type). Without this, idx pointed past the end and Enter quietly stopped doing anything. */
+  const active = items.length ? Math.min(idx, items.length - 1) : 0
 
   useEffect(() => {
-    const el = listRef.current?.querySelectorAll('[data-item]')[idx] as HTMLElement | undefined
+    const el = listRef.current?.querySelectorAll('[data-item]')[active] as HTMLElement | undefined
     el?.scrollIntoView({ block: 'nearest' })
-  }, [idx])
+  }, [active])
 
   const run = (item: Item | undefined) => {
     if (!item) return
@@ -445,7 +463,7 @@ export function CommandBar() {
       setQ('')
       return
     }
-    run(items[idx])
+    run(items[active])
   }
 
   const placeholder =
@@ -549,13 +567,13 @@ export function CommandBar() {
                       onClick={() => run(item)}
                       className={cn(
                         'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors',
-                        i === idx ? 'bg-accent-soft' : 'hover:bg-surface-2',
+                        i === active ? 'bg-accent-soft' : 'hover:bg-surface-2',
                       )}
                     >
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center">{item.icon}</span>
                       <span className="flex-1 truncate text-[14px] text-ink">{item.title}</span>
                       {item.hint && <span className="max-w-[45%] shrink-0 truncate text-[12px] text-ink-3">{item.hint}</span>}
-                      {i === idx && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-ink-3" />}
+                      {i === active && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-ink-3" />}
                     </button>
                   </li>
                 ))}
@@ -595,17 +613,18 @@ export function CommandBar() {
               e.stopPropagation()
               if (e.key === 'ArrowDown' && resultsOpen) {
                 e.preventDefault()
-                setIdx((i) => Math.min(i + 1, items.length - 1))
+                setIdx((i) => Math.min(Math.min(i, items.length - 1) + 1, items.length - 1))
               } else if (e.key === 'ArrowUp' && resultsOpen) {
                 e.preventDefault()
-                setIdx((i) => Math.max(i - 1, 0))
+                setIdx((i) => Math.max(Math.min(i, items.length - 1) - 1, 0))
               } else if (e.key === 'Enter') {
                 e.preventDefault()
                 submit()
               } else if (e.key === 'Escape') {
                 e.preventDefault()
+                // Escape used to throw away every attachment at the second press, with no warning and no way
+                // back: a screen capture is a whole round of sharing the screen again. Each chip has its ✕.
                 if (q) setQ('')
-                else if (pending.length) useSession.getState().clearPending()
                 else if (chatOpen) useSession.getState().setOpen(false)
                 else inputRef.current?.blur()
               }
@@ -630,7 +649,7 @@ export function CommandBar() {
               {dictation.state === 'recording' && <span className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-danger" />}
             </button>
           )}
-          {canSee && !query && (
+          {canSee && (
             <button
               type="button"
               title="Capturar pantalla para Sky"

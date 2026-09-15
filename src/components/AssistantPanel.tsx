@@ -9,6 +9,8 @@ import type { Usage } from '../ai/types'
 import { useAiSettings } from '../ai/settings'
 import type { ToolEvent } from '../ai/agent'
 import { getCommand, standingOf, undoEntry, undoRun, useJournal } from '../kernel/commands'
+import { useWindows } from '../state/windows'
+import { useDialog } from '../state/dialog'
 import { cn } from '../lib/utils'
 import { Markdown } from './Markdown'
 
@@ -37,6 +39,8 @@ export function AssistantPanel() {
   const stop = useSession((s) => s.stop)
   const clear = useSession((s) => s.clear)
   const setOpen = useSession((s) => s.setOpen)
+  const windows = useWindows((s) => s.windows)
+  const minimized = windows.filter((w) => w.minimized)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
 
@@ -44,6 +48,22 @@ export function AssistantPanel() {
     const el = scrollRef.current
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight
   }, [turns])
+
+  /**
+   * The bin said «Nueva conversación» and erased the row from the database for good: everything said about that
+   * project, gone, with nothing to undo it. Now the title says what it does and it asks first.
+   */
+  const borrar = async () => {
+    const ok = await useDialog.getState().confirm({
+      title: '¿Borrar esta conversación?',
+      description: threadName
+        ? `Se va todo lo que hablamos sobre «${threadName}». No se puede deshacer.`
+        : 'Se va todo lo que hablamos aquí. No se puede deshacer.',
+      confirmLabel: 'Borrarla',
+      danger: true,
+    })
+    if (ok) clear()
+  }
 
   return (
     <motion.div
@@ -78,8 +98,8 @@ export function AssistantPanel() {
         ) : (
           <button
             type="button"
-            onClick={clear}
-            title="Nueva conversación"
+            onClick={() => void borrar()}
+            title="Borrar esta conversación"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 transition hover:bg-surface-2 hover:text-ink"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -117,6 +137,23 @@ export function AssistantPanel() {
           turns.map((t) => <TurnView key={t.id} turn={t} />)
         )}
       </div>
+
+      {/* Minimised windows live on the row above the bar, which this panel covers. With the conversation open
+          there was no way back to them at all: reopening Archivos made a second window instead. */}
+      {minimized.length > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-line px-3 py-2">
+          {minimized.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() => useWindows.getState().focus(w.id)}
+              className="max-w-[200px] truncate rounded-full border border-line-2 px-2.5 py-1 text-[12px] text-ink-2 transition hover:border-line hover:text-ink"
+            >
+              {w.title}
+            </button>
+          ))}
+        </div>
+      )}
     </motion.div>
   )
 }

@@ -139,6 +139,23 @@ export const PROVIDERS: ProviderPreset[] = [
 
 export const presetFor = (id: ProviderId): ProviderPreset => PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0]
 
+/**
+ * Models that read the depth setting: the Claude ones that declare it (providers/anthropic.ts, CAPS) and the
+ * gpt-oss family, which turns it into reasoning_effort (providers/openaiCompat.ts). Haiku and the rest ignore it.
+ */
+const READS_EFFORT = /^claude-(opus|sonnet|fable)|gpt-oss/
+
+/**
+ * Whether «Profundidad» changes anything for what is chosen. The setting travels on every request, so drawing
+ * the control only for Anthropic left it stuck on «media» on Groq — the provider everyone starts on, and one
+ * where it does change how Sky thinks.
+ */
+export function usesEffort(state: AiSettingsState = useAiSettings.getState()): boolean {
+  const preset = presetFor(state.provider)
+  const models = state.model === AUTO_MODEL && preset.tiers ? [preset.tiers.fast, preset.tiers.balanced, preset.tiers.deep] : [state.model]
+  return models.some((m) => READS_EFFORT.test(m))
+}
+
 export interface AiSettingsState {
   provider: ProviderId
   /** A model id, or "auto" to let Sky pick by task difficulty (tiered providers only). */

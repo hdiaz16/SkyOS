@@ -28,7 +28,19 @@ import { flows } from '../../kernel/flows'
 import { speak } from '../../ai/speech'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
-import { AUTO_MODEL, baseUrlFor, isAiConfigured, presetFor, PROVIDERS, resolveKey, useAiSettings, usesSharedKey, type ProviderId } from '../../ai/settings'
+import {
+  AUTO_MODEL,
+  baseUrlFor,
+  isAiConfigured,
+  presetFor,
+  PROVIDERS,
+  resolveKey,
+  useAiSettings,
+  usesEffort,
+  usesRelay,
+  usesSharedKey,
+  type ProviderId,
+} from '../../ai/settings'
 import { getProvider } from '../../ai/providers'
 import { listModels } from '../../ai/providers/openaiCompat'
 import { TIER_LABELS } from '../../ai/router'
@@ -68,7 +80,16 @@ interface SectionMeta {
 
 /** The map of Ajustes: every area with a name, what it is for and an icon, in the order they appear. */
 const SECTIONS: SectionMeta[] = [
-  { id: 'account', label: 'Cuenta', title: 'Tu cuenta', description: 'Quién eres en este navegador: tu nombre, tu ubicación, tu PIN, la voz de Sky y cómo te trata.', icon: UserRound },
+  {
+    id: 'account',
+    label: 'Cuenta',
+    title: 'Tu cuenta',
+    // The name and the place are shown here, not edited here: the name comes from the first conversation and
+    // the place from the weather widget or from telling Sky. Promising them was sending people to look for a
+    // field that does not exist.
+    description: 'Quién eres en este navegador: tu PIN, la voz de Sky, cómo te trata y por dónde salir.',
+    icon: UserRound,
+  },
   { id: 'ai', label: 'Inteligencia', title: 'Inteligencia', description: 'Con qué modelo piensa Sky, cómo elige entre rápido y profundo, y con qué llave se conecta.', icon: Bot },
   {
     id: 'apps',
@@ -234,16 +255,18 @@ function VoiceRow() {
 
 function StorageSection() {
   const stats = useLiveQuery(() => fs.stats(), [])
-  const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null)
+  /** null while asking, false when the browser will not say. Swallowing the failure left the row on «…» for
+   *  good, with a sliver of accent colour under it that looked like a real measurement. */
+  const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null | false>(() => (typeof navigator.storage?.estimate === 'function' ? null : false))
 
   useEffect(() => {
     navigator.storage
       ?.estimate?.()
-      .then((e) => setEstimate({ usage: e.usage ?? 0, quota: e.quota ?? 0 }))
-      .catch(() => undefined)
+      .then((e) => setEstimate(e.quota ? { usage: e.usage ?? 0, quota: e.quota } : false))
+      .catch(() => setEstimate(false))
   }, [stats])
 
-  const pct = estimate && estimate.quota ? Math.min(100, (estimate.usage / estimate.quota) * 100) : 0
+  const pct = estimate ? Math.min(100, (estimate.usage / estimate.quota) * 100) : 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -252,10 +275,14 @@ function StorageSection() {
       <Row label="Dónde viven tus archivos">{fs.engine === 'opfs' ? 'Sistema de archivos del navegador' : 'IndexedDB'}</Row>
       <Row label="Contenido">{stats ? `${stats.files} archivos · ${stats.folders} carpetas · ${formatBytes(stats.bytes)}` : '…'}</Row>
       <div>
-        <Row label="Espacio del navegador">{estimate ? `${formatBytes(estimate.usage)} de ${formatBytes(estimate.quota)}` : '…'}</Row>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
-          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${Math.max(pct, 0.5)}%` }} />
-        </div>
+        <Row label="Espacio del navegador">
+          {estimate ? `${formatBytes(estimate.usage)} de ${formatBytes(estimate.quota)}` : estimate === false ? 'Tu navegador no lo dice' : '…'}
+        </Row>
+        {estimate !== false && (
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+            <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${estimate ? Math.max(pct, 0.5) : 0}%` }} />
+          </div>
+        )}
       </div>
       <p className="text-[12px] leading-relaxed text-ink-3">
         Cada cuenta tiene su propio espacio en este navegador. Tus archivos solo viajan al proveedor de IA cuando le pides algo que los necesita, a una app
@@ -488,6 +515,7 @@ function AiSection() {
 
       <Field label="Proveedor" hint={preset.tagline}>
         <select
+          aria-label="Proveedor"
           value={ai.provider}
           onChange={(e) => {
             ai.setProvider(e.target.value as ProviderId)
@@ -524,6 +552,7 @@ function AiSection() {
         >
           <div className="relative">
             <input
+              aria-label="Llave de API"
               type={showKey ? 'text' : 'password'}
               value={ai.keys[ai.provider] ?? ''}
               onChange={(e) => {
@@ -550,6 +579,7 @@ function AiSection() {
       {isCompat && (
         <Field label="URL base" hint={preset.baseUrl ? `Por defecto ${preset.baseUrl}` : 'Endpoint compatible con OpenAI, sin /chat/completions'}>
           <input
+            aria-label="URL base"
             value={baseUrl}
             onChange={(e) => ai.setBaseUrl(ai.provider, e.target.value)}
             placeholder={preset.baseUrl || 'https://mi-servidor/v1'}
@@ -582,6 +612,7 @@ function AiSection() {
           ))}
           {extraModels.length > 0 && (
             <select
+              aria-label="Otros modelos del proveedor"
               value={extraModels.includes(ai.model) ? ai.model : ''}
               onChange={(e) => e.target.value && ai.setModel(e.target.value)}
               className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12.5px] text-ink outline-none focus:border-accent"
@@ -598,6 +629,7 @@ function AiSection() {
             <div className="flex items-center gap-2">
               {preset.models.length === 0 && (
                 <input
+                  aria-label="Modelo"
                   value={ai.model === AUTO_MODEL ? '' : ai.model}
                   onChange={(e) => ai.setModel(e.target.value)}
                   placeholder={preset.modelHint}
@@ -607,7 +639,7 @@ function AiSection() {
               )}
               <button
                 type="button"
-                disabled={loadingModels || (preset.needsKey && !resolveKey(ai))}
+                disabled={loadingModels || (preset.needsKey && !resolveKey(ai) && !usesRelay(ai))}
                 onClick={() => void refreshModels()}
                 className="flex h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] text-ink-2 transition hover:border-line-2 hover:text-ink disabled:opacity-40"
               >
@@ -619,7 +651,7 @@ function AiSection() {
         </div>
       </Field>
 
-      {ai.provider === 'anthropic' && (
+      {usesEffort(ai) && (
         <Field label="Profundidad" hint={EFFORTS.find((e) => e.value === ai.effort)?.hint}>
           <Segmented value={ai.effort} onChange={ai.setEffort} options={EFFORTS.map((e) => ({ value: e.value, label: e.label }))} />
         </Field>
@@ -707,7 +739,10 @@ function ModelOption({ selected, onClick, label, hint, recommended }: { selected
 }
 
 function FlowsSection() {
-  const list = useLiveQuery(() => flows.list(), []) ?? []
+  const list = useLiveQuery(() => flows.list(), [])
+  // Before the query comes back there is nothing to say: `?? []` turned that instant into «aún no hay flujos»,
+  // which flashed as a lie over a list that was about to appear.
+  if (!list) return null
   if (list.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-line-2 p-4 text-[12px] leading-relaxed text-ink-3">
@@ -769,13 +804,18 @@ function Segmented<T extends string>({
   )
 }
 
+/**
+ * A titled block. It used to be a <label>, and a <button> is a labelable element: clicking the word «Modelo»,
+ * or dragging to select the long hint under it, went to the first button inside and switched the model to
+ * «Automático» without a word. The controls carry their own aria-label instead.
+ */
 function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-ink-2">{label}</span>
       {children}
       {hint && <span className="text-[11px] leading-relaxed text-ink-3">{hint}</span>}
-    </label>
+    </div>
   )
 }
 
