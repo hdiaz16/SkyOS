@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, Check, ExternalLink, Loader2, MapPin, Mic, XCircle } from 'lucide-react'
+import { Check, ExternalLink, Loader2, MapPin, Mic, XCircle } from 'lucide-react'
 import type { Autonomy, Permission, Purpose, Tone, UserLocation, UserProfile } from '../../system/db'
 import { hasSharedGroqKey } from '../../config'
 import { users } from '../../system/users'
@@ -14,39 +14,47 @@ import { approximateLocation, currentPosition, GeoError, geocode, geolocationPos
 import { cn } from '../../lib/utils'
 import { BELOW_ORB, useOrbStage } from './orbStore'
 
-type Step = 'hello' | 'name' | 'tone' | 'purpose' | 'autonomy' | 'theme' | 'location' | 'microphone' | 'ai' | 'pin' | 'setup'
+type Step = 'hello' | 'name' | 'style' | 'space' | 'ai' | 'setup'
 
-const ORDER: Step[] = ['hello', 'name', 'tone', 'purpose', 'autonomy', 'theme', 'location', 'microphone', 'ai', 'pin', 'setup']
+/**
+ * Four screens and out. Everything that used to be its own question now shares a screen with what it belongs
+ * with, and every choice arrives already answered, so the whole thing is a name and two taps. The provider
+ * screen only appears where there is no included model to start with; the PIN lives in Ajustes › Cuenta.
+ */
+const ORDER: Step[] = hasSharedGroqKey ? ['hello', 'name', 'style', 'space', 'setup'] : ['hello', 'name', 'style', 'space', 'ai', 'setup']
 
 interface Choice<T extends string> {
   value: T
+  /** Full sentence, for a screen that asks one thing. */
   label: string
+  /** Two or three words, for a row of chips. */
+  short: string
   hint: string
 }
 
 const TONES: Choice<Tone>[] = [
-  { value: 'warm', label: 'Cercano y relajado', hint: 'Como hablar con alguien de confianza.' },
-  { value: 'direct', label: 'Directo y breve', hint: 'Al punto, sin rodeos.' },
-  { value: 'formal', label: 'Formal y detallado', hint: 'Cuidado y completo.' },
+  { value: 'warm', label: 'Cercano y relajado', short: 'Cercano', hint: 'Como hablar con alguien de confianza.' },
+  { value: 'direct', label: 'Directo y breve', short: 'Directo', hint: 'Al punto, sin rodeos.' },
+  { value: 'formal', label: 'Formal y detallado', short: 'Formal', hint: 'Cuidado y completo.' },
 ]
 
 const PURPOSES: Choice<Purpose>[] = [
-  { value: 'work', label: 'Trabajo', hint: 'Documentos, proyectos, reportes.' },
-  { value: 'study', label: 'Estudio', hint: 'Apuntes, lecturas, tareas.' },
-  { value: 'personal', label: 'Proyectos personales', hint: 'Ideas, planes, lo tuyo.' },
-  { value: 'mixed', label: 'Un poco de todo', hint: 'Que se adapte a lo que venga.' },
+  { value: 'work', label: 'Trabajo', short: 'Trabajo', hint: 'Documentos, proyectos, reportes.' },
+  { value: 'study', label: 'Estudio', short: 'Estudio', hint: 'Apuntes, lecturas, tareas.' },
+  { value: 'personal', label: 'Proyectos personales', short: 'Personal', hint: 'Ideas, planes, lo tuyo.' },
+  { value: 'mixed', label: 'Un poco de todo', short: 'De todo', hint: 'Que se adapte a lo que venga.' },
 ]
 
 const AUTONOMIES: Choice<Autonomy>[] = [
-  { value: 'ask', label: 'Que me pregunte antes de mover cosas', hint: 'Propone, yo confirmo.' },
-  { value: 'act', label: 'Que actúe y me avise', hint: 'Hace, y todo se puede deshacer.' },
-  { value: 'manual', label: 'Solo lo que yo le pida', hint: 'Sin iniciativa propia.' },
+  { value: 'act', label: 'Que actúe y me avise', short: 'Que actúe', hint: 'Hace, y todo se puede deshacer.' },
+  { value: 'ask', label: 'Que me pregunte antes de mover cosas', short: 'Que pregunte', hint: 'Propone, yo confirmo.' },
+  { value: 'manual', label: 'Solo lo que yo le pida', short: 'Solo si lo pido', hint: 'Sin iniciativa propia.' },
 ]
 
 const THEMES: Choice<Theme>[] = [
-  { value: 'dark', label: 'Oscuro', hint: 'Noche en el bosque.' },
-  { value: 'light', label: 'Claro', hint: 'Mañana en el campo.' },
-  { value: 'system', label: 'Según el sistema', hint: 'Cambia con tu dispositivo.' },
+  { value: 'dark', label: 'Oscuro', short: 'Oscuro', hint: 'Noche en el bosque.' },
+  { value: 'light', label: 'Claro', short: 'Claro', hint: 'Mañana en el campo.' },
+  { value: 'system', label: 'Según el sistema', short: 'Automático', hint: 'Cambia con tu dispositivo.' },
 ]
 
 const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'openrouter', 'ollama']
@@ -72,7 +80,7 @@ export function Onboarding() {
   const [provider, setProvider] = useState<ProviderId>('groq')
   const [apiKey, setApiKey] = useState('')
   const [keyTest, setKeyTest] = useState<{ state: 'idle' | 'running' | 'ok' | 'fail'; message?: string }>({ state: 'idle' })
-  const [pin, setPin] = useState('')
+
   const hasUsers = useAuth((s) => s.users.length > 0)
 
   const index = ORDER.indexOf(step)
@@ -104,10 +112,10 @@ export function Onboarding() {
     }
   }
 
-  // Nobody should have to type where they are: the moment the question appears, Sky works it out from the
-  // network address. The city box only shows up when that fails.
+  // Nobody should have to type where they are: as soon as the name is in, Sky works the place out from the
+  // network address, so the screen that follows already has an answer. The city box is the last resort.
   useEffect(() => {
-    if (step !== 'location' || detected.current) return
+    if (step === 'hello' || detected.current) return
     detected.current = true
     let alive = true
     void approximateLocation().then((near) => {
@@ -191,7 +199,8 @@ export function Onboarding() {
   const finish = async () => {
     const microphone: Permission = micState === 'granted' ? 'granted' : micState === 'denied' ? 'denied' : 'skipped'
     const profile: UserProfile = { tone, purpose, autonomy, location: location ?? undefined, microphone, voice: true }
-    const user = await users.create({ name, profile, pin: pin.length >= 4 ? pin : undefined })
+    // A PIN is set later, in Ajustes › Cuenta: asking for one before the desktop even exists slows everybody down.
+    const user = await users.create({ name, profile })
     persistThemeFor(user.id, theme)
     const chosen = ownKey ? provider : 'groq'
     const preset = presetFor(chosen)
@@ -250,7 +259,7 @@ export function Onboarding() {
           {step === 'hello' && (
             <Screen>
               <Sequence
-                lines={['Hola.', 'Soy Sky.', 'Voy a preparar un espacio para ti. Toma un minuto y unas cuantas preguntas.']}
+                lines={['Hola.', 'Soy Sky.', 'Voy a preparar un espacio para ti. Son treinta segundos.']}
                 onDone={() => undefined}
               />
               <Primary onClick={next} delay={2.2}>
@@ -283,85 +292,46 @@ export function Onboarding() {
             </Screen>
           )}
 
-          {step === 'tone' && (
-            <Screen question={`${name.trim().split(' ')[0]}, ¿cómo prefieres que te hable?`}>
-              <Choices options={TONES} value={tone} onChange={setTone} onPick={next} />
+          {step === 'style' && (
+            <Screen question={`${name.trim().split(' ')[0]}, ¿cómo trabajamos?`} note="Ya está todo elegido; cambia lo que quieras y sigue. Esto también se ajusta después.">
+              <div className="flex w-full max-w-[520px] flex-col gap-5">
+                <ChipRow label="Te hablo" options={TONES} value={tone} onChange={setTone} />
+                <ChipRow label="Sobre todo para" options={PURPOSES} value={purpose} onChange={setPurpose} />
+                <ChipRow label="Con tus archivos" options={AUTONOMIES} value={autonomy} onChange={setAutonomy} />
+                <div className="flex justify-center pt-1">
+                  <Primary onClick={next}>Continuar</Primary>
+                </div>
+              </div>
             </Screen>
           )}
 
-          {step === 'purpose' && (
-            <Screen question="¿Para qué usarás Sky sobre todo?">
-              <Choices options={PURPOSES} value={purpose} onChange={setPurpose} onPick={next} />
-            </Screen>
-          )}
+          {step === 'space' && (
+            <Screen question="Tu espacio" note="La luz, dónde estás y si puedes dictarle. Todo se queda en este navegador.">
+              <div className="flex w-full max-w-[520px] flex-col gap-5">
+                <ChipRow label="Luz" options={THEMES} value={theme} onChange={setTheme} />
 
-          {step === 'autonomy' && (
-            <Screen question="¿Qué tanto quieres que actúe por su cuenta?" note="Todo lo que Sky haga se puede deshacer, decidas lo que decidas.">
-              <Choices options={AUTONOMIES} value={autonomy} onChange={setAutonomy} onPick={next} />
-            </Screen>
-          )}
-
-          {step === 'theme' && (
-            <Screen question="¿Qué luz prefieres?">
-              <Choices options={THEMES} value={theme} onChange={setTheme} onPick={next} />
-            </Screen>
-          )}
-
-          {step === 'location' && (
-            <Screen
-              question="¿Puedo saber dónde estás?"
-              note="Solo para mostrarte el clima y la hora de tu lugar. Se guarda en tu perfil, en este navegador, y en ningún otro sitio."
-            >
-              <div className="flex w-full max-w-[400px] flex-col items-center gap-4">
-                {locState === 'idle' && !location ? (
-                  <p className="flex items-center gap-2 text-[14px] text-ink-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Buscando dónde estás…
-                  </p>
-                ) : location ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-[14px] text-accent">
-                      <MapPin className="h-4 w-4" />
-                      {location.place}
-                      <Check className="h-4 w-4" />
-                    </p>
-                    {approximate && <p className="text-[12px] text-ink-3">Aproximado, por tu conexión. Si no es tu ciudad, corrígelo.</p>}
-                    <div className="flex items-center gap-3">
+                <Field label="Dónde estás" hint="Para el clima y la hora de tu lugar.">
+                  {locState === 'idle' && !location ? (
+                    <span className="flex items-center gap-2 text-[13px] text-ink-3">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Buscando…
+                    </span>
+                  ) : location ? (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[13px] text-accent">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {location.place}
+                      </span>
                       {approximate && geolocationPossible() && (
-                        <button
-                          type="button"
-                          disabled={locState === 'asking'}
-                          onClick={() => void askLocation()}
-                          className="flex items-center gap-1.5 text-[12px] text-accent transition hover:brightness-110 disabled:opacity-60"
-                        >
-                          {locState === 'asking' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
-                          {locState === 'asking' ? 'Esperando tu permiso…' : 'Usar mi ubicación exacta'}
+                        <button type="button" disabled={locState === 'asking'} onClick={() => void askLocation()} className="text-[12px] text-accent transition hover:brightness-110 disabled:opacity-60">
+                          {locState === 'asking' ? 'Esperando permiso…' : 'Usar la exacta'}
                         </button>
                       )}
                       <button type="button" onClick={resetLocation} className="text-[12px] text-ink-3 transition hover:text-ink">
-                        Escribir mi ciudad
+                        Escribir otra
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    {geolocationPossible() && (
-                      <button
-                        type="button"
-                        disabled={locState === 'asking'}
-                        onClick={() => void askLocation()}
-                        className="flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
-                      >
-                        {locState === 'asking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-                        {locState === 'asking' ? 'Esperando tu permiso…' : 'Usar mi ubicación'}
-                      </button>
-                    )}
-                    <p className="min-h-[18px] text-center text-[12px] leading-relaxed text-ink-3">
-                      {locState === 'asking' && 'Si el navegador no te preguntó, busca el icono de ubicación en la barra de direcciones.'}
-                      {locState === 'denied' && 'El navegador no dio permiso y tu conexión tampoco lo dice. Escribe tu ciudad.'}
-                      {locState === 'unavailable' && 'No pude averiguar dónde estás. Escribe tu ciudad o tu estado.'}
-                      {locState === 'ok' && 'Escribe tu ciudad o tu estado, o usa tu ubicación exacta.'}
-                    </p>
+                  ) : (
                     <form
                       className="flex w-full items-center gap-2"
                       onSubmit={(e) => {
@@ -375,65 +345,45 @@ export function Onboarding() {
                           setCity(e.target.value)
                           if (cityState === 'missing') setCityState('idle')
                         }}
-                        placeholder={geolocationPossible() ? 'O escribe tu ciudad' : 'Tu ciudad'}
-                        className="glass h-11 min-w-0 flex-1 rounded-xl px-4 text-[15px] text-ink outline-none transition placeholder:text-ink-3 focus:ring-1 focus:ring-accent/50"
+                        placeholder="Tu ciudad o tu estado"
+                        className="glass h-9 min-w-0 flex-1 rounded-lg px-3 text-[13px] text-ink outline-none transition placeholder:text-ink-3 focus:ring-1 focus:ring-accent/50"
                       />
                       <button
                         type="submit"
                         disabled={!city.trim() || cityState === 'searching'}
-                        className="flex h-11 items-center gap-1.5 rounded-xl bg-surface-solid px-4 text-[13px] font-medium text-ink shadow-soft transition hover:brightness-105 disabled:opacity-50"
+                        className="flex h-9 items-center rounded-lg bg-surface-solid px-3 text-[12.5px] font-medium text-ink shadow-soft transition hover:brightness-105 disabled:opacity-50"
                       >
-                        {cityState === 'searching' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Buscar'}
+                        {cityState === 'searching' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Buscar'}
                       </button>
                     </form>
-                    {cityState === 'missing' && <p className="text-[12px] text-danger">No encontré esa ciudad. Prueba con otro nombre o añade el país.</p>}
-                  </>
-                )}
-                <div className="flex items-center gap-4 pt-2">
-                  {location ? (
-                    <Primary onClick={next}>Continuar</Primary>
-                  ) : (
-                    <button type="button" onClick={next} className="text-[13px] text-ink-3 transition hover:text-ink">
-                      Continuar sin ubicación
-                    </button>
                   )}
-                </div>
-              </div>
-            </Screen>
-          )}
+                  {cityState === 'missing' && <p className="mt-1 text-[12px] text-danger">No encontré esa ciudad. Prueba con otro nombre o añade el país.</p>}
+                </Field>
 
-          {step === 'microphone' && (
-            <Screen
-              question="¿Puedo usar tu micrófono?"
-              note="Para que le dictes a Sky en vez de escribir. Solo escucha cuando tú activas el micrófono en la barra, y se apaga al terminar."
-            >
-              <div className="flex flex-col items-center gap-4">
-                {micState === 'granted' ? (
-                  <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-[14px] text-accent">
-                    <Mic className="h-4 w-4" />
-                    Micrófono listo
-                    <Check className="h-4 w-4" />
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={micState === 'asking'}
-                    onClick={() => void askMicrophone()}
-                    className="flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
-                  >
-                    {micState === 'asking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-                    {micState === 'asking' ? 'Esperando tu permiso…' : 'Permitir micrófono'}
-                  </button>
-                )}
-                {micState === 'denied' && <p className="text-[13px] text-ink-3">Sin problema. Podrás activarlo desde el navegador cuando quieras dictar.</p>}
-                <div className="flex items-center gap-4 pt-2">
+                <Field label="Dictado" hint="Para hablarle a Sky en vez de escribir.">
                   {micState === 'granted' ? (
-                    <Primary onClick={next}>Continuar</Primary>
+                    <span className="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[13px] text-accent">
+                      <Mic className="h-3.5 w-3.5" />
+                      Micrófono listo
+                    </span>
                   ) : (
-                    <button type="button" onClick={next} className="text-[13px] text-ink-3 transition hover:text-ink">
-                      Ahora no
-                    </button>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <button
+                        type="button"
+                        disabled={micState === 'asking'}
+                        onClick={() => void askMicrophone()}
+                        className="flex items-center gap-1.5 rounded-full border border-line-2 px-3 py-1 text-[13px] text-ink transition hover:bg-surface-2 disabled:opacity-60"
+                      >
+                        {micState === 'asking' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
+                        {micState === 'asking' ? 'Esperando permiso…' : 'Permitir micrófono'}
+                      </button>
+                      {micState === 'denied' && <span className="text-[12px] text-ink-3">Podrás activarlo cuando quieras dictar.</span>}
+                    </div>
                   )}
+                </Field>
+
+                <div className="flex justify-center pt-1">
+                  <Primary onClick={next}>{ORDER.includes('ai') ? 'Continuar' : 'Entrar'}</Primary>
                 </div>
               </div>
             </Screen>
@@ -546,34 +496,6 @@ export function Onboarding() {
             </Screen>
           )}
 
-          {step === 'pin' && (
-            <Screen question="¿Quieres proteger tu sesión con un PIN?" note="Cuatro a seis dígitos. Evita miradas casuales; no cifra tus archivos.">
-              <form
-                className="flex flex-col items-center gap-5"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  next()
-                }}
-              >
-                <input
-                  autoFocus
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="PIN"
-                  className="glass h-12 w-48 rounded-xl text-center text-[20px] tracking-[0.4em] text-ink outline-none focus:ring-1 focus:ring-accent/50"
-                />
-                <div className="flex items-center gap-5">
-                  <Primary type="submit" disabled={pin.length > 0 && pin.length < 4}>
-                    {pin.length >= 4 ? 'Usar este PIN' : 'Continuar sin PIN'}
-                  </Primary>
-                </div>
-              </form>
-            </Screen>
-          )}
-
           {step === 'setup' && <Setup name={name} providerName={apiKey.trim() ? preset.name : null} finish={finish} />}
         </motion.div>
       </AnimatePresence>
@@ -595,29 +517,40 @@ function Screen({ question, note, children }: { question?: string; note?: string
   )
 }
 
-function Choices<T extends string>({ options, value, onChange, onPick }: { options: Choice<T>[]; value: T; onChange: (v: T) => void; onPick: () => void }) {
+
+/** A row of small choices: the label on the left, the options as chips, already answered. */
+function ChipRow<T extends string>({ label, options, value, onChange }: { label: string; options: Choice<T>[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="flex w-full max-w-[460px] flex-col gap-2">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => {
-            onChange(o.value)
-            window.setTimeout(onPick, 180)
-          }}
-          className={cn(
-            'glass flex items-center justify-between gap-4 rounded-2xl px-5 py-3.5 text-left transition hover:border-line-2',
-            value === o.value && 'ring-1 ring-accent/60',
-          )}
-        >
-          <span>
-            <span className="block text-[15px] text-ink">{o.label}</span>
-            <span className="block text-[12.5px] text-ink-3">{o.hint}</span>
-          </span>
-          <ArrowRight className={cn('h-4 w-4 shrink-0 text-ink-3 transition', value === o.value && 'text-accent')} />
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="w-[116px] shrink-0 text-[13px] text-ink-3">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            title={o.hint}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-[13px] transition',
+              value === o.value ? 'border-accent bg-accent-soft text-accent' : 'border-line-2 text-ink-2 hover:border-line hover:text-ink',
+            )}
+          >
+            {o.short}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** One thing to settle on a shared screen: a label, a hint, and whatever it takes to answer. */
+function Field({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+      <span className="w-[116px] shrink-0 pt-1 text-[13px] text-ink-3" title={hint}>
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
 }

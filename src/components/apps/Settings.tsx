@@ -34,6 +34,7 @@ import { TIER_LABELS } from '../../ai/router'
 import { AiError, type Effort } from '../../ai/types'
 import { useAuth } from '../../system/auth'
 import { users } from '../../system/users'
+import type { Autonomy, Purpose, Tone, UserProfile } from '../../system/db'
 import { useDialog } from '../../state/dialog'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
@@ -66,7 +67,7 @@ interface SectionMeta {
 
 /** The map of Ajustes: every area with a name, what it is for and an icon, in the order they appear. */
 const SECTIONS: SectionMeta[] = [
-  { id: 'account', label: 'Cuenta', title: 'Tu cuenta', description: 'Quién eres en este navegador: tu nombre, tu ubicación, tu PIN y si Sky te habla en voz alta.', icon: UserRound },
+  { id: 'account', label: 'Cuenta', title: 'Tu cuenta', description: 'Quién eres en este navegador: tu nombre, tu ubicación, tu PIN, la voz de Sky y cómo te trata.', icon: UserRound },
   { id: 'ai', label: 'Inteligencia', title: 'Inteligencia', description: 'Con qué modelo piensa Sky, cómo elige entre rápido y profundo, y con qué llave se conecta.', icon: Bot },
   {
     id: 'apps',
@@ -219,9 +220,34 @@ function AboutSection() {
   )
 }
 
+/** How Sky treats this person: the same three answers the onboarding asks for, changeable any day. */
+const TONE_OPTIONS: Array<{ value: Tone; label: string }> = [
+  { value: 'warm', label: 'Cercano' },
+  { value: 'direct', label: 'Directo' },
+  { value: 'formal', label: 'Formal' },
+]
+
+const PURPOSE_OPTIONS: Array<{ value: Purpose; label: string }> = [
+  { value: 'work', label: 'Trabajo' },
+  { value: 'study', label: 'Estudio' },
+  { value: 'personal', label: 'Personal' },
+  { value: 'mixed', label: 'De todo' },
+]
+
+const AUTONOMY_OPTIONS: Array<{ value: Autonomy; label: string }> = [
+  { value: 'act', label: 'Que actúe' },
+  { value: 'ask', label: 'Que pregunte' },
+  { value: 'manual', label: 'Solo si lo pido' },
+]
+
 function AccountSection() {
   const user = useAuth((s) => s.current)
   if (!user) return null
+
+  const setProfile = async (patch: Partial<UserProfile>) => {
+    await users.updateProfile(user.id, patch, user.profile)
+    await useAuth.getState().refreshCurrent()
+  }
 
   const changePin = async () => {
     const pin = await useDialog.getState().ask({
@@ -242,6 +268,7 @@ function AccountSection() {
   }
 
   return (
+    <div className="flex flex-col gap-4">
     <div className="flex items-center gap-3 rounded-xl border border-line p-4">
       <Avatar user={user} size={44} />
       <div className="min-w-0 flex-1">
@@ -273,6 +300,38 @@ function AccountSection() {
         <LogOut className="h-3.5 w-3.5" />
         Salir
       </button>
+    </div>
+
+    <div className="flex flex-col gap-4 rounded-xl border border-line p-4">
+      <p className="text-[13px] font-medium text-ink">Cómo te trata Sky</p>
+      <PreferenceRow label="Te habla" options={TONE_OPTIONS} value={user.profile.tone} onChange={(tone) => void setProfile({ tone })} />
+      <PreferenceRow label="Sobre todo para" options={PURPOSE_OPTIONS} value={user.profile.purpose} onChange={(purpose) => void setProfile({ purpose })} />
+      <PreferenceRow label="Con tus archivos" options={AUTONOMY_OPTIONS} value={user.profile.autonomy} onChange={(autonomy) => void setProfile({ autonomy })} />
+    </div>
+    </div>
+  )
+}
+
+/** A line of chips: what Sky is like with this person, one tap to change. */
+function PreferenceRow<T extends string>({ label, options, value, onChange }: { label: string; options: Array<{ value: T; label: string }>; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="w-[116px] shrink-0 text-[12.5px] text-ink-3">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-[12.5px] transition',
+              value === o.value ? 'border-accent bg-accent-soft text-accent' : 'border-line-2 text-ink-2 hover:border-line hover:text-ink',
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
