@@ -7,20 +7,27 @@ import { formatBytes } from '../../lib/utils'
 export function ImageViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
   const { status, node } = useFileNode(nodeId)
-  const url = useBlobUrl(nodeId, node?.updatedAt)
+  const { url, missing } = useBlobUrl(nodeId, node?.updatedAt)
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
+  /** A .heic from a phone, a .tiff, a truncated png: the browser simply paints nothing and says nothing. */
+  const [broken, setBroken] = useState(false)
 
   if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        {url ? (
+        {missing || broken ? (
+          <p className="max-w-[320px] text-center text-[13px] leading-relaxed text-ink-3">
+            {missing ? 'El contenido de esta imagen no está donde debería.' : 'No pude mostrar esta imagen: el navegador no abre este formato.'}
+          </p>
+        ) : url ? (
           <img
             src={url}
             alt={node?.name ?? ''}
             draggable={false}
             onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+            onError={() => setBroken(true)}
             className="no-drag max-h-full max-w-full rounded-lg object-contain shadow-soft"
           />
         ) : (

@@ -19,12 +19,13 @@ const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
 export function PdfViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
   const { status, node } = useFileNode(nodeId)
-  const url = useBlobUrl(nodeId, node?.updatedAt)
+  const { url, missing } = useBlobUrl(nodeId, node?.updatedAt)
   const container = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(720)
   const [zoom, setZoom] = useState(1)
   const [pages, setPages] = useState(0)
   const [failed, setFailed] = useState(false)
+  const [locked, setLocked] = useState(false)
 
   useEffect(() => {
     const el = container.current
@@ -43,8 +44,10 @@ export function PdfViewer({ win }: { win: Win }) {
   }
 
   if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
+  if (missing) return <Message text="El contenido de este archivo no está donde debería." />
+  if (locked) return <Message text="Este PDF pide una contraseña, y aquí todavía no puedo pedírtela." />
+  if (failed) return <Message text="No pude leer este PDF. Puede estar dañado." />
   if (!url) return <Message text="Abriendo…" spinner />
-  if (failed) return <Message text="No pude leer este PDF. Puede estar dañado o protegido." />
 
   return (
     <div className="flex h-full flex-col bg-surface-2">
@@ -73,8 +76,14 @@ export function PdfViewer({ win }: { win: Win }) {
           file={url}
           onLoadSuccess={(doc) => setPages(doc.numPages)}
           onLoadError={() => setFailed(true)}
+          // Without this, react-pdf opens the browser's own prompt() — in English, unclosable, on top of
+          // everything. Refusing turns it into a message of ours.
+          onPassword={() => setLocked(true)}
+          // A link inside a PDF was taking the whole desktop with it.
+          externalLinkTarget="_blank"
+          externalLinkRel="noopener noreferrer"
           loading={<Message text="Preparando las páginas…" spinner />}
-          className="flex flex-col items-center gap-4"
+          className="flex w-max min-w-full flex-col items-center gap-4"
         >
           {Array.from({ length: pages }, (_, i) => (
             <Page

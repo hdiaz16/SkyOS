@@ -37,16 +37,35 @@ export function WindowFrame({ win, active, children }: Props) {
   // A placement made by the system (snap, arrange, stack) glides into place; once it lands, drags follow the hand instantly.
   const settling = !!win.settling
 
-  const track = (onMove: (ev: globalThis.PointerEvent) => void, onUp?: (ev: globalThis.PointerEvent) => void) => {
+  /**
+   * Moving and resizing follow the pointer until it is let go — even when it crosses the browser inside the
+   * Navegador window or a canvas block, which are separate documents that would otherwise swallow the events
+   * and leave the window stuck to the hand. Capturing the pointer keeps every move coming back here.
+   */
+  const track = (e: PointerEvent<HTMLElement>, onMove: (ev: globalThis.PointerEvent) => void, onUp?: (ev: globalThis.PointerEvent) => void) => {
     setInteracting(true)
-    const up = (ev: globalThis.PointerEvent) => {
+    const target = e.currentTarget
+    try {
+      target.setPointerCapture(e.pointerId)
+    } catch {
+      // Some pointers cannot be captured (a pen leaving range); the window listeners below still work.
+    }
+    const done = (ev: globalThis.PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return
+      target.removeEventListener('pointermove', onMove)
+      target.removeEventListener('pointerup', done)
+      target.removeEventListener('pointercancel', done)
       window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointerup', done)
       setInteracting(false)
       onUp?.(ev)
     }
+    target.addEventListener('pointermove', onMove)
+    target.addEventListener('pointerup', done)
+    target.addEventListener('pointercancel', done)
+    // A capture that never took still has to end somewhere.
     window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', up)
+    window.addEventListener('pointerup', done)
   }
 
   const startDrag = (e: PointerEvent<HTMLDivElement>) => {
@@ -60,6 +79,7 @@ export function WindowFrame({ win, active, children }: Props) {
     const ox = win.x
     const oy = win.y
     track(
+      e,
       (ev) => {
         wm.move(win.id, ox + ev.clientX - sx, oy + ev.clientY - sy)
         useUi.getState().setSnapPreview(zoneFor(ev.clientX, ev.clientY))
@@ -82,7 +102,7 @@ export function WindowFrame({ win, active, children }: Props) {
     const sy = e.clientY
     const ow = win.w
     const oh = win.h
-    track((ev) => wm.resize(win.id, ow + ev.clientX - sx, oh + ev.clientY - sy))
+    track(e, (ev) => wm.resize(win.id, ow + ev.clientX - sx, oh + ev.clientY - sy))
   }
 
   const askSky = () => {

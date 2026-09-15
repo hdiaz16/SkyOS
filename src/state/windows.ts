@@ -45,6 +45,31 @@ export function workspace(): Geometry {
   return { x: margin, y: top, w: Math.max(320, window.innerWidth - margin * 2), h: Math.max(240, window.innerHeight - top - bottom) }
 }
 
+/**
+ * Puts every window back inside a screen that just got smaller. A maximised one grows or shrinks with it; the
+ * rest keep their size and only slide in, so that their header — the only part you can grab — is always
+ * within reach. Nothing moves that does not have to.
+ */
+export function fitAll(): void {
+  const ws = workspace()
+  const max = snapGeometry('max')
+  const patches: Array<Partial<Win> & { id: string }> = []
+  for (const w of useWindows.getState().windows) {
+    if (w.maximized) {
+      if (w.x !== max.x || w.y !== max.y || w.w !== max.w || w.h !== max.h) patches.push({ id: w.id, ...max })
+      continue
+    }
+    const width = Math.min(w.w, ws.w)
+    const height = Math.min(w.h, ws.h)
+    // At least a hand's width of header has to stay on screen, and never above the top bar.
+    const grab = 120
+    const x = Math.min(Math.max(w.x, ws.x - width + grab), ws.x + ws.w - grab)
+    const y = Math.min(Math.max(w.y, ws.y), ws.y + ws.h - 36)
+    if (x !== w.x || y !== w.y || width !== w.w || height !== w.h) patches.push({ id: w.id, x, y, w: width, h: height })
+  }
+  if (patches.length) useWindows.getState().patchMany(patches)
+}
+
 export function snapGeometry(target: SnapTarget): Geometry {
   const ws = workspace()
   if (target === 'max') return ws

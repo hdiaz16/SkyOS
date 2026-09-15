@@ -24,7 +24,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
   const kind = fileKind(node)
   const isFolder = kind === 'folder'
   const [dropHover, setDropHover] = useState(false)
-  const thumb = useBlobUrl(kind === 'image' ? node.id : null, node.updatedAt)
+  const { url: thumb } = useBlobUrl(kind === 'image' ? node.id : null, node.updatedAt)
 
   const open = () => {
     if (isFolder && onOpenFolder) onOpenFolder(node.id)

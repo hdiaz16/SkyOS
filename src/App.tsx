@@ -21,6 +21,7 @@ import { mcp } from './mcp/manager'
 import { startSync } from './system/sync'
 import { watchNetwork } from './system/network'
 import { startWorkspace } from './state/workspace'
+import { fitAll } from './state/windows'
 import { startJournal } from './kernel/journal'
 import { watchProjectThread } from './ai/threads'
 import { armAudio, play } from './system/sound'
@@ -61,6 +62,13 @@ export default function App() {
     })
     // Open a project and Sky is in that project's conversation; leave it and the everyday one comes back.
     const stopThreads = watchProjectThread()
+    // A window whose header lands past the edge of a screen that just got smaller cannot be grabbed back.
+    let fitting: number | undefined
+    const onResize = () => {
+      window.clearTimeout(fitting)
+      fitting = window.setTimeout(fitAll, 180)
+    }
+    window.addEventListener('resize', onResize)
     return () => {
       stopMcp()
       stopSync()
@@ -69,6 +77,8 @@ export default function App() {
       stopWorkspace?.()
       stopJournal?.()
       stopThreads()
+      window.clearTimeout(fitting)
+      window.removeEventListener('resize', onResize)
     }
   }, [])
 
