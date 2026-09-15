@@ -26,14 +26,14 @@ async function greet(text: string): Promise<void> {
 }
 
 /**
- * What Sky says the first time the desktop appears. Nothing was asked beyond a name, so this is where Sky
- * explains itself: who it is, what it already did, and one concrete thing to try right now. Short on purpose,
- * because the point is that the person tries something, not that they read.
+ * What Sky says the first time the desktop appears. It is also the only thing on an empty desktop and the
+ * first thing Sky says out loud, so it has to work read and heard: short sentences, one invitation, nobody
+ * explaining a product. The instructions can wait — what matters is that the person answers.
  */
 export function greetingFor(user: UserRow): string {
   const first = user.name.trim().split(' ')[0]
-  const place = user.profile.location ? ` Te puse el clima de ${user.profile.location.place.split(',')[0]} arriba a la derecha.` : ''
-  return `Hola, ${first}. Soy Sky.${place} Vivo en la barra de abajo y hago cosas de verdad con tus archivos: arrastra aquí un PDF o un Word y dime "resúmelo", o pídeme "crea una nota con mis pendientes". Todo lo local se puede deshacer, así que prueba sin miedo.`
+  const place = user.profile.location ? ` Ya te puse el clima de ${user.profile.location.place.split(',')[0]} ahí arriba.` : ''
+  return `Hola, ${first}. Soy Sky.${place} Vivo aquí abajo, en la barra. Suéltame un archivo cuando quieras, o cuéntame qué traes pendiente y lo vemos juntos.`
 }
 
 /**
