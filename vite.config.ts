@@ -41,27 +41,25 @@ function clientMetadata(origin: string): Plugin {
 
 /**
  * Anything named VITE_ is baked into the file the browser downloads: it is published, not configured. A key
- * there is fine while developing on your own machine and is a leak the moment the build is served to anybody
- * else, so the production build refuses to carry one. Set GROQ_API_KEY (no prefix) instead and the key stays
- * on the server, where /api/ai adds it.
+ * there is convenient while developing on your own machine and is a leak the moment that build is served to
+ * anybody else. Rather than trust whoever runs the build to remember, the key is left out of it: the bundle
+ * comes out empty-handed and falls back to /api/ai, where GROQ_API_KEY lives on the server and never travels.
+ * `npm run dev` is untouched, which is where a local key belongs.
  */
 function noSecretsInTheBundle(env: Record<string, string>): Plugin {
   return {
     name: 'sky-no-secrets-in-the-bundle',
     apply: 'build',
     config() {
-      if (env.VITE_GROQ_KEY?.trim()) {
-        throw new Error(
-          'VITE_GROQ_KEY tiene valor y este es un build de producción: esa llave quedaría dentro del JavaScript que descarga cualquiera.\n' +
-            'Quítala del entorno y usa GROQ_API_KEY (sin VITE_), que vive en el servidor. Para desarrollo local usa `npm run dev`.',
-        )
-      }
       if (env.VITE_GOOGLE_CLIENT_SECRET?.trim()) {
         console.warn(
           '\n[SkyOS] VITE_GOOGLE_CLIENT_SECRET viaja en el paquete: en una página pública deja de ser secreto.\n' +
             '        Registra el cliente de Google como "Aplicación de página única" (PKCE, sin secreto) y bórrala.\n',
         )
       }
+      if (!env.VITE_GROQ_KEY?.trim()) return
+      console.warn('\n[SkyOS] VITE_GROQ_KEY no se incluye en el paquete: viajaría a la vista de cualquiera. En el servidor usa GROQ_API_KEY.\n')
+      return { define: { 'import.meta.env.VITE_GROQ_KEY': '""' } }
     },
   }
 }

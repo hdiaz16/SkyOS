@@ -80,9 +80,10 @@ Esto importa tanto como lo anterior.
   de consentimiento evita que eso se convierta en acciones sin tu permiso, pero el contenido sí entra al
   contexto y puede influir en lo que Sky responde.
 - **`VITE_GOOGLE_CLIENT_SECRET`, si se usa, es público.** Cualquier variable con prefijo `VITE_` se hornea en el
-  JavaScript que descarga el visitante. Por eso `npm run build` se niega a compilar con `VITE_GROQ_KEY` puesta, y
-  avisa con el secreto de Google. La forma correcta de conectar Google es un cliente OAuth de tipo «Aplicación de
-  página única», que usa PKCE y no lleva secreto.
+  JavaScript que descarga el visitante. `npm run build` deja fuera `VITE_GROQ_KEY` aunque esté en el entorno —el
+  paquete sale sin llave y usa `/api/ai`— y avisa cuando encuentra el secreto de Google, que sí se incluye porque
+  el flujo lo necesita. La forma correcta de conectar Google es un cliente OAuth de tipo «Aplicación de página
+  única», que usa PKCE y no lleva secreto.
 - **Una extensión del navegador con permisos sobre el sitio lo ve todo.** No hay defensa posible desde aquí.
 
 ## Reportar un problema
