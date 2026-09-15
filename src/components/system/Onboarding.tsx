@@ -325,10 +325,23 @@ export function Onboarding() {
                       {location.place}
                       <Check className="h-4 w-4" />
                     </p>
-                    {approximate && <p className="text-[12px] text-ink-3">Aproximado, por tu conexión.</p>}
-                    <button type="button" onClick={resetLocation} className="text-[12px] text-ink-3 transition hover:text-ink">
-                      Cambiar
-                    </button>
+                    {approximate && <p className="text-[12px] text-ink-3">Aproximado, por tu conexión. Si no es tu ciudad, corrígelo.</p>}
+                    <div className="flex items-center gap-3">
+                      {approximate && geolocationPossible() && (
+                        <button
+                          type="button"
+                          disabled={locState === 'asking'}
+                          onClick={() => void askLocation()}
+                          className="flex items-center gap-1.5 text-[12px] text-accent transition hover:brightness-110 disabled:opacity-60"
+                        >
+                          {locState === 'asking' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
+                          {locState === 'asking' ? 'Esperando tu permiso…' : 'Usar mi ubicación exacta'}
+                        </button>
+                      )}
+                      <button type="button" onClick={resetLocation} className="text-[12px] text-ink-3 transition hover:text-ink">
+                        Escribir mi ciudad
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>

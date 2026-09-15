@@ -153,33 +153,77 @@ export function currentPosition(timeoutMs = 8000): Promise<{ lat: number; lon: n
 }
 
 export interface ApproximatePlace extends Place {
-  /** How the position was found: the deployment's own edge network, or a public lookup service. */
-  source: 'edge' | 'service'
+  /** How it was found: the browser's own position, an address lookup, or the network the site runs on. */
+  source: 'browser' | 'lookup' | 'edge'
 }
 
+const TIMEOUT_MS = 4000
+
+const named = (parts: Array<string | undefined>): string => parts.filter((p) => p && p.trim()).join(', ')
+
 /**
- * Roughly where this browser is, from its address, with no permission prompt. The deployment answers first
- * (`/api/geo`, free and private); a public service covers development and static hosting. Null when neither
- * knows, which is when it is fair to ask the person to type their city.
+ * Places that can answer "where is this browser" from its address alone. Ordered by how well they did on
+ * real connections: the specialised lookups know Mexican IPv6 ranges that the edge network places hundreds of
+ * kilometres away, so the deployment's own answer is the last resort rather than the first.
  */
-export async function approximateLocation(): Promise<ApproximatePlace | null> {
-  try {
-    const res = await fetch('/api/geo', { signal: AbortSignal.timeout(4000) })
-    if (res.ok) {
-      const d = (await res.json()) as { place?: string | null; lat?: number; lon?: number }
-      if (d.place && typeof d.lat === 'number' && typeof d.lon === 'number') return { name: d.place, lat: d.lat, lon: d.lon, source: 'edge' }
-    }
-  } catch {
-    // no deployment behind this page; try the public service
-  }
-  try {
-    const res = await fetch('https://ipwho.is/?fields=success,city,region,country,latitude,longitude', { signal: AbortSignal.timeout(5000) })
+const LOOKUPS: Array<() => Promise<ApproximatePlace | null>> = [
+  async () => {
+    const res = await fetch('https://ipwho.is/?fields=success,city,region,country,latitude,longitude', { signal: AbortSignal.timeout(TIMEOUT_MS) })
     if (!res.ok) return null
     const d = (await res.json()) as { success?: boolean; city?: string; region?: string; country?: string; latitude?: number; longitude?: number }
     if (!d.success || typeof d.latitude !== 'number' || typeof d.longitude !== 'number') return null
-    const name = [d.city, d.region, d.country].filter(Boolean).join(', ')
-    return name ? { name, lat: d.latitude, lon: d.longitude, source: 'service' } : null
+    const name = named([d.city, d.region, d.country])
+    return name ? { name, lat: d.latitude, lon: d.longitude, source: 'lookup' } : null
+  },
+  async () => {
+    const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(TIMEOUT_MS) })
+    if (!res.ok) return null
+    const d = (await res.json()) as { city?: string; region?: string; country_name?: string; latitude?: number; longitude?: number }
+    if (typeof d.latitude !== 'number' || typeof d.longitude !== 'number') return null
+    const name = named([d.city, d.region, d.country_name])
+    return name ? { name, lat: d.latitude, lon: d.longitude, source: 'lookup' } : null
+  },
+  async () => {
+    const res = await fetch('/api/geo', { signal: AbortSignal.timeout(TIMEOUT_MS) })
+    if (!res.ok) return null
+    const d = (await res.json()) as { place?: string | null; lat?: number; lon?: number }
+    if (!d.place || typeof d.lat !== 'number' || typeof d.lon !== 'number') return null
+    return { name: d.place, lat: d.lat, lon: d.lon, source: 'edge' }
+  },
+]
+
+/** True when the browser has already been given permission, so asking it costs no prompt. */
+async function locationAlreadyAllowed(): Promise<boolean> {
+  if (!geolocationPossible()) return false
+  try {
+    return (await navigator.permissions.query({ name: 'geolocation' })).state === 'granted'
   } catch {
-    return null
+    // Safari and friends: no way to ask beforehand, so treat it as not granted and fall back to the address.
+    return false
   }
+}
+
+/**
+ * Where this browser is, without asking anything. If the person already granted the permission, that is the
+ * exact answer; otherwise the address gives a city. Null only when nothing knows, which is when it is fair to
+ * ask them to type it.
+ */
+export async function approximateLocation(): Promise<ApproximatePlace | null> {
+  if (await locationAlreadyAllowed()) {
+    try {
+      const pos = await currentPosition(6000)
+      return { name: await reverseGeocode(pos.lat, pos.lon), lat: pos.lat, lon: pos.lon, source: 'browser' }
+    } catch {
+      // permission says yes but the device could not fix a position; the address still can
+    }
+  }
+  for (const lookup of LOOKUPS) {
+    try {
+      const place = await lookup()
+      if (place) return place
+    } catch {
+      // this one is down or blocked; try the next
+    }
+  }
+  return null
 }
