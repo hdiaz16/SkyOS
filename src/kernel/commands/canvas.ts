@@ -58,10 +58,17 @@ registerCommand<{ name?: string; parentId?: string; blocks?: BlockInput[]; open?
   async run({ name, parentId = ROOT_ID, blocks, open = true }) {
     const base = (name ?? 'Lienzo').trim() || 'Lienzo'
     const finalName = extOf(base) === CANVAS_EXT ? base : `${base}.${CANVAS_EXT}`
-    const { doc, ids } = appendBlocks(emptyCanvas(), validBlocks(blocks))
+    const items = validBlocks(blocks)
+    // Blocks that do not survive validation used to disappear without a word, and Sky announced a canvas it
+    // had just made empty. Saying so is what lets it try again with the right shape.
+    if (Array.isArray(blocks) && blocks.length && !items.length) {
+      throw new Error('Ninguno de esos bloques es válido: cada uno necesita kind "markdown", "mermaid" o "html" y un content de texto')
+    }
+    const { doc, ids } = appendBlocks(emptyCanvas(), items)
     const node = await fs.createFile(parentId, finalName, new Blob([serializeCanvas(doc)], { type: CANVAS_MIME }), CANVAS_MIME)
     if (open) useWindows.getState().open('canvas', { title: node.name, props: { nodeId: node.id } })
-    return { result: { id: node.id, name: node.name, blockIds: ids }, label: `Lienzo "${node.name}" creado`, undo: { commandId: 'fs.trash', params: { ids: [node.id] } } }
+    const cuantos = ids.length ? ` con ${ids.length} bloque${ids.length === 1 ? '' : 's'}` : ' en blanco'
+    return { result: { id: node.id, name: node.name, blockIds: ids }, label: `Lienzo "${node.name}" creado${cuantos}`, undo: { commandId: 'fs.trash', params: { ids: [node.id] } } }
   },
 })
 

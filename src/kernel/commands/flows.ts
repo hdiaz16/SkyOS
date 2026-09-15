@@ -76,7 +76,9 @@ registerCommand<{ name: string }, void>({
   description: 'Elimina un flujo guardado por nombre.',
   params: { name: { type: 'string', description: 'Nombre del flujo.', required: true } },
   async run({ name }) {
-    const flow = await flows.findByName(name)
+    // findByName falls back to a substring match, which is right for running one by a half-remembered name
+    // and wrong for deleting: "reunión" would erase "preparar reunión del lunes". Deleting asks for the name.
+    const flow = await flows.byExactName(name)
     if (!flow) throw new Error(`No hay un flujo llamado "${name}"`)
     await flows.remove(flow.id)
     return {

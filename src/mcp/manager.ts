@@ -334,7 +334,19 @@ export const mcp = {
   /** URL, name or hand-registered client id changes; anything that alters where or as whom we connect drops the session. */
   async update(id: string, changes: Pick<Partial<McpServerRecord>, 'name' | 'url' | 'manualClient'>): Promise<void> {
     const record = await ensureRecord(id)
-    const relocating = (changes.url && changes.url !== record.url) || changes.manualClient !== undefined
+    // The same rule the custom server had at birth. Without it, a typo here left an app pointing nowhere with
+    // its session intact, and an empty string did not even count as a change.
+    if (changes.url !== undefined && changes.url !== record.url) {
+      const clean = changes.url.trim()
+      if (!/^https:\/\//.test(clean)) throw new McpError('not_configured', 'La URL del servidor debe empezar con https://')
+      try {
+        new URL(clean)
+      } catch {
+        throw new McpError('not_configured', 'Esa no es una dirección válida.')
+      }
+      changes = { ...changes, url: clean }
+    }
+    const relocating = (changes.url !== undefined && changes.url !== record.url) || changes.manualClient !== undefined
     if (relocating) transports.delete(`${record.id}|${record.url}`)
     await patch(id, {
       ...changes,
@@ -388,7 +400,14 @@ async function keepAlive(): Promise<void> {
     if (s.status === 'disconnected') continue
     const tokens = s.auth?.tokens
     if (tokens?.refreshToken && tokens.expiresAt && tokens.expiresAt - Date.now() < RENEW_WINDOW_MS) await renew(s).catch(() => undefined)
-    await mcp.refreshTools(s.id).catch(() => undefined)
+    // Swallowing every error here is what let a permission revoked inside the app leave the card saying
+    // "Conectada" for good: the token is still stored and looks valid, and only the server knows it is not.
+    await mcp.refreshTools(s.id).catch(async (err: unknown) => {
+      if (err instanceof McpError && (err.code === 'auth_required' || err.code === 'forbidden')) {
+        await markAttention(s, `Ya no tengo permiso en ${s.name}. Vuelve a conectarla.`).catch(() => undefined)
+      }
+      // Anything else — the server down, the network gone — is not the person's problem to solve right now.
+    })
   }
 }
 

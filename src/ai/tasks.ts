@@ -225,9 +225,13 @@ async function gather(files: FsNode[]): Promise<Gathered> {
   for (const f of files) {
     const kind = fileKind(f)
     if (kind === 'text' && budget > 0) {
-      const text = (await fs.readText(f.id)).slice(0, Math.min(perFile, budget))
+      const whole = await fs.readText(f.id).catch(() => '')
+      const text = whole.slice(0, Math.min(perFile, budget))
       budget -= text.length
-      sections.push(`### ${f.name}\n${text}`)
+      // A summary that only saw the first three thousand characters must not read as if it had seen the
+      // whole file: the cut is written down where the model, and later the person, can see it.
+      const cut = text.length < whole.length ? `\n…[recortado: se leyeron ${text.length} de ${whole.length} caracteres]` : ''
+      sections.push(`### ${f.name}\n${text}${cut}`)
     } else if (kind === 'pdf' && provider?.capabilities.documents && pdfs < MAX_PDFS && f.size <= MAX_PDF_BYTES) {
       const blob = await fs.readBlob(f.id)
       if (blob) {

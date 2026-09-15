@@ -21,7 +21,9 @@ export function ResultApp({ win }: { win: Win }) {
   if (!task) return <div className="flex h-full items-center justify-center text-[13px] text-ink-3">Este resultado ya no está disponible.</div>
 
   const running = task.status === 'running'
-  const canAct = task.status === 'done' && task.text.trim().length > 0
+  // Stopping a long answer left its text on screen and every button dead: what was already written could not
+  // be copied, saved or applied. Anything that is not still running and has words counts.
+  const canAct = !running && task.text.trim().length > 0
 
   const copy = async () => {
     await navigator.clipboard.writeText(task.text)

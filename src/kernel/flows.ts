@@ -16,6 +16,9 @@ export const flows = {
   get: (id: string) => db.flows.get(id),
   bySlug: (slug: string) => db.flows.where('slug').equals(slug).first(),
 
+  /** Exact name only. Running a flow by a half-remembered name is helpful; deleting one that way is not. */
+  byExactName: (name: string) => flows.bySlug(slugify(name)),
+
   async findByName(name: string): Promise<FlowRow | undefined> {
     const slug = slugify(name)
     const exact = await flows.bySlug(slug)

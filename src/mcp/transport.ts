@@ -100,7 +100,11 @@ export class StreamableHttp {
     try {
       return await fetch(this.url, init)
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') throw new McpError('network', 'El servidor tardó demasiado en responder.')
+      // AbortSignal.timeout aborts with a TimeoutError, not an AbortError: only checking for the latter sent
+      // every slow server down the CORS path and left the app marked as if the browser had refused the call.
+      if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+        throw new McpError('network', 'El servidor tardó demasiado en responder.')
+      }
       // A TypeError here is the browser refusing the cross-origin call (or no network); the bridge adds the CORS headers.
       if (!hasBridge) {
         throw new McpError('network', 'El navegador no pudo conectar con el servidor MCP (CORS o red). Para servidores sin CORS, configura el puente de Sky.')

@@ -313,22 +313,40 @@ function AccountSection() {
     await useAuth.getState().refreshCurrent()
   }
 
+  /**
+   * The dialog used to say "leave it empty and confirm to remove the PIN", and that path did not exist: an
+   * empty field keeps the confirm button disabled. What did happen is worse — typing anything without digits,
+   * or pasting text by mistake, was read as "remove it" and the PIN disappeared without a word.
+   */
   const changePin = async () => {
     const pin = await useDialog.getState().ask({
       title: user.pinHash ? 'Nuevo PIN' : 'Crear un PIN',
-      description: 'Cuatro a seis dígitos. Deja el campo vacío y confirma para quitar el PIN.',
+      description: 'Cuatro a seis dígitos.',
       placeholder: '••••',
       confirmLabel: 'Guardar',
     })
     if (pin === null) return
     const digits = pin.replace(/\D/g, '')
-    if (digits && (digits.length < 4 || digits.length > 6)) {
+    if (digits.length < 4 || digits.length > 6) {
       useToasts.getState().push({ message: 'El PIN debe tener entre 4 y 6 dígitos.', kind: 'error' })
       return
     }
-    await users.setPin(user.id, digits || null)
+    await users.setPin(user.id, digits)
     await useAuth.getState().refreshCurrent()
-    useToasts.getState().push({ message: digits ? 'PIN actualizado' : 'PIN eliminado', kind: 'info' })
+    useToasts.getState().push({ message: 'PIN actualizado', kind: 'info' })
+  }
+
+  const removePin = async () => {
+    const ok = await useDialog.getState().confirm({
+      title: '¿Quitar el PIN?',
+      description: 'Cualquiera que abra este navegador podrá entrar a tu escritorio sin que se le pregunte nada.',
+      confirmLabel: 'Quitarlo',
+      danger: true,
+    })
+    if (!ok) return
+    await users.setPin(user.id, null)
+    await useAuth.getState().refreshCurrent()
+    useToasts.getState().push({ message: 'PIN eliminado', kind: 'info' })
   }
 
   return (
@@ -356,6 +374,11 @@ function AccountSection() {
       <button type="button" onClick={() => void changePin()} className="rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
         {user.pinHash ? 'Cambiar PIN' : 'Poner PIN'}
       </button>
+      {user.pinHash && (
+        <button type="button" onClick={() => void removePin()} className="rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
+          Quitar PIN
+        </button>
+      )}
       <button
         type="button"
         onClick={() => useAuth.getState().logout()}
