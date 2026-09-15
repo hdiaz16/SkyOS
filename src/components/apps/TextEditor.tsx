@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, CornerDownLeft, Languages, Loader2, Sparkles, Square, Wand2, X } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { useToasts } from '../../kernel/commands'
 import { FileMissing, Opening } from './FileState'
 import { useFileNode } from '../../lib/hooks'
 import { dispatch } from '../../kernel/commands'
@@ -18,10 +19,28 @@ interface Assist {
   /** Character range the result applies to (selection, or caret for inserts). */
   start: number
   end: number
+  /** The exact words the request was about, so the answer can be placed even if the text moved underneath. */
+  original: string
   text: string
   status: 'running' | 'done' | 'error'
   error?: string
   controller: AbortController | null
+}
+
+/**
+ * Where the answer belongs in the text as it is now. Unchanged positions win; otherwise the original words
+ * are looked for nearby and then anywhere. An insert has nothing to match, so its caret is only clamped.
+ */
+function locate(text: string, assist: Assist): { start: number; end: number } | null {
+  if (assist.mode === 'insert') {
+    const at = Math.min(assist.start, text.length)
+    return { start: at, end: at }
+  }
+  if (text.slice(assist.start, assist.end) === assist.original) return { start: assist.start, end: assist.end }
+  if (!assist.original) return null
+  const near = text.indexOf(assist.original, Math.max(0, assist.start - 500))
+  const at = near >= 0 ? near : text.indexOf(assist.original)
+  return at >= 0 ? { start: at, end: at + assist.original.length } : null
 }
 
 const QUICK_ACTIONS: { id: string; label: string; icon: typeof Wand2; instruction: string }[] = [
@@ -81,10 +100,19 @@ export function TextEditor({ win }: { win: Win }) {
     [nodeId],
   )
 
+  /**
+   * Writing takes a moment, and in that moment the person keeps typing. Declaring the file clean afterwards
+   * would throw those keystrokes away: the load effect sees a newer version, reads what was written, and puts
+   * it back on screen. So only what was actually saved gets marked as saved.
+   */
   const persist = async (value: string) => {
     setStatus('saving')
     await fs.writeText(nodeId, value)
     loadedVersion.current = Date.now()
+    if (latest.current.text !== value) {
+      setStatus('dirty')
+      return
+    }
     latest.current.dirty = false
     setStatus('saved')
   }
@@ -111,7 +139,7 @@ export function TextEditor({ win }: { win: Win }) {
     const start = mode === 'replace' ? selection.start : selection.end
     const end = mode === 'replace' ? selection.end : selection.end
     const controller = new AbortController()
-    const next: Assist = { mode, instruction, start, end, text: '', status: 'running', controller }
+    const next: Assist = { mode, instruction, start, end, original: text.slice(start, end), text: '', status: 'running', controller }
     setAssist(next)
     setAsking(false)
 
@@ -149,13 +177,22 @@ export function TextEditor({ win }: { win: Win }) {
     if (!assist || text === null) return
     const result = assist.text.trim()
     if (!result) return
+    // The text may have moved while the model was writing: nothing stops the person from typing meanwhile.
+    // So the range is found again by what it said, not by where it was, and if those words are gone the
+    // answer goes in at the caret instead of overwriting whatever now sits in those positions.
+    const moved = locate(text, assist)
+    if (!moved) {
+      setAssist(null)
+      useToasts.getState().push({ message: 'El texto cambió mientras escribía; pega la respuesta donde la quieras.', kind: 'info' })
+      return
+    }
     let nextText: string
     let caret: number
     if (placement === 'replace' && assist.mode === 'replace') {
-      nextText = text.slice(0, assist.start) + result + text.slice(assist.end)
-      caret = assist.start + result.length
+      nextText = text.slice(0, moved.start) + result + text.slice(moved.end)
+      caret = moved.start + result.length
     } else {
-      const at = assist.mode === 'replace' ? assist.end : assist.start
+      const at = assist.mode === 'replace' ? moved.end : moved.start
       const sep = at > 0 && text[at - 1] !== '\n' ? '\n\n' : ''
       nextText = text.slice(0, at) + sep + result + text.slice(at)
       caret = at + sep.length + result.length

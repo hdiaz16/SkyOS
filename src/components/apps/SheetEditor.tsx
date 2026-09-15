@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Workbook } from '@fortune-sheet/react'
 import type { Cell, CellMatrix, CellWithRowAndCol, Selection, Sheet } from '@fortune-sheet/core'
 import '@fortune-sheet/react/dist/index.css'
@@ -156,10 +156,14 @@ function RangeAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
   )
 }
 
+const SHEET_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
 export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId: string; name: string }) {
   const [sheets, setSheets] = useState<Sheet[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  /** Read from the unmount cleanup, which would otherwise only ever see the first render's value. */
+  const dirtyRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const latest = useRef<Sheet[] | null>(null)
   // FortuneSheet reports a change while it lays the workbook out; only edits after that count as the person's.
@@ -167,6 +171,22 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
   const [range, setRange] = useState<CellRange | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const aiReady = isAiConfigured(useAiSettings())
+
+  /**
+   * FortuneSheet rebuilds its internal settings whenever one of these props changes identity, and both were
+   * handed to it brand new on every render. A fresh `hooks` object meant selecting a range put the grid in a
+   * loop that never settled; a fresh `onChange` fired on its own and lit "cambios sin guardar" with nobody
+   * having typed anything. Both are frozen here, and what they need to see lives in refs.
+   */
+  const onSelectionRef = useRef<(sheetId: string, s: Selection) => void>(() => undefined)
+  const hooks = useMemo(() => ({ afterSelectionChange: (sheetId: string, s: Selection) => onSelectionRef.current(sheetId, s) }), [])
+  const onGridChange = useCallback((data: Sheet[]) => {
+    latest.current = data
+    if (settled.current) {
+      dirtyRef.current = true
+      setDirty(true)
+    }
+  }, [])
 
   const onSelection = (sheetId: string, s: Selection) => {
     const edges = [s.row?.[0], s.row?.[1], s.column?.[0], s.column?.[1]]
@@ -181,9 +201,20 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
       setRange(null)
       return
     }
-    // The grid paints the selection right after this hook; measure it a frame later.
-    requestAnimationFrame(() => setRange({ sheetId, rows, cols, anchor: anchorFor(gridRef.current) }))
+    // The grid paints the selection right after this hook; measure it a frame later. The same range as the
+    // one already on screen is nothing to update: re-setting it feeds the render loop it came from.
+    requestAnimationFrame(() =>
+      setRange((prev) =>
+        prev && prev.sheetId === sheetId && prev.rows[0] === rows[0] && prev.rows[1] === rows[1] && prev.cols[0] === cols[0] && prev.cols[1] === cols[1]
+          ? prev
+          : { sheetId, rows, cols, anchor: anchorFor(gridRef.current) },
+      ),
+    )
   }
+  // The frozen hook above reads this; keeping it fresh belongs after the render, not during it.
+  useEffect(() => {
+    onSelectionRef.current = onSelection
+  })
 
   const askAboutRange = (intent: RangeIntent) => {
     if (!range) return
@@ -246,12 +277,23 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
     }
   }, [blob])
 
+  // Closing a window is not a decision to throw away what was typed, and nothing here asks. So it saves.
+  useEffect(
+    () => () => {
+      if (!dirtyRef.current || !latest.current) return
+      const buffer = toSheetJs(latest.current)
+      void fs.writeBlob(nodeId, new Blob([buffer], { type: SHEET_MIME })).catch(() => undefined)
+    },
+    [nodeId],
+  )
+
   const save = async () => {
     if (!latest.current) return
     setSaving(true)
     try {
       const buffer = toSheetJs(latest.current)
-      await fs.writeBlob(nodeId, new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+      await fs.writeBlob(nodeId, new Blob([buffer], { type: SHEET_MIME }))
+      dirtyRef.current = false
       setDirty(false)
       useToasts.getState().push({ message: `${name} guardado`, kind: 'info' })
     } catch (err) {
@@ -294,11 +336,8 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
           showToolbar
           showFormulaBar
           showSheetTabs
-          hooks={{ afterSelectionChange: onSelection }}
-          onChange={(data) => {
-            latest.current = data
-            if (settled.current) setDirty(true)
-          }}
+          hooks={hooks}
+          onChange={onGridChange}
         />
         {range && aiReady && (
           <div
