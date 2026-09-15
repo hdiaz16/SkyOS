@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Workbook } from '@fortune-sheet/react'
 import type { Cell, CellMatrix, CellWithRowAndCol, Selection, Sheet } from '@fortune-sheet/core'
 import '@fortune-sheet/react/dist/index.css'
-import { read, utils, write, type CellObject, type WorkSheet } from 'xlsx'
+import { read, utils, write, type BookType, type CellObject, type WorkSheet } from 'xlsx'
 import { Languages, Lightbulb, Loader2, Save, Sparkles, Table2 } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { extOf } from '../../kernel/types'
 import { useToasts } from '../../kernel/commands'
 import { useSession } from '../../ai/session'
 import { isAiConfigured, useAiSettings } from '../../ai/settings'
@@ -20,6 +21,8 @@ const MIN_ROWS = 40
 const MIN_COLS = 26
 /** Rows of a selection that travel to Sky at most. */
 const MAX_SELECTED_ROWS = 400
+/** And no more text than one turn of a shared key can chew: 400 rows of thirty columns never made it through. */
+const MAX_RANGE_CHARS = 6000
 
 interface CellRange {
   sheetId: string
@@ -43,19 +46,33 @@ type RangeIntent = 'summary' | 'table' | 'translate' | 'explain'
 
 const rangeLabel = (r: CellRange) => `${utils.encode_cell({ r: r.rows[0], c: r.cols[0] })}:${utils.encode_cell({ r: r.rows[1], c: r.cols[1] })}`
 
-/** The selected cells as tab-separated text, display strings first, values as fallback. */
-function rangeText(sheet: Sheet, r: CellRange): string {
+/**
+ * The selected cells as tab-separated text, display strings first, values as fallback. It also says how much
+ * of the selection actually fits: five thousand rows used to leave with the first four hundred and come back
+ * summarised as if they were all of them — convincing, and wrong.
+ */
+function rangeText(sheet: Sheet, r: CellRange): { text: string; rows: number; whole: boolean } {
   const matrix = matrixOf(sheet)
   const lines: string[] = []
-  for (let row = r.rows[0]; row <= Math.min(r.rows[1], r.rows[0] + MAX_SELECTED_ROWS - 1); row++) {
+  const lastRow = Math.min(r.rows[1], r.rows[0] + MAX_SELECTED_ROWS - 1)
+  let whole = lastRow === r.rows[1]
+  let chars = 0
+  for (let row = r.rows[0]; row <= lastRow; row++) {
     const cells: string[] = []
     for (let col = r.cols[0]; col <= r.cols[1]; col++) {
       const cell = matrix[row]?.[col]
       cells.push(cell?.m !== undefined ? String(cell.m) : cell?.v === undefined || cell?.v === null ? '' : String(cell.v))
     }
-    if (cells.some((c) => c !== '')) lines.push(cells.join('\t'))
+    if (!cells.some((c) => c !== '')) continue
+    const line = cells.join('\t')
+    if (chars + line.length > MAX_RANGE_CHARS) {
+      whole = false
+      break
+    }
+    chars += line.length + 1
+    lines.push(line)
   }
-  return lines.join('\n')
+  return { text: lines.join('\n'), rows: lines.length, whole }
 }
 
 function rangeLead(intent: RangeIntent, name: string, sheet: string, label: string): string {
@@ -120,8 +137,23 @@ function matrixOf(sheet: Sheet): CellMatrix {
   return rows
 }
 
+/**
+ * What the file already is, written back as itself. Everything used to be saved as xlsx under its old name, so
+ * «presupuesto.ods» became a workbook that Excel opened complaining that the format and the extension did not
+ * match. Macros are a separate matter: they are never read, so a .xlsm comes back without them and says so.
+ */
+const FORMATS: Record<string, { bookType: BookType; mime: string }> = {
+  xlsx: { bookType: 'xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  xlsm: { bookType: 'xlsm', mime: 'application/vnd.ms-excel.sheet.macroEnabled.12' },
+  xlsb: { bookType: 'xlsb', mime: 'application/vnd.ms-excel.sheet.binary.macroEnabled.12' },
+  ods: { bookType: 'ods', mime: 'application/vnd.oasis.opendocument.spreadsheet' },
+  xls: { bookType: 'xls', mime: 'application/vnd.ms-excel' },
+}
+
+const formatFor = (name: string) => FORMATS[extOf(name)] ?? FORMATS.xlsx
+
 /** The live grid back into a workbook: values, formulas and the display strings SheetJS needs. */
-function toSheetJs(sheets: Sheet[]): ArrayBuffer {
+function toSheetJs(sheets: Sheet[], bookType: BookType): ArrayBuffer {
   const wb = utils.book_new()
   for (const sheet of [...sheets].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
     const matrix = matrixOf(sheet)
@@ -144,7 +176,7 @@ function toSheetJs(sheets: Sheet[]): ArrayBuffer {
     if (widths) ws['!cols'] = Array.from({ length: maxC + 1 }, (_, i) => (widths[String(i)] ? { wch: Math.round(widths[String(i)] / CHAR_PX) } : {}))
     utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31))
   }
-  return write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
+  return write(wb, { type: 'array', bookType }) as ArrayBuffer
 }
 
 function RangeAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
@@ -156,9 +188,18 @@ function RangeAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
   )
 }
 
-const SHEET_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId: string; name: string }) {
+export default function SheetEditor({
+  blob,
+  nodeId,
+  name,
+  onSaved,
+}: {
+  blob: Blob
+  nodeId: string
+  name: string
+  /** The version this editor just wrote, so whoever opened it can tell its own save from someone else's. */
+  onSaved?: (stamp: number) => void
+}) {
   const [sheets, setSheets] = useState<Sheet[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -170,6 +211,7 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
   const settled = useRef(false)
   const [range, setRange] = useState<CellRange | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const aiReady = isAiConfigured(useAiSettings())
 
   /**
@@ -220,14 +262,39 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
     if (!range) return
     const sheet = latest.current?.find((s) => s.id === range.sheetId) ?? latest.current?.[0]
     if (!sheet) return
-    const text = rangeText(sheet, range)
+    // send() turns around without a word when a turn is already in flight: the panel opened, nothing appeared
+    // in it, and the button looked broken.
+    if (useSession.getState().running) {
+      useToasts.getState().push({ message: 'Sky está respondiendo algo; en cuanto termine, vuelve a pedírselo.', kind: 'info' })
+      return
+    }
+    const { text, rows, whole } = rangeText(sheet, range)
     if (!text.trim()) {
       useToasts.getState().push({ message: 'Las celdas seleccionadas están vacías.', kind: 'error' })
       return
     }
+    // What did not fit is said twice: to the person, and inside the prompt, so the answer cannot be written as
+    // if it had seen the whole selection.
+    const note = whole ? '' : `\n\n(De la selección solo caben aquí las primeras ${rows} filas con contenido; no las viste todas.)`
+    if (!whole) {
+      useToasts.getState().push({ message: `La selección no cabe entera: le mando las primeras ${rows} filas.`, kind: 'info' })
+    }
     useSession.getState().setOpen(true)
-    void useSession.getState().send(`${rangeLead(intent, name, sheet.name, rangeLabel(range))}\n\n"""\n${text}\n"""`)
+    void useSession.getState().send(`${rangeLead(intent, name, sheet.name, rangeLabel(range))}\n\n"""\n${text}\n"""${note}`)
   }
+
+  /**
+   * The menu floats centered on the selection and then gets pushed back inside the grid. Its width was assumed
+   * to be about 480 px, so in a window at the minimum 360 the last two actions fell outside the frame and could
+   * not be clicked. Measured before the browser paints, and allowed to wrap when even that is not enough.
+   */
+  useLayoutEffect(() => {
+    const el = menuRef.current
+    const anchor = range?.anchor
+    if (!el || !anchor) return
+    const half = el.offsetWidth / 2 + 6
+    el.style.left = `${Math.min(Math.max(anchor.x, half), Math.max(anchor.width - half, half))}px`
+  }, [range])
 
   /**
    * FortuneSheet lays its canvas out once and only listens to the browser's own resize, so a window that
@@ -281,23 +348,41 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
   useEffect(
     () => () => {
       if (!dirtyRef.current || !latest.current) return
-      const buffer = toSheetJs(latest.current)
-      void fs.writeBlob(nodeId, new Blob([buffer], { type: SHEET_MIME })).catch(() => undefined)
+      const format = formatFor(name)
+      const buffer = toSheetJs(latest.current, format.bookType)
+      void fs.writeBlob(nodeId, new Blob([buffer], { type: format.mime })).catch(() => undefined)
     },
-    [nodeId],
+    [nodeId, name],
   )
 
   const save = async () => {
     if (!latest.current) return
     setSaving(true)
+    // Flattening the workbook blocks this thread for seconds on a large file. Two frames to the browser first,
+    // so the spinner is actually on screen: without them the button looked like it had done nothing at all.
+    await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())))
     try {
-      const buffer = toSheetJs(latest.current)
-      await fs.writeBlob(nodeId, new Blob([buffer], { type: SHEET_MIME }))
+      const format = formatFor(name)
+      const buffer = toSheetJs(latest.current, format.bookType)
+      const stamp = await fs.writeBlob(nodeId, new Blob([buffer], { type: format.mime }))
+      onSaved?.(stamp)
       dirtyRef.current = false
       setDirty(false)
-      useToasts.getState().push({ message: `${name} guardado`, kind: 'info' })
+      // Macros are never read, so they cannot be written back. Silence there would be a lie by omission.
+      const macros = extOf(name) === 'xlsm' ? ' Las macros no se guardan: quedan los datos y las fórmulas.' : ''
+      useToasts.getState().push({ message: `${name} guardado.${macros}`, kind: 'info' })
     } catch (err) {
-      useToasts.getState().push({ message: err instanceof Error ? err.message : 'No se pudo guardar', kind: 'error' })
+      // These failures come out of libraries, in English, and the toast repeated them word for word.
+      const detail = err instanceof Error ? err.message : ''
+      const why = /already exists/i.test(detail)
+        ? ' Hay dos hojas cuyo nombre queda igual al recortarlo a 31 caracteres.'
+        : /cannot contain|invalid/i.test(detail)
+          ? ' El nombre de alguna hoja lleva caracteres que Excel no acepta.'
+          : /quota/i.test(detail)
+            ? ' Ya no queda espacio en este navegador.'
+            : ''
+      if (detail) console.warn('[hoja] no se pudo guardar:', detail)
+      useToasts.getState().push({ message: `No pude guardar ${name}.${why}`, kind: 'error' })
     } finally {
       setSaving(false)
     }
@@ -341,12 +426,17 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
         />
         {range && aiReady && (
           <div
+            ref={menuRef}
             data-selection-menu
-            style={range.anchor ? { left: Math.max(240, Math.min(range.anchor.width - 240, range.anchor.x)), top: range.anchor.y } : { left: '50%', top: 8 }}
-            className={cn('glass absolute z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-xl p-1 shadow-win', range.anchor && !range.anchor.below && '-translate-y-full')}
+            style={range.anchor ? { left: range.anchor.x, top: range.anchor.y } : { left: '50%', top: 8 }}
+            className={cn(
+              'glass absolute z-20 flex max-w-[calc(100%-16px)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-xl p-1 shadow-win',
+              range.anchor && !range.anchor.below && '-translate-y-full',
+            )}
           >
             <span className="px-2 text-[11.5px] tabular-nums text-ink-3">
               {rangeLabel(range)} · {(range.rows[1] - range.rows[0] + 1) * (range.cols[1] - range.cols[0] + 1)} celdas
+              {range.rows[1] - range.rows[0] + 1 > MAX_SELECTED_ROWS && ` · le mando las primeras ${MAX_SELECTED_ROWS}`}
             </span>
             <RangeAction icon={<Sparkles className="h-3.5 w-3.5" />} label="Resumir" onClick={() => askAboutRange('summary')} />
             <RangeAction icon={<Table2 className="h-3.5 w-3.5" />} label="A tabla" onClick={() => askAboutRange('table')} />

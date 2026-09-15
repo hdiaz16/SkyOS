@@ -6,6 +6,7 @@ import { Loader2, Minus, Plus, Scan, Sparkles } from 'lucide-react'
 import { FileMissing } from './FileState'
 import type { Win } from '../../state/windows'
 import { useBlobUrl, useFileNode } from '../../lib/hooks'
+import { useWindows } from '../../state/windows'
 
 // pdf.js renders in a worker; Vite bundles it from the installed package.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
@@ -19,7 +20,7 @@ const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
 export function PdfViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
   const { status, node } = useFileNode(nodeId)
-  const { url, missing } = useBlobUrl(nodeId, node?.updatedAt)
+  const { url, missing } = useBlobUrl(node)
   const container = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(720)
   const [zoom, setZoom] = useState(1)
@@ -37,13 +38,21 @@ export function PdfViewer({ win }: { win: Win }) {
     return () => ro.disconnect()
   }, [])
 
+  // Renaming an open file left the title bar and the Dock on the old name while the window itself showed the
+  // new one; the same stale name then turned up in "está en la papelera".
+  useEffect(() => {
+    if (node?.name) useWindows.getState().setTitle(win.id, node.name)
+  }, [node?.name, win.id])
+
   const step = (dir: 1 | -1) => {
     const i = ZOOM_STEPS.findIndex((z) => Math.abs(z - zoom) < 0.01)
     const next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, (i === -1 ? 4 : i) + dir))]
     setZoom(next)
   }
 
-  if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
+  if (status === 'trashed' || status === 'gone') {
+    return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={node?.name ?? win.title} />
+  }
   if (missing) return <Message text="El contenido de este archivo no está donde debería." />
   if (locked) return <Message text="Este PDF pide una contraseña, y aquí todavía no puedo pedírtela." />
   if (failed) return <Message text="No pude leer este PDF. Puede estar dañado." />

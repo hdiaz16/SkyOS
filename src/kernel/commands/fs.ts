@@ -221,7 +221,7 @@ registerCommand<{ parentId?: string; files: File[] }, FsNode[]>({
   },
 })
 
-registerCommand<{ id: string; content: string }, void>({
+registerCommand<{ id: string; content: string }, number>({
   id: 'fs.writeText',
   risk: 'write',
   title: 'Escribir contenido',
@@ -234,9 +234,9 @@ registerCommand<{ id: string; content: string }, void>({
     const node = await fs.get(id)
     if (!node) throw new Error('El archivo ya no existe')
     const before = await fs.readText(id)
-    await fs.writeText(id, content)
+    const stamp = await fs.writeText(id, content)
     return {
-      result: undefined,
+      result: stamp,
       label: `"${node.name}" actualizado`,
       undo: { commandId: 'fs.writeText', params: { id, content: before } },
     }

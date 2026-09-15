@@ -1,9 +1,12 @@
 import { nanoid } from 'nanoid'
 import { db } from './db'
 import { blobs } from './blobs'
-import { ROOT_ID, mimeFor, type FsNode } from './types'
+import { ROOT_ID, fileKind, mimeFor, type FsNode } from './types'
 
 const now = () => Date.now()
+
+/** Accents are decoration, not identity: whoever types "reunion" is looking for «Reunión con dirección.md». */
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 function sortNodes(a: FsNode, b: FsNode): number {
   if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
@@ -127,6 +130,7 @@ export const fs = {
       size: blob.size,
       createdAt: t,
       updatedAt: t,
+      contentAt: t,
       trashedAt: null,
     }
     await blobs.put(node.id, blob)
@@ -148,14 +152,24 @@ export const fs = {
     return blob.text()
   },
 
-  async writeBlob(id: string, blob: Blob): Promise<void> {
+  /** Returns the stamp the file now carries, so whoever wrote can tell its own version from someone else's. */
+  async writeBlob(id: string, blob: Blob): Promise<number> {
+    const stamp = now()
     await blobs.put(id, blob)
-    await db.nodes.update(id, { size: blob.size, updatedAt: now() })
+    await db.nodes.update(id, { size: blob.size, updatedAt: stamp, contentAt: stamp })
+    return stamp
   },
 
-  async writeText(id: string, content: string): Promise<void> {
+  async writeText(id: string, content: string): Promise<number> {
     const node = await requireNode(id)
-    await fs.writeBlob(id, new Blob([content], { type: node.mime || 'text/plain' }))
+    // Text written over a folder used to go through: the folder ended up with bytes hanging off it and a size,
+    // and the toast said «"Trabajo" actualizado». Over a PNG it replaced the image and the viewer stopped
+    // opening it. fs.read already refuses the mirror image of this; this side was missing.
+    const kind = fileKind(node)
+    if (kind !== 'text' && kind !== 'canvas') {
+      throw new Error(node.kind === 'folder' ? 'Eso es una carpeta, no un archivo de texto' : 'Eso no es un archivo de texto')
+    }
+    return fs.writeBlob(id, new Blob([content], { type: node.mime || 'text/plain' }))
   },
 
   async rename(id: string, name: string): Promise<string> {
@@ -256,14 +270,14 @@ export const fs = {
   },
 
   async search(query: string, limit = 12): Promise<FsNode[]> {
-    const q = query.trim().toLowerCase()
+    const q = norm(query.trim())
     if (!q) return []
     const rows = await db.nodes
-      .filter((n) => n.trashedAt === null && (n.name.toLowerCase().includes(q) || (n.tags ?? []).some((t) => t.includes(q))))
+      .filter((n) => n.trashedAt === null && (norm(n.name).includes(q) || (n.tags ?? []).some((t) => norm(t).includes(q))))
       .toArray()
     rows.sort((a, b) => {
-      const as = a.name.toLowerCase().startsWith(q) ? 0 : 1
-      const bs = b.name.toLowerCase().startsWith(q) ? 0 : 1
+      const as = norm(a.name).startsWith(q) ? 0 : 1
+      const bs = norm(b.name).startsWith(q) ? 0 : 1
       return as - bs || sortNodes(a, b)
     })
     return rows.slice(0, limit)

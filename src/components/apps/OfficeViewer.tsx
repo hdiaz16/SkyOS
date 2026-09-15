@@ -5,7 +5,7 @@ import { fs } from '../../kernel/fs'
 import { FileMissing } from './FileState'
 import { useFileNode } from '../../lib/hooks'
 import { fileKind } from '../../kernel/types'
-import type { Win } from '../../state/windows'
+import { useWindows, type Win } from '../../state/windows'
 import { cn } from '../../lib/utils'
 
 /**
@@ -16,22 +16,37 @@ import { cn } from '../../lib/utils'
 export function OfficeViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
   const { status, node } = useFileNode(nodeId)
-  const key = `${nodeId}:${node?.updatedAt ?? 0}`
+  const stamp = node?.contentAt ?? node?.updatedAt ?? 0
+  /** The version the grid inside wrote itself, which is not a reason to reopen anything. */
+  const ours = useRef(0)
   // Keyed by file version, so a new version shows "Abriendo…" without resetting state inside the effect.
-  const [loaded, setLoaded] = useState<{ key: string; blob: Blob | null; error?: string } | null>(null)
+  const [loaded, setLoaded] = useState<{ id: string; version: number; blob: Blob | null; error?: string } | null>(null)
 
   useEffect(() => {
+    // Pressing Guardar in row 400 of sheet 3 used to reopen the file: «Abriendo…», «Leyendo las hojas…», and
+    // back to A1 of sheet 1 with no undo history. That version is ours; someone else's still reopens it.
+    if (stamp && stamp === ours.current) return
     let alive = true
     fs.readBlob(nodeId)
-      .then((blob) => alive && setLoaded({ key, blob, error: blob ? undefined : 'No encontré el contenido del archivo.' }))
-      .catch((err: unknown) => alive && setLoaded({ key, blob: null, error: err instanceof Error ? err.message : 'No se pudo leer el archivo' }))
+      .then((blob) => alive && setLoaded({ id: nodeId, version: stamp, blob, error: blob ? undefined : 'No encontré el contenido del archivo.' }))
+      .catch(
+        (err: unknown) =>
+          alive && setLoaded({ id: nodeId, version: stamp, blob: null, error: err instanceof Error ? err.message : 'No se pudo leer el archivo' }),
+      )
     return () => {
       alive = false
     }
-  }, [nodeId, key])
+  }, [nodeId, stamp])
 
-  const current = loaded?.key === key ? loaded : null
-  if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
+  // Renaming an open file left the title bar and the Dock on the old name.
+  useEffect(() => {
+    if (node?.name) useWindows.getState().setTitle(win.id, node.name)
+  }, [node?.name, win.id])
+
+  const current = loaded?.id === nodeId ? loaded : null
+  if (status === 'trashed' || status === 'gone') {
+    return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={node?.name ?? win.title} />
+  }
   if (current?.error) return <Message text={current.error} />
   if (!node || !current?.blob) return <Message text="Abriendo…" spinner />
   const kind = fileKind(node)
@@ -39,7 +54,15 @@ export function OfficeViewer({ win }: { win: Win }) {
   if (kind === 'spreadsheet') {
     return (
       <Suspense fallback={<Message text="Preparando la hoja de cálculo…" spinner />}>
-        <SheetEditor key={key} blob={current.blob} nodeId={nodeId} name={node.name} />
+        <SheetEditor
+          key={`${current.id}:${current.version}`}
+          blob={current.blob}
+          nodeId={nodeId}
+          name={node.name}
+          onSaved={(written) => {
+            ours.current = written
+          }}
+        />
       </Suspense>
     )
   }
@@ -107,16 +130,42 @@ type SlideMode = 'list' | 'slide'
 
 function PresentationView({ blob }: { blob: Blob }) {
   const ref = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<SlideMode>('list')
-  const [status, setStatus] = useRenderStatus(`${mode}`)
+  const [width, setWidth] = useState(0)
+  const [status, setStatus] = useRenderStatus(`${mode}:${width}`)
+
+  /**
+   * pptx-preview draws at a fixed size, decided once. Opening a deck and then maximising the window left the
+   * slides at their original size in the middle of a huge empty area, and making the window smaller pushed them
+   * past the frame. So the frame is watched and the deck redrawn — a beat after the drag stops, and only when
+   * the width really moved, because redrawing means parsing the file again.
+   */
+  useEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    let timer = 0
+    let first = true
+    const measure = () => setWidth((w) => (Math.abs(Math.max(320, box.clientWidth - 32) - w) < 24 ? w : Math.max(320, box.clientWidth - 32)))
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(timer)
+      // The first call arrives the moment it starts watching: that one is the size it opened at, not a resize.
+      timer = window.setTimeout(measure, first ? 0 : 250)
+      first = false
+    })
+    observer.observe(box)
+    return () => {
+      window.clearTimeout(timer)
+      observer.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || !width) return
     let alive = true
     let previewer: PPTXPreviewer | null = null
     el.replaceChildren()
-    const width = Math.max(320, el.clientWidth - 32)
     Promise.all([import('pptx-preview'), blob.arrayBuffer()])
       .then(([{ init }, buffer]) => {
         if (!alive) return
@@ -130,7 +179,7 @@ function PresentationView({ blob }: { blob: Blob }) {
       previewer?.destroy()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blob, mode])
+  }, [blob, mode, width])
 
   return (
     <div className="flex h-full flex-col bg-surface-2">
@@ -139,7 +188,7 @@ function PresentationView({ blob }: { blob: Blob }) {
         <ModeButton active={mode === 'list'} onClick={() => setMode('list')} icon={<LayoutList className="h-3.5 w-3.5" />} label="Todas" />
         <ModeButton active={mode === 'slide'} onClick={() => setMode('slide')} icon={<Presentation className="h-3.5 w-3.5" />} label="Presentar" />
       </div>
-      <div className="scrollbar-thin relative flex-1 overflow-auto p-4">
+      <div ref={boxRef} className="scrollbar-thin relative flex-1 overflow-auto p-4">
         {status === 'loading' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-2/80">
             <Message text="Dibujando las diapositivas…" spinner />

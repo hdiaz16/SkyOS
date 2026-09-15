@@ -11,6 +11,11 @@ export interface FsNode {
   size: number
   createdAt: number
   updatedAt: number
+  /**
+   * Last time the bytes changed. updatedAt also moves on a rename, and a viewer keyed on it reloads the whole
+   * file for a new name: the PDF goes back to page one. Absent on files written before this existed.
+   */
+  contentAt?: number
   /** Set when the node is in the trash. */
   trashedAt: number | null
   /** Free-form labels, usually suggested by the AI when a file arrives. */

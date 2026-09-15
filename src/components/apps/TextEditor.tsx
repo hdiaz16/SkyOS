@@ -7,6 +7,7 @@ import { FileMissing, Opening } from './FileState'
 import { useFileNode } from '../../lib/hooks'
 import { dispatch } from '../../kernel/commands'
 import { useWindows, type Win } from '../../state/windows'
+import { onLeaving } from '../../lib/leaving'
 import { runAgent } from '../../ai/agent'
 import { isAiConfigured, useAiSettings } from '../../ai/settings'
 import { cn } from '../../lib/utils'
@@ -61,6 +62,10 @@ export function TextEditor({ win }: { win: Win }) {
   const [selection, setSelection] = useState({ start: 0, end: 0 })
   const [assist, setAssist] = useState<Assist | null>(null)
   const [asking, setAsking] = useState(false)
+  /** Someone else wrote this file while there are unsaved keystrokes here. Kept as a ref too: the flush that
+   *  runs when the tab closes reads it outside of React. */
+  const [outside, setOutside] = useState(false)
+  const outsideRef = useRef(false)
   const [customInstruction, setCustomInstruction] = useState('')
   const areaRef = useRef<HTMLTextAreaElement>(null)
   const latest = useRef({ text: '', dirty: false })
@@ -70,7 +75,17 @@ export function TextEditor({ win }: { win: Win }) {
 
   // Load once, then follow external changes (undo, an AI edit, a transform applied) while not mid-edit.
   useEffect(() => {
-    if (!node || node.updatedAt === loadedVersion.current || latest.current.dirty) return
+    if (!node || node.updatedAt === loadedVersion.current) return
+    // Two versions of the same file, one on screen and one on disk. Reading would erase what the person is
+    // typing; the autosave 600 ms later would erase what just arrived — which is exactly what happened when
+    // someone asked Sky to rewrite the note they had open. Neither is ours to choose, so both stop and the bar
+    // above the text asks.
+    if (latest.current.dirty) {
+      window.clearTimeout(timer.current)
+      outsideRef.current = true
+      setOutside(true)
+      return
+    }
     let alive = true
     fs.readText(nodeId).then(
       (t) => {
@@ -78,6 +93,7 @@ export function TextEditor({ win }: { win: Win }) {
         loadedVersion.current = node.updatedAt
         latest.current = { text: t, dirty: false }
         setText(t)
+        setStatus('saved')
       },
       // Opening an unreadable file as an empty document is how its content gets saved over with nothing.
       () => alive && setUnreadable(true),
@@ -91,24 +107,31 @@ export function TextEditor({ win }: { win: Win }) {
     if (node?.name) useWindows.getState().setTitle(win.id, node.name)
   }, [node?.name, win.id])
 
-  // Flush pending changes when the window closes.
-  useEffect(
-    () => () => {
+  // Flush pending changes when the window closes — and when the tab goes away without closing anything, which
+  // used to take the last sentence with it if it happened inside the 600 ms of the debounce.
+  useEffect(() => {
+    const flush = () => {
       window.clearTimeout(timer.current)
-      if (latest.current.dirty) void fs.writeText(nodeId, latest.current.text)
-    },
-    [nodeId],
-  )
+      if (latest.current.dirty && !outsideRef.current) void fs.writeText(nodeId, latest.current.text).catch(() => undefined)
+    }
+    const off = onLeaving(flush)
+    return () => {
+      off()
+      flush()
+    }
+  }, [nodeId])
 
   /**
    * Writing takes a moment, and in that moment the person keeps typing. Declaring the file clean afterwards
    * would throw those keystrokes away: the load effect sees a newer version, reads what was written, and puts
    * it back on screen. So only what was actually saved gets marked as saved.
+   *
+   * The version noted down is the one the file came back with. Stamping it with Date.now() never matched what
+   * the write had recorded, so every autosave looked like someone else's change and re-read the whole file.
    */
   const persist = async (value: string) => {
     setStatus('saving')
-    await fs.writeText(nodeId, value)
-    loadedVersion.current = Date.now()
+    loadedVersion.current = await fs.writeText(nodeId, value)
     if (latest.current.text !== value) {
       setStatus('dirty')
       return
@@ -122,7 +145,31 @@ export function TextEditor({ win }: { win: Win }) {
     latest.current = { text: value, dirty: true }
     setStatus('dirty')
     window.clearTimeout(timer.current)
+    // While the bar is up nothing is written: which of the two versions wins is the person's call, not a timer's.
+    if (outsideRef.current) return
     timer.current = window.setTimeout(() => void persist(latest.current.text), 600)
+  }
+
+  /** Keep what is on screen: it goes over the version that arrived, now that it was asked for. */
+  const keepMine = () => {
+    outsideRef.current = false
+    setOutside(false)
+    void persist(latest.current.text)
+  }
+
+  /** Take what arrived, and let go of what was typed here in the meantime. */
+  const takeTheirs = () => {
+    outsideRef.current = false
+    setOutside(false)
+    void fs.readText(nodeId).then(
+      (t) => {
+        loadedVersion.current = node?.updatedAt ?? 0
+        latest.current = { text: t, dirty: false }
+        setText(t)
+        setStatus('saved')
+      },
+      () => setUnreadable(true),
+    )
   }
 
   const updateSelection = () => {
@@ -134,7 +181,8 @@ export function TextEditor({ win }: { win: Win }) {
   const selected = text && selection.end > selection.start ? text.slice(selection.start, selection.end) : ''
 
   const startAssist = (mode: Assist['mode'], instruction: string) => {
-    if (!text) return
+    // An empty document is precisely when the placeholder offers Ctrl+J, and precisely when `!text` refused it.
+    if (text === null) return
     assist?.controller?.abort()
     const start = mode === 'replace' ? selection.start : selection.end
     const end = mode === 'replace' ? selection.end : selection.end
@@ -186,38 +234,70 @@ export function TextEditor({ win }: { win: Win }) {
       useToasts.getState().push({ message: 'El texto cambió mientras escribía; pega la respuesta donde la quieras.', kind: 'info' })
       return
     }
-    let nextText: string
-    let caret: number
+    let from: number
+    let to: number
+    let insertion: string
     if (placement === 'replace' && assist.mode === 'replace') {
-      nextText = text.slice(0, moved.start) + result + text.slice(moved.end)
-      caret = moved.start + result.length
+      from = moved.start
+      to = moved.end
+      insertion = result
     } else {
       const at = assist.mode === 'replace' ? moved.end : moved.start
-      const sep = at > 0 && text[at - 1] !== '\n' ? '\n\n' : ''
-      nextText = text.slice(0, at) + sep + result + text.slice(at)
-      caret = at + sep.length + result.length
+      from = at
+      to = at
+      insertion = (at > 0 && text[at - 1] !== '\n' ? '\n\n' : '') + result
     }
+    const nextText = text.slice(0, from) + insertion + text.slice(to)
+    const caret = from + insertion.length
+    // Through the textarea's own editing command rather than by handing React a new value: replacing the value
+    // empties the browser's undo stack, so Ctrl+Z right after accepting a suggestion did nothing and there was
+    // no way back to what was written before. Browsers that refuse the command fall back to the old way.
+    const el = areaRef.current
+    let applied = false
+    if (el) {
+      el.focus()
+      el.setSelectionRange(from, to)
+      applied = document.execCommand('insertText', false, insertion)
+    }
+    if (!applied) {
+      setText(nextText)
+      requestAnimationFrame(() => {
+        const box = areaRef.current
+        if (box) {
+          box.focus()
+          box.setSelectionRange(caret, caret)
+        }
+      })
+    }
+    // After the command, because the edit it makes goes through onChange and schedules a save of its own.
     window.clearTimeout(timer.current)
     latest.current = { text: nextText, dirty: false }
-    setText(nextText)
     setStatus('saved')
     setAssist(null)
     // Through the command bus so the change shows up as an undoable action.
-    void dispatch('fs.writeText', { id: nodeId, content: nextText }).then(() => {
-      loadedVersion.current = Date.now()
-    })
-    requestAnimationFrame(() => {
-      const el = areaRef.current
-      if (el) {
-        el.focus()
-        el.setSelectionRange(caret, caret)
-      }
+    void dispatch<number>('fs.writeText', { id: nodeId, content: nextText }).then((stamp) => {
+      loadedVersion.current = stamp
     })
   }
 
   const dismissAssist = () => {
     assist?.controller?.abort()
     setAssist(null)
+  }
+
+  /** Stopping is not discarding: what the model already wrote stays on screen, ready to use. */
+  const stopAssist = () => {
+    assist?.controller?.abort()
+    setAssist((a) =>
+      a
+        ? {
+            ...a,
+            status: a.text.trim() ? 'done' : 'error',
+            error: a.text.trim() ? undefined : 'Se detuvo antes de escribir nada.',
+            controller: null,
+          }
+        : a,
+    )
   }
 
   if (fileStatus === 'trashed' || fileStatus === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={fileStatus} name={win.title} />
@@ -233,6 +313,17 @@ export function TextEditor({ win }: { win: Win }) {
 
   return (
     <div className="relative flex h-full flex-col">
+      {outside && (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-2 px-4 py-2 text-[12px] text-ink-2">
+          <span className="min-w-0 flex-1">Este archivo cambió por fuera mientras escribías. Mientras decides, no guardo nada.</span>
+          <button type="button" onClick={takeTheirs} className="rounded-lg px-2 py-1 text-ink-2 transition hover:bg-surface hover:text-ink">
+            Ver lo que llegó
+          </button>
+          <button type="button" onClick={keepMine} className="rounded-lg px-2 py-1 font-medium text-accent transition hover:bg-accent-soft">
+            Quedarme con lo mío
+          </button>
+        </div>
+      )}
       <AnimatePresence>
         {aiReady && selected && !assist && (
           <motion.div
@@ -301,7 +392,10 @@ export function TextEditor({ win }: { win: Win }) {
         onKeyUp={updateSelection}
         onMouseUp={updateSelection}
         onKeyDown={(e) => {
-          e.stopPropagation()
+          // Everything stays inside the box except Escape: the desktop shortcuts must not fire while someone is
+          // typing, but Escape is what closes an open menu, a dialog or the capture overlay, and swallowing it
+          // left them stuck open until you clicked somewhere else.
+          if (e.key !== 'Escape') e.stopPropagation()
           if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j' && aiReady) {
             e.preventDefault()
             updateSelection()
@@ -337,7 +431,7 @@ export function TextEditor({ win }: { win: Win }) {
             </div>
             <div className="flex h-11 shrink-0 items-center justify-end gap-1 border-t border-line px-2">
               {assist.status === 'running' ? (
-                <AssistButton onClick={dismissAssist} icon={<Square className="h-3 w-3 fill-current" />}>
+                <AssistButton onClick={stopAssist} icon={<Square className="h-3 w-3 fill-current" />}>
                   Detener
                 </AssistButton>
               ) : (
@@ -360,7 +454,7 @@ export function TextEditor({ win }: { win: Win }) {
       <div className="flex h-8 shrink-0 items-center justify-between border-t border-line px-4 text-[11px] text-ink-3">
         <span>
           {words} {words === 1 ? 'palabra' : 'palabras'}
-          {selected && ` · ${selected.length} seleccionados`}
+          {selected && ` · ${selected.length} ${selected.length === 1 ? 'carácter' : 'caracteres'} seleccionados`}
         </span>
         <span>{status === 'saved' ? 'Guardado' : status === 'saving' ? 'Guardando…' : 'Sin guardar'}</span>
       </div>
