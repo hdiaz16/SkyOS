@@ -1,61 +1,28 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, ExternalLink, Loader2, MapPin, Mic, XCircle } from 'lucide-react'
-import type { Autonomy, Permission, Purpose, Tone, UserLocation, UserProfile } from '../../system/db'
+import { Check, ExternalLink, Loader2, XCircle } from 'lucide-react'
+import type { UserLocation, UserProfile } from '../../system/db'
 import { hasSharedGroqKey } from '../../config'
 import { users } from '../../system/users'
 import { useAuth } from '../../system/auth'
 import { startSession } from '../../system/session'
-import { applyTheme, persistThemeFor, type Theme } from '../../state/settings'
+import { applyTheme, persistThemeFor } from '../../state/settings'
 import { AUTO_MODEL, persistAiSettingsFor, presetFor, type ProviderId } from '../../ai/settings'
 import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
-import { approximateLocation, currentPosition, GeoError, geocode, geolocationPossible, reverseGeocode } from '../../lib/weather'
+import { approximateLocation } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 import { BELOW_ORB, useOrbStage } from './orbStore'
 
-type Step = 'hello' | 'name' | 'style' | 'space' | 'ai' | 'setup'
+type Step = 'hello' | 'name' | 'ai' | 'setup'
 
 /**
- * Four screens and out. Everything that used to be its own question now shares a screen with what it belongs
- * with, and every choice arrives already answered, so the whole thing is a name and two taps. The provider
- * screen only appears where there is no included model to start with; the PIN lives in Ajustes › Cuenta.
+ * A name, and you are in. Sky is worth more shown than explained, so nothing else is asked before the desktop
+ * exists: the place is worked out from the network while you type, the light starts at night, the microphone
+ * waits until you press dictate, and how Sky treats you lives in Ajustes › Cuenta, changeable any day. The
+ * provider screen only appears where the deployment ships no model of its own.
  */
-const ORDER: Step[] = hasSharedGroqKey ? ['hello', 'name', 'style', 'space', 'setup'] : ['hello', 'name', 'style', 'space', 'ai', 'setup']
-
-interface Choice<T extends string> {
-  value: T
-  /** Full sentence, for a screen that asks one thing. */
-  label: string
-  /** Two or three words, for a row of chips. */
-  short: string
-  hint: string
-}
-
-const TONES: Choice<Tone>[] = [
-  { value: 'warm', label: 'Cercano y relajado', short: 'Cercano', hint: 'Como hablar con alguien de confianza.' },
-  { value: 'direct', label: 'Directo y breve', short: 'Directo', hint: 'Al punto, sin rodeos.' },
-  { value: 'formal', label: 'Formal y detallado', short: 'Formal', hint: 'Cuidado y completo.' },
-]
-
-const PURPOSES: Choice<Purpose>[] = [
-  { value: 'work', label: 'Trabajo', short: 'Trabajo', hint: 'Documentos, proyectos, reportes.' },
-  { value: 'study', label: 'Estudio', short: 'Estudio', hint: 'Apuntes, lecturas, tareas.' },
-  { value: 'personal', label: 'Proyectos personales', short: 'Personal', hint: 'Ideas, planes, lo tuyo.' },
-  { value: 'mixed', label: 'Un poco de todo', short: 'De todo', hint: 'Que se adapte a lo que venga.' },
-]
-
-const AUTONOMIES: Choice<Autonomy>[] = [
-  { value: 'act', label: 'Que actúe y me avise', short: 'Que actúe', hint: 'Hace, y todo se puede deshacer.' },
-  { value: 'ask', label: 'Que me pregunte antes de mover cosas', short: 'Que pregunte', hint: 'Propone, yo confirmo.' },
-  { value: 'manual', label: 'Solo lo que yo le pida', short: 'Solo si lo pido', hint: 'Sin iniciativa propia.' },
-]
-
-const THEMES: Choice<Theme>[] = [
-  { value: 'dark', label: 'Oscuro', short: 'Oscuro', hint: 'Noche en el bosque.' },
-  { value: 'light', label: 'Claro', short: 'Claro', hint: 'Mañana en el campo.' },
-  { value: 'system', label: 'Según el sistema', short: 'Automático', hint: 'Cambia con tu dispositivo.' },
-]
+const ORDER: Step[] = hasSharedGroqKey ? ['hello', 'name', 'setup'] : ['hello', 'name', 'ai', 'setup']
 
 const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'openrouter', 'ollama']
 
@@ -63,19 +30,9 @@ const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'open
 export function Onboarding() {
   const [step, setStep] = useState<Step>('hello')
   const [name, setName] = useState('')
-  const [tone, setTone] = useState<Tone>('warm')
-  const [purpose, setPurpose] = useState<Purpose>('mixed')
-  const [autonomy, setAutonomy] = useState<Autonomy>('act')
-  const [theme, setTheme] = useState<Theme>('dark')
+  /** Found from the network address while the person types their name; never asked for here. */
   const [location, setLocation] = useState<UserLocation | null>(null)
-  // 'idle' means the automatic pass is still running; the city box only appears after it fails.
-  const [locState, setLocState] = useState<'idle' | 'asking' | 'ok' | 'denied' | 'unavailable'>('idle')
   const detected = useRef(false)
-  /** Set when the place came from the network address rather than the person or the browser's own position. */
-  const [approximate, setApproximate] = useState(false)
-  const [city, setCity] = useState('')
-  const [cityState, setCityState] = useState<'idle' | 'searching' | 'missing'>('idle')
-  const [micState, setMicState] = useState<'idle' | 'asking' | 'granted' | 'denied'>('idle')
   const [ownKey, setOwnKey] = useState(!hasSharedGroqKey)
   const [provider, setProvider] = useState<ProviderId>('groq')
   const [apiKey, setApiKey] = useState('')
@@ -88,29 +45,8 @@ export function Onboarding() {
   const back = () => setStep(ORDER[Math.max(index - 1, 0)])
 
   useEffect(() => {
-    applyTheme(theme)
-  }, [theme])
-
-  const askLocation = async () => {
-    setLocState('asking')
-    try {
-      const pos = await currentPosition(12000)
-      const place = await reverseGeocode(pos.lat, pos.lon)
-      setLocation({ lat: pos.lat, lon: pos.lon, place })
-      setApproximate(false)
-      setLocState('ok')
-    } catch (err) {
-      // The browser said no; the network address still knows the city well enough for weather and time.
-      const near = await approximateLocation()
-      if (near) {
-        setLocation({ lat: near.lat, lon: near.lon, place: near.name })
-        setApproximate(true)
-        setLocState('ok')
-        return
-      }
-      setLocState(err instanceof GeoError && err.reason === 'denied' ? 'denied' : 'unavailable')
-    }
-  }
+    applyTheme('dark')
+  }, [])
 
   // Nobody should have to type where they are: as soon as the name is in, Sky works the place out from the
   // network address, so the screen that follows already has an answer. The city box is the last resort.
@@ -120,54 +56,12 @@ export function Onboarding() {
     let alive = true
     void approximateLocation().then((near) => {
       if (!alive) return
-      if (near) {
-        setLocation({ lat: near.lat, lon: near.lon, place: near.name })
-        setApproximate(true)
-        setLocState('ok')
-      } else {
-        setLocState('unavailable')
-      }
+      if (near) setLocation({ lat: near.lat, lon: near.lon, place: near.name })
     })
     return () => {
       alive = false
     }
   }, [step])
-
-  // Typing a city works everywhere: no permission, no GPS, no secure origin needed.
-  const searchCity = async () => {
-    const query = city.trim()
-    if (!query || cityState === 'searching') return
-    setCityState('searching')
-    const place = await geocode(query).catch(() => null)
-    if (!place) {
-      setCityState('missing')
-      return
-    }
-    setLocation({ lat: place.lat, lon: place.lon, place: place.name })
-    setApproximate(false)
-    setLocState('ok')
-    setCityState('idle')
-  }
-
-  const resetLocation = () => {
-    setLocation(null)
-    setApproximate(false)
-    // Correcting the place by hand: show the city box instead of guessing again.
-    setLocState('unavailable')
-    setCity('')
-    setCityState('idle')
-  }
-
-  const askMicrophone = async () => {
-    setMicState('asking')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      stream.getTracks().forEach((t) => t.stop())
-      setMicState('granted')
-    } catch {
-      setMicState('denied')
-    }
-  }
 
   const testKey = async () => {
     const preset = presetFor(provider)
@@ -197,11 +91,12 @@ export function Onboarding() {
   }
 
   const finish = async () => {
-    const microphone: Permission = micState === 'granted' ? 'granted' : micState === 'denied' ? 'denied' : 'skipped'
-    const profile: UserProfile = { tone, purpose, autonomy, location: location ?? undefined, microphone, voice: true }
+    // Sensible from the first second and changeable any day in Ajustes: close and warm, ready to act, night
+    // light, the microphone asked for the first time you press dictate.
+    const profile: UserProfile = { tone: 'warm', purpose: 'mixed', autonomy: 'act', location: location ?? undefined, microphone: 'skipped', voice: true }
     // A PIN is set later, in Ajustes › Cuenta: asking for one before the desktop even exists slows everybody down.
     const user = await users.create({ name, profile })
-    persistThemeFor(user.id, theme)
+    persistThemeFor(user.id, 'dark')
     const chosen = ownKey ? provider : 'groq'
     const preset = presetFor(chosen)
     persistAiSettingsFor(user.id, {
@@ -259,7 +154,7 @@ export function Onboarding() {
           {step === 'hello' && (
             <Screen>
               <Sequence
-                lines={['Hola.', 'Soy Sky.', 'Voy a preparar un espacio para ti. Son treinta segundos.']}
+                lines={['Hola.', 'Soy Sky.', 'Solo necesito tu nombre.']}
                 onDone={() => undefined}
               />
               <Primary onClick={next} delay={2.2}>
@@ -289,103 +184,6 @@ export function Onboarding() {
                   Continuar
                 </Primary>
               </form>
-            </Screen>
-          )}
-
-          {step === 'style' && (
-            <Screen question={`${name.trim().split(' ')[0]}, ¿cómo trabajamos?`} note="Ya está todo elegido; cambia lo que quieras y sigue. Esto también se ajusta después.">
-              <div className="flex w-full max-w-[520px] flex-col gap-5">
-                <ChipRow label="Te hablo" options={TONES} value={tone} onChange={setTone} />
-                <ChipRow label="Sobre todo para" options={PURPOSES} value={purpose} onChange={setPurpose} />
-                <ChipRow label="Con tus archivos" options={AUTONOMIES} value={autonomy} onChange={setAutonomy} />
-                <div className="flex justify-center pt-1">
-                  <Primary onClick={next}>Continuar</Primary>
-                </div>
-              </div>
-            </Screen>
-          )}
-
-          {step === 'space' && (
-            <Screen question="Tu espacio" note="La luz, dónde estás y si puedes dictarle. Todo se queda en este navegador.">
-              <div className="flex w-full max-w-[520px] flex-col gap-5">
-                <ChipRow label="Luz" options={THEMES} value={theme} onChange={setTheme} />
-
-                <Field label="Dónde estás" hint="Para el clima y la hora de tu lugar.">
-                  {locState === 'idle' && !location ? (
-                    <span className="flex items-center gap-2 text-[13px] text-ink-3">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Buscando…
-                    </span>
-                  ) : location ? (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[13px] text-accent">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {location.place}
-                      </span>
-                      {approximate && geolocationPossible() && (
-                        <button type="button" disabled={locState === 'asking'} onClick={() => void askLocation()} className="text-[12px] text-accent transition hover:brightness-110 disabled:opacity-60">
-                          {locState === 'asking' ? 'Esperando permiso…' : 'Usar la exacta'}
-                        </button>
-                      )}
-                      <button type="button" onClick={resetLocation} className="text-[12px] text-ink-3 transition hover:text-ink">
-                        Escribir otra
-                      </button>
-                    </div>
-                  ) : (
-                    <form
-                      className="flex w-full items-center gap-2"
-                      onSubmit={(e) => {
-                        e.preventDefault()
-                        void searchCity()
-                      }}
-                    >
-                      <input
-                        value={city}
-                        onChange={(e) => {
-                          setCity(e.target.value)
-                          if (cityState === 'missing') setCityState('idle')
-                        }}
-                        placeholder="Tu ciudad o tu estado"
-                        className="glass h-9 min-w-0 flex-1 rounded-lg px-3 text-[13px] text-ink outline-none transition placeholder:text-ink-3 focus:ring-1 focus:ring-accent/50"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!city.trim() || cityState === 'searching'}
-                        className="flex h-9 items-center rounded-lg bg-surface-solid px-3 text-[12.5px] font-medium text-ink shadow-soft transition hover:brightness-105 disabled:opacity-50"
-                      >
-                        {cityState === 'searching' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Buscar'}
-                      </button>
-                    </form>
-                  )}
-                  {cityState === 'missing' && <p className="mt-1 text-[12px] text-danger">No encontré esa ciudad. Prueba con otro nombre o añade el país.</p>}
-                </Field>
-
-                <Field label="Dictado" hint="Para hablarle a Sky en vez de escribir.">
-                  {micState === 'granted' ? (
-                    <span className="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[13px] text-accent">
-                      <Mic className="h-3.5 w-3.5" />
-                      Micrófono listo
-                    </span>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <button
-                        type="button"
-                        disabled={micState === 'asking'}
-                        onClick={() => void askMicrophone()}
-                        className="flex items-center gap-1.5 rounded-full border border-line-2 px-3 py-1 text-[13px] text-ink transition hover:bg-surface-2 disabled:opacity-60"
-                      >
-                        {micState === 'asking' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
-                        {micState === 'asking' ? 'Esperando permiso…' : 'Permitir micrófono'}
-                      </button>
-                      {micState === 'denied' && <span className="text-[12px] text-ink-3">Podrás activarlo cuando quieras dictar.</span>}
-                    </div>
-                  )}
-                </Field>
-
-                <div className="flex justify-center pt-1">
-                  <Primary onClick={next}>{ORDER.includes('ai') ? 'Continuar' : 'Entrar'}</Primary>
-                </div>
-              </div>
             </Screen>
           )}
 
@@ -517,43 +315,6 @@ function Screen({ question, note, children }: { question?: string; note?: string
   )
 }
 
-
-/** A row of small choices: the label on the left, the options as chips, already answered. */
-function ChipRow<T extends string>({ label, options, value, onChange }: { label: string; options: Choice<T>[]; value: T; onChange: (v: T) => void }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="w-[116px] shrink-0 text-[13px] text-ink-3">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            title={o.hint}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              'rounded-full border px-3 py-1 text-[13px] transition',
-              value === o.value ? 'border-accent bg-accent-soft text-accent' : 'border-line-2 text-ink-2 hover:border-line hover:text-ink',
-            )}
-          >
-            {o.short}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/** One thing to settle on a shared screen: a label, a hint, and whatever it takes to answer. */
-function Field({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-      <span className="w-[116px] shrink-0 pt-1 text-[13px] text-ink-3" title={hint}>
-        {label}
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  )
-}
 
 function Primary({ children, onClick, type = 'button', disabled, delay = 0 }: { children: ReactNode; onClick?: () => void; type?: 'button' | 'submit'; disabled?: boolean; delay?: number }) {
   return (

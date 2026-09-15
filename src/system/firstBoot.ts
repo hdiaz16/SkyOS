@@ -4,29 +4,19 @@ import { useSession } from '../ai/session'
 import { speak } from '../ai/speech'
 import { useAuth } from './auth'
 import { users } from './users'
-import type { UserProfile, UserRow } from './db'
+import type { UserRow } from './db'
 
 let done: Promise<void> | null = null
 
-const PURPOSE_LINE: Record<UserProfile['purpose'], string> = {
-  work: 'me quieres sobre todo para tu trabajo',
-  study: 'me quieres sobre todo para estudiar',
-  personal: 'me quieres para tus proyectos personales',
-  mixed: 'me quieres para un poco de todo',
-}
-
-const AUTONOMY_LINE: Record<UserProfile['autonomy'], string> = {
-  ask: 'te preguntaré antes de mover tus cosas',
-  act: 'actuaré y te avisaré qué hice; todo se puede deshacer',
-  manual: 'solo haré lo que me pidas',
-}
-
-/** What Sky says the first time the desktop appears: it knows who it is talking to. */
+/**
+ * What Sky says the first time the desktop appears. Nothing was asked beyond a name, so this is where Sky
+ * explains itself: who it is, what it already did, and one concrete thing to try right now. Short on purpose,
+ * because the point is that the person tries something, not that they read.
+ */
 export function greetingFor(user: UserRow): string {
   const first = user.name.trim().split(' ')[0]
-  const p = user.profile
-  const place = p.location ? ` Veo que estás en ${p.location.place.split(',')[0]}; ya te puse el clima en el escritorio.` : ''
-  return `Hola, ${first}. Mi nombre es Sky. Sé que ${PURPOSE_LINE[p.purpose]} y que ${AUTONOMY_LINE[p.autonomy]}.${place} Estoy aquí abajo, en la barra: pídeme lo que necesites, con texto o con tu voz.`
+  const place = user.profile.location ? ` Te puse el clima de ${user.profile.location.place.split(',')[0]} arriba a la derecha.` : ''
+  return `Hola, ${first}. Soy Sky.${place} Vivo en la barra de abajo y hago cosas de verdad con tus archivos: arrastra aquí un PDF o un Word y dime "resúmelo", o pídeme "crea una nota con mis pendientes". Todo lo local se puede deshacer, así que prueba sin miedo.`
 }
 
 /**
