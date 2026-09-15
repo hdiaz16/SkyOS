@@ -119,8 +119,11 @@ export default function App() {
         ui.setRenaming(ui.selection[0])
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // In the capture phase: every text field in the app stops keys from bubbling, which is right for the
+    // field and wrong for the two shortcuts that have to work from anywhere. They get seen first, and the
+    // check below still leaves ordinary typing alone.
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [])
 
   // overflow-clip, not hidden: a grid or editor focusing an off-screen input can scroll a hidden box by script; a clipped one never moves.

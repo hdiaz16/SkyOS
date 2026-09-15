@@ -77,6 +77,14 @@ export async function pickSpanishVoice(): Promise<SpeechSynthesisVoice | null> {
 }
 
 let audio: HTMLAudioElement | null = null
+/**
+ * A voice made by a model takes seconds to arrive, and during those seconds there is nothing to pause: the
+ * silence button had nothing to act on and the words came out anyway. Every attempt carries this token; asking
+ * for silence bumps it, which both aborts the request in flight and tells whatever comes back that nobody is
+ * listening any more.
+ */
+let turno = 0
+let enVuelo: AbortController | null = null
 
 function speakWithBrowser(text: string): Promise<boolean> {
   return pickSpanishVoice().then(
@@ -144,10 +152,14 @@ function wavDesdePcm(pcm: Uint8Array<ArrayBuffer>, rate: number): Blob {
   return new Blob([header, pcm], { type: 'audio/wav' })
 }
 
-function reproducir(blob: Blob): Promise<boolean> {
+function reproducir(blob: Blob, vigente: () => boolean): Promise<boolean> {
   const url = URL.createObjectURL(blob)
   return new Promise((resolve) => {
-    stopSpeaking()
+    // Silence asked for while this was being made still counts: nothing starts playing afterwards.
+    if (!vigente()) {
+      URL.revokeObjectURL(url)
+      return resolve(false)
+    }
     const a = new Audio(url)
     audio = a
     const acabar = (ok: boolean) => {
@@ -161,9 +173,10 @@ function reproducir(blob: Blob): Promise<boolean> {
   })
 }
 
-async function speakWithGemini(text: string, apiKey: string): Promise<boolean> {
+async function speakWithGemini(text: string, apiKey: string, signal: AbortSignal): Promise<boolean> {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: `${DIRECCION}\n\n${text.slice(0, 4000)}` }] }],
@@ -181,17 +194,18 @@ async function speakWithGemini(text: string, apiKey: string): Promise<boolean> {
   const pcm = new Uint8Array(new ArrayBuffer(bytes.length))
   for (let i = 0; i < bytes.length; i++) pcm[i] = bytes.charCodeAt(i)
   const rate = Number(/rate=(\d+)/.exec(parte.mimeType ?? '')?.[1] ?? 24000)
-  return reproducir(wavDesdePcm(pcm, rate))
+  return reproducir(wavDesdePcm(pcm, rate), () => !signal.aborted)
 }
 
-async function speakWithOpenAI(text: string, apiKey: string): Promise<boolean> {
+async function speakWithOpenAI(text: string, apiKey: string, signal: AbortSignal): Promise<boolean> {
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
+    signal,
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'nova', input: text.slice(0, 4000), response_format: 'mp3', speed: 1 }),
   })
   if (!res.ok) return false
-  return reproducir(await res.blob())
+  return reproducir(await res.blob(), () => !signal.aborted)
 }
 
 /** Speaks the text. Resolves true when it finished, false when nothing could speak or the browser refused. */
@@ -204,27 +218,37 @@ export async function speak(text: string): Promise<boolean> {
     .replace(/\s+/g, ' ')
     .trim()
   if (!clean) return false
+  stopSpeaking()
+  const mio = ++turno
+  const controller = new AbortController()
+  enVuelo = controller
+  const vigente = () => mio === turno
   const { keys } = useAiSettings.getState()
   // Best available wins, and every one of them falls through to the next without saying a word about it.
   if (keys.gemini) {
     try {
-      if (await speakWithGemini(clean, keys.gemini)) return true
+      if (await speakWithGemini(clean, keys.gemini, controller.signal)) return true
     } catch {
       /* siguiente */
     }
+    if (!vigente()) return false
   }
   if (keys.openai) {
     try {
-      if (await speakWithOpenAI(clean, keys.openai)) return true
+      if (await speakWithOpenAI(clean, keys.openai, controller.signal)) return true
     } catch {
       /* siguiente */
     }
+    if (!vigente()) return false
   }
   if (!speechAvailable()) return false
   return speakWithBrowser(clean)
 }
 
 export function stopSpeaking(): void {
+  turno++
+  enVuelo?.abort()
+  enVuelo = null
   if (audio) {
     audio.pause()
     audio = null

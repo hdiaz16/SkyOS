@@ -86,7 +86,6 @@ const ACTIONS: Action[] = [
   { id: 'files', title: 'Abrir Archivos', keywords: ['explorador', 'archivos', 'carpetas', 'escritorio'], icon: FolderOpen, run: () => void dispatch('ui.openFiles') },
   { id: 'browser', title: 'Abrir navegador', hint: 'Google', keywords: ['google', 'web', 'internet', 'navegador'], icon: Globe, run: () => void dispatch('ui.openBrowser') },
   { id: 'terminal', title: 'Abrir terminal', hint: 'lenguaje natural', keywords: ['terminal', 'consola', 'comandos', 'shell'], icon: SquareTerminal, run: () => void dispatch('ui.openTerminal') },
-  { id: 'snap', title: 'Capturar pantalla para Sky', hint: 'elige un área', keywords: ['captura', 'pantalla', 'screenshot', 'analizar', 'foto'], icon: Camera, run: () => void snapScreen() },
   { id: 'logout', title: 'Cerrar sesión', hint: 'vuelve al inicio', keywords: ['salir', 'sesion', 'sesión', 'cambiar usuario', 'logout'], icon: LogOut, run: () => void dispatch('system.logout') },
   { id: 'trash', title: 'Abrir papelera', keywords: ['papelera', 'basura', 'trash', 'borrados'], icon: Trash2, run: () => void dispatch('ui.openTrash') },
   { id: 'apps', title: 'Apps conectadas', hint: 'Notion, Slack, Google, GitHub, Spotify…', keywords: ['apps', 'conectar', 'integraciones', 'mcp', 'notion', 'slack', 'google', 'drive', 'gmail', 'github', 'spotify', 'todoist', 'evernote'], icon: Plug, run: () => void dispatch('ui.openApps') },
@@ -113,7 +112,19 @@ const NO_FLOWS: FlowRow[] = []
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
+const SNAP_ACTION: Action = {
+  id: 'snap',
+  title: 'Capturar pantalla para Sky',
+  hint: 'elige un área',
+  keywords: ['captura', 'pantalla', 'screenshot', 'analizar', 'foto'],
+  icon: Camera,
+  run: () => void snapScreen(),
+}
+
 async function snapScreen(): Promise<void> {
+  // The selector listens for Escape and Enter on the window, and a focused text field eats both. Letting go
+  // of the focus first is what makes the keyboard belong to the selection while it lasts.
+  ;(document.activeElement as HTMLElement | null)?.blur?.()
   try {
     const shot = await captureScreen()
     if (shot) useSnap.getState().open(shot.dataUrl, shot.width, shot.height)
@@ -128,6 +139,8 @@ type DictationState = 'idle' | 'recording' | 'transcribing'
 function useDictation(onText: (text: string) => void) {
   const [state, setState] = useState<DictationState>('idle')
   const recorder = useRef<Recorder | null>(null)
+  /** True while the browser is still asking for the microphone; a second press would open one nobody closes. */
+  const starting = useRef(false)
 
   const stop = async () => {
     const rec = recorder.current
@@ -149,21 +162,27 @@ function useDictation(onText: (text: string) => void) {
   }
 
   const toggle = async () => {
-    if (state === 'transcribing') return
+    if (state === 'transcribing' || starting.current) return
     if (state === 'recording') {
       await stop()
       return
     }
+    // The browser's permission prompt can take seconds, and during them the button looked idle: pressing it
+    // again opened a second microphone that nothing would ever close.
+    starting.current = true
     const rec = new Recorder()
     try {
       await rec.start(() => void stop())
       recorder.current = rec
       setState('recording')
     } catch (err) {
+      rec.cancel()
       useToasts.getState().push({
         message: err instanceof DOMException && err.name === 'NotAllowedError' ? 'Necesito permiso para usar el micrófono.' : 'No se pudo acceder al micrófono.',
         kind: 'error',
       })
+    } finally {
+      starting.current = false
     }
   }
 
@@ -347,7 +366,10 @@ export function CommandBar() {
       icon: <KindIcon kind={fileKind(n)} name={n.name} className="h-6 w-6" />,
       run: () => void dispatch('ui.open', { id: n.id }),
     }))
-    const matched = ACTIONS.filter((a) => matchAction(a, query)).slice(0, 6)
+    // Capturar la pantalla solo existe cuando hay un modelo que pueda mirarla; ofrecerlo con uno que no ve
+    // termina en una imagen que nadie lee.
+    const acciones = canSee ? [...ACTIONS, SNAP_ACTION] : ACTIONS
+    const matched = acciones.filter((a) => matchAction(a, query)).slice(0, 6)
     const actionItems: Item[] = matched.map((a) => ({
       key: `action:${a.id}`,
       title: a.title,

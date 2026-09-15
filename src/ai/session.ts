@@ -226,8 +226,16 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   send: async (prompt, attachments) => {
-    if (get().running) return
     const parts = attachments ?? get().pending.map((p) => p.part)
+    // Asking something while Sky is still answering used to lose the message: the box had already been
+    // cleared by whoever called. Now it waits its turn, visible, like the ones held back by the network.
+    if (get().running) {
+      const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, attachments: parts, toolEvents: [], status: 'done' }
+      const replyId = nanoid(6)
+      const waiting: Turn = { id: replyId, role: 'assistant', text: 'En cuanto termine con lo anterior.', toolEvents: [], status: 'queued' }
+      set((s) => ({ open: true, pending: [], turns: [...s.turns, userTurn, waiting], queue: [...s.queue, { userId: userTurn.id, replyId, prompt, parts }] }))
+      return
+    }
     const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, attachments: parts, toolEvents: [], status: 'done' }
     const replyId = nanoid(6)
 
@@ -309,6 +317,8 @@ export const useSession = create<SessionState>((set, get) => ({
       }))
       persist(get())
       void condense(get, set)
+      // Whatever was asked while this was running has waited long enough.
+      void get().flushQueue()
     } catch (err) {
       if (frame !== null) cancelAnimationFrame(frame)
       flush()
@@ -319,6 +329,7 @@ export const useSession = create<SessionState>((set, get) => ({
         turns: patchTurn(s.turns, replyId, { status: 'error', error: message, statusMessage: undefined }),
       }))
       persist(get())
+      void get().flushQueue()
     }
   },
 
@@ -330,7 +341,9 @@ export const useSession = create<SessionState>((set, get) => ({
     // Only the thread on screen: emptying the project you are in must not touch the everyday conversation.
     const thread = get().thread
     get().controller?.abort()
-    set({ turns: [], history: [], summary: null, running: false, controller: null })
+    // The queue belongs to the conversation that is being emptied: leaving it behind means a message the
+    // person threw away comes back and gets sent when the network returns.
+    set({ turns: [], history: [], summary: null, running: false, controller: null, queue: [] })
     window.clearTimeout(persistTimer)
     void conversationStore.clear(thread)
   },
