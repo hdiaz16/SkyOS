@@ -22,11 +22,22 @@ registerCommand<{ name: string; instructions: string }, ReturnType<typeof summar
     return {
       result: summarize(flow),
       label: replaced ? `Flujo "${flow.name}" actualizado` : `Flujo "${flow.name}" guardado`,
-      undo: async () => {
-        if (replaced) await flows.restore(replaced)
-        else await flows.remove(flow.id)
-      },
+      undo: { commandId: 'flows.restore', params: { flow: replaced ?? null, id: flow.id } },
     }
+  },
+})
+
+registerCommand<{ flow: FlowRow | null; id?: string }, void>({
+  id: 'flows.restore',
+  title: 'Devolver un flujo',
+  description: 'Devuelve un flujo a como estaba, o lo elimina si no había ninguno.',
+  // The written inverse of saving and deleting a flow.
+  ai: false,
+  params: {},
+  async run({ flow, id }) {
+    if (flow) await flows.restore(flow)
+    else if (id) await flows.remove(id)
+    return { result: undefined }
   },
 })
 
@@ -68,9 +79,7 @@ registerCommand<{ name: string }, void>({
     return {
       result: undefined,
       label: `Flujo "${flow.name}" eliminado`,
-      undo: async () => {
-        await flows.restore(flow)
-      },
+      undo: { commandId: 'flows.restore', params: { flow } },
     }
   },
 })

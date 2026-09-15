@@ -63,6 +63,36 @@ function targets(scope: Scope, ids?: string[]): Win[] {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
+/**
+ * The written inverses of every window command. They are marked ephemeral where they are used: geometry from
+ * an earlier session means nothing after a reload, because the desk already came back fitted to this screen.
+ */
+registerCommand<{ windows: Array<Partial<Win> & { id: string }> }, void>({
+  id: 'ui.applyLayout',
+  title: 'Devolver las ventanas a su sitio',
+  description: 'Devuelve posición, tamaño o estado a las ventanas indicadas.',
+  ai: false,
+  params: {},
+  async run({ windows }) {
+    // `prev` travels as null when it has to be cleared, because a missing value cannot say "borra esto".
+    useWindows.getState().patchMany((windows ?? []).map((w) => ({ ...w, prev: w.prev ?? undefined })))
+    return { result: undefined }
+  },
+})
+
+registerCommand<{ windows: Win[] }, void>({
+  id: 'ui.restoreWindows',
+  title: 'Volver a abrir ventanas',
+  description: 'Vuelve a abrir ventanas que se cerraron, tal como estaban.',
+  ai: false,
+  params: {},
+  async run({ windows }) {
+    const wm = useWindows.getState()
+    for (const w of windows ?? []) wm.restore(w)
+    return { result: undefined }
+  },
+})
+
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.closeWindows',
   keywords: WINDOW_WORDS,
@@ -81,10 +111,8 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
     return {
       result: wins.length,
       label: `${plural(wins.length, 'ventana cerrada', 'ventanas cerradas')}`,
-      undo: async () => {
-        const s = useWindows.getState()
-        for (const w of wins) s.restore(w)
-      },
+      undo: { commandId: 'ui.restoreWindows', params: { windows: wins } },
+      ephemeral: true,
     }
   },
 })
@@ -106,10 +134,8 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
     return {
       result: wins.length,
       label: plural(wins.length, 'ventana minimizada', 'ventanas minimizadas'),
-      undo: async () => {
-        const s = useWindows.getState()
-        for (const w of wins) s.focus(w.id)
-      },
+      undo: { commandId: 'ui.applyLayout', params: { windows: wins.map((w) => ({ id: w.id, minimized: false })) } },
+      ephemeral: true,
     }
   },
 })
@@ -165,7 +191,8 @@ registerCommand<{ layout?: Layout }, number>({
     return {
       result: wins.length,
       label: `${plural(wins.length, 'ventana ordenada', 'ventanas ordenadas')} ${names[layout]}`,
-      undo: async () => useWindows.getState().patchMany(before),
+      undo: { commandId: 'ui.applyLayout', params: { windows: before } },
+      ephemeral: true,
     }
   },
 })
@@ -185,7 +212,8 @@ registerCommand<Record<string, never>, { zen: boolean; hidden: number }>({
     return {
       result: { zen: !!now, hidden: now?.length ?? 0 },
       label: now ? `Modo Zen: ${plural(now.length, 'ventana apartada', 'ventanas apartadas')}` : 'Modo Zen apagado',
-      undo: async () => useWindows.getState().toggleZen(),
+      undo: { commandId: 'ui.zen', params: {} },
+      ephemeral: true,
     }
   },
 })
@@ -204,7 +232,8 @@ registerCommand<Record<string, never>, number>({
     return {
       result: wins.length,
       label: `${plural(wins.length, 'ventana apilada', 'ventanas apiladas')} detrás de la activa`,
-      undo: async () => useWindows.getState().patchMany(before),
+      undo: { commandId: 'ui.applyLayout', params: { windows: before } },
+      ephemeral: true,
     }
   },
 })
@@ -229,7 +258,7 @@ registerCommand<{ id?: string; target?: 'left' | 'right' | 'max' | 'restore' }, 
     } else {
       wm.snap(win.id, target)
     }
-    return { result: undefined, label: `"${win.title}" ajustada`, undo: async () => useWindows.getState().patchMany([before]) }
+    return { result: undefined, label: `"${win.title}" ajustada`, undo: { commandId: 'ui.applyLayout', params: { windows: [{ ...before, prev: before.prev ?? null }] } }, ephemeral: true }
   },
 })
 
@@ -251,13 +280,11 @@ registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
     return {
       result: { affected: wins.length, mode },
       label: `Escritorio limpio: ${plural(wins.length, 'ventana', 'ventanas')} ${mode === 'close' ? 'cerradas' : 'minimizadas'}`,
-      undo: async () => {
-        const s = useWindows.getState()
-        for (const w of wins) {
-          if (mode === 'close') s.restore(w)
-          else s.focus(w.id)
-        }
-      },
+      undo:
+        mode === 'close'
+          ? { commandId: 'ui.restoreWindows', params: { windows: wins } }
+          : { commandId: 'ui.applyLayout', params: { windows: wins.map((w) => ({ id: w.id, minimized: false })) } },
+      ephemeral: true,
     }
   },
 })

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Activity, CheckCircle2, CloudOff, Headphones, Loader2, XCircle } from 'lucide-react'
+import { Activity, CheckCircle2, CloudOff, ExternalLink, Headphones, Loader2, Undo2, XCircle } from 'lucide-react'
 import { useJobs, finishedJobs, runningJobs } from '../system/jobs'
 import { useNetwork } from '../system/network'
 import { useAmbient } from '../system/ambient'
 import { connectedApps, useMcp } from '../mcp/manager'
 import { catalogFor } from '../mcp/catalog'
 import { useSession } from '../ai/session'
-import { dispatch } from '../kernel/commands'
+import { dispatch, standingOf, undoEntry, useJournal, type JournalEntry } from '../kernel/commands'
+import { clearJournal } from '../kernel/journal'
 import { TIER_LABELS } from '../ai/router'
 import { cn } from '../lib/utils'
 import { AppLogo } from './apps/Apps'
@@ -26,6 +27,7 @@ export function StatusPill() {
   const running = runningJobs(jobs)
   const online = useNetwork((s) => s.online)
   const ambient = useAmbient((s) => s.kind)
+  const done = useJournal((s) => s.entries)
   const last = useSession((s) => {
     for (let i = s.turns.length - 1; i >= 0; i--) {
       const t = s.turns[i]
@@ -120,6 +122,16 @@ export function StatusPill() {
                 <p className="px-1 text-ink-3">Aún no has hablado con Sky.</p>
               )}
             </Section>
+            <Section title="Lo que hice" action={done.length ? { label: 'Limpiar', run: () => void clearJournal() } : undefined}>
+              {done.length === 0 ? (
+                <p className="px-1 text-ink-3">Nada todavía.</p>
+              ) : (
+                [...done]
+                  .reverse()
+                  .slice(0, 6)
+                  .map((e) => <ActivityLine key={e.id} entry={e} />)
+              )}
+            </Section>
             <Section title="En segundo plano">
               {running.length === 0 && finishedJobs(jobs).length === 0 ? (
                 <p className="px-1 text-ink-3">Nada corriendo.</p>
@@ -162,6 +174,36 @@ function Section({ title, action, children }: { title: string; action?: { label:
         )}
       </div>
       {children}
+    </div>
+  )
+}
+
+/**
+ * One thing that happened and what can still be done about it: taken back, only remembered, or gone out to a
+ * connected app where this desktop has no say. Saying which is the difference between trust and a surprise.
+ */
+function ActivityLine({ entry }: { entry: JournalEntry }) {
+  const standing = standingOf(entry)
+  return (
+    <div className="flex items-center gap-1.5 px-1 py-0.5" title={new Date(entry.at).toLocaleString('es-MX')}>
+      <span className={cn('min-w-0 flex-1 truncate', entry.undone ? 'text-ink-3 line-through' : 'text-ink-2')}>{entry.label}</span>
+      {standing === 'undoable' ? (
+        <button
+          type="button"
+          onClick={() => void undoEntry(entry.id)}
+          className="flex shrink-0 items-center gap-1 rounded-md px-1 py-0.5 text-[11px] text-accent transition hover:bg-accent-soft"
+        >
+          <Undo2 className="h-3 w-3" />
+          Deshacer
+        </button>
+      ) : standing === 'external' ? (
+        <span className="flex shrink-0 items-center gap-1 text-[11px] text-ink-3" title="Pasó en la app conectada; desde aquí no se puede deshacer">
+          <ExternalLink className="h-3 w-3" />
+          En la app
+        </span>
+      ) : (
+        <span className="shrink-0 text-[11px] text-ink-3">{entry.undone ? 'Deshecho' : 'Historial'}</span>
+      )}
     </div>
   )
 }

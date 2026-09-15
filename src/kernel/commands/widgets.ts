@@ -69,9 +69,7 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
     return {
       result: widget,
       label: `Widget "${widget.title}" añadido`,
-      undo: async () => {
-        await widgets.remove(widget.id)
-      },
+      undo: { commandId: 'widgets.restore', params: { widget: null, id: widget.id } },
     }
   },
 })
@@ -93,9 +91,7 @@ registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
     return {
       result: after,
       label: `Widget "${after.title}" actualizado`,
-      undo: async () => {
-        await widgets.restore(before)
-      },
+      undo: { commandId: 'widgets.restore', params: { widget: before } },
     }
   },
 })
@@ -112,10 +108,22 @@ registerCommand<{ id: string }, void>({
     return {
       result: undefined,
       label: `Widget "${removed.title}" quitado`,
-      undo: async () => {
-        await widgets.restore(removed)
-      },
+      undo: { commandId: 'widgets.restore', params: { widget: removed } },
     }
+  },
+})
+
+registerCommand<{ widget: Widget | null; id?: string }, void>({
+  id: 'widgets.restore',
+  title: 'Devolver un widget',
+  description: 'Devuelve un widget a como estaba, o lo quita si no había ninguno.',
+  // The written inverse of the three widget commands: with a widget it comes back, without one it goes away.
+  ai: false,
+  params: {},
+  async run({ widget, id }) {
+    if (widget) await widgets.restore(widget)
+    else if (id) await widgets.remove(id)
+    return { result: undefined }
   },
 })
 

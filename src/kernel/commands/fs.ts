@@ -19,7 +19,7 @@ registerCommand<{ parentId?: string; name?: string }, FsNode>({
   },
   async run({ parentId = ROOT_ID, name = 'Nueva carpeta' }) {
     const node = await fs.createFolder(parentId, name)
-    return { result: node, label: `Carpeta "${node.name}" creada`, undo: () => fs.trash([node.id]) }
+    return { result: node, label: `Carpeta "${node.name}" creada`, undo: { commandId: 'fs.trash', params: { ids: [node.id] } } }
   },
 })
 
@@ -40,7 +40,7 @@ registerCommand<{ parentId?: string; type?: string; name?: string; content?: str
     const finalName = extOf(base) ? base : `${base}.${ft.ext}`
     const blob = new Blob([content ?? ft.template], { type: ft.mime })
     const node = await fs.createFile(parentId, finalName, blob, ft.mime)
-    return { result: node, label: `Se creó "${node.name}"`, undo: () => fs.trash([node.id]) }
+    return { result: node, label: `Se creó "${node.name}"`, undo: { commandId: 'fs.trash', params: { ids: [node.id] } } }
   },
 })
 
@@ -60,9 +60,7 @@ registerCommand<{ id: string; name: string }, string>({
     return {
       result: after,
       label: `"${before.name}" ahora se llama "${after}"`,
-      undo: async () => {
-        await fs.rename(id, before.name)
-      },
+      undo: { commandId: 'fs.rename', params: { id, name: before.name } },
     }
   },
 })
@@ -85,13 +83,26 @@ registerCommand<{ ids: string[]; targetParentId: string }, void>({
       moved.length === 1
         ? `"${first?.name ?? 'Elemento'}" movido a ${target}`
         : `${moved.length} elementos movidos a ${target}`
-    return {
-      result: undefined,
-      label,
-      undo: async () => {
-        for (const id of moved) await fs.move([id], previous[id])
-      },
+    return { result: undefined, label, undo: { commandId: 'fs.moveBack', params: { previous } } }
+  },
+})
+
+registerCommand<{ previous: Record<string, string> }, void>({
+  id: 'fs.moveBack',
+  title: 'Devolver a su carpeta',
+  description: 'Devuelve elementos a la carpeta en la que estaban.',
+  // The written inverse of fs.move: each element goes home on its own, which a single destination cannot say.
+  ai: false,
+  params: {},
+  async run({ previous }) {
+    let moved = 0
+    for (const [id, parentId] of Object.entries(previous ?? {})) {
+      if (!(await fs.get(id))) continue
+      await fs.move([id], parentId)
+      moved++
     }
+    if (!moved) throw new Error('eso ya no existe')
+    return { result: undefined }
   },
 })
 
@@ -112,7 +123,7 @@ registerCommand<{ ids: string[] }, void>({
       ids.length === 1
         ? `"${first?.name ?? 'Elemento'}" enviado a la papelera`
         : `${ids.length} elementos enviados a la papelera`
-    return { result: undefined, label, undo: () => fs.restore(ids) }
+    return { result: undefined, label, undo: { commandId: 'fs.restore', params: { ids } } }
   },
 })
 
@@ -126,11 +137,15 @@ registerCommand<{ ids: string[] }, void>({
   },
   async run({ ids }) {
     if (!ids.length) return { result: undefined }
-    const first = await fs.get(ids[0])
-    await fs.restore(ids)
+    // Emptying the trash leaves entries pointing at nothing. An undo that quietly restores zero files is worse
+    // than one that says it came too late.
+    const present = (await Promise.all(ids.map((id) => fs.get(id)))).filter((n) => !!n)
+    if (!present.length) throw new Error('ya no está en la papelera')
+    const alive = present.map((n) => n.id)
+    await fs.restore(alive)
     const label =
-      ids.length === 1 ? `"${first?.name ?? 'Elemento'}" restaurado` : `${ids.length} elementos restaurados`
-    return { result: undefined, label, undo: () => fs.trash(ids) }
+      alive.length === 1 ? `"${present[0].name}" restaurado` : `${alive.length} elementos restaurados`
+    return { result: undefined, label, undo: { commandId: 'fs.trash', params: { ids: alive } } }
   },
 })
 
@@ -174,7 +189,7 @@ registerCommand<{ parentId?: string; files: File[] }, FsNode[]>({
     if (!created.length) return { result: created }
     const label =
       created.length === 1 ? `"${created[0].name}" importado` : `${created.length} archivos importados`
-    return { result: created, label, undo: () => fs.trash(created.map((n) => n.id)) }
+    return { result: created, label, undo: { commandId: 'fs.trash', params: { ids: created.map((n) => n.id) } } }
   },
 })
 
@@ -194,7 +209,7 @@ registerCommand<{ id: string; content: string }, void>({
     return {
       result: undefined,
       label: `"${node.name}" actualizado`,
-      undo: () => fs.writeText(id, before),
+      undo: { commandId: 'fs.writeText', params: { id, content: before } },
     }
   },
 })
@@ -215,9 +230,7 @@ registerCommand<{ id: string; tags: string[] }, string[]>({
     return {
       result: after,
       label: after.length ? `"${node.name}" etiquetado: ${after.join(', ')}` : `Etiquetas de "${node.name}" eliminadas`,
-      undo: async () => {
-        await fs.setTags(id, before)
-      },
+      undo: { commandId: 'fs.setTags', params: { id, tags: before } },
     }
   },
 })

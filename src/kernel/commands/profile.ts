@@ -38,7 +38,20 @@ registerCommand<{ place: string }, { place: string; lat: number; lon: number }>(
     return {
       result: { place: found.name, lat: found.lat, lon: found.lon },
       label: `Ubicación: ${found.name}`,
-      undo: () => saveLocation(previous),
+      undo: { commandId: 'user.restoreLocation', params: { location: previous ?? null } },
     }
+  },
+})
+
+registerCommand<{ location: UserLocation | null }, void>({
+  id: 'user.restoreLocation',
+  title: 'Devolver la ubicación',
+  description: 'Vuelve a la ubicación anterior sin volver a buscarla.',
+  // The written inverse of user.setLocation: the old place travels with the entry instead of being looked up again.
+  ai: false,
+  params: {},
+  async run({ location }) {
+    await saveLocation(location ?? undefined)
+    return { result: undefined }
   },
 })

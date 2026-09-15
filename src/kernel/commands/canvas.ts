@@ -60,7 +60,7 @@ registerCommand<{ name?: string; parentId?: string; blocks?: BlockInput[]; open?
     const { doc, ids } = appendBlocks(emptyCanvas(), validBlocks(blocks))
     const node = await fs.createFile(parentId, finalName, new Blob([serializeCanvas(doc)], { type: CANVAS_MIME }), CANVAS_MIME)
     if (open) useWindows.getState().open('canvas', { title: node.name, props: { nodeId: node.id } })
-    return { result: { id: node.id, name: node.name, blockIds: ids }, label: `Lienzo "${node.name}" creado`, undo: () => fs.trash([node.id]) }
+    return { result: { id: node.id, name: node.name, blockIds: ids }, label: `Lienzo "${node.name}" creado`, undo: { commandId: 'fs.trash', params: { ids: [node.id] } } }
   },
 })
 
@@ -82,11 +82,26 @@ registerCommand<{ id: string; blocks: BlockInput[] }, { blockIds: string[] }>({
     return {
       result: { blockIds: next.ids },
       label: `${plural(items.length)} en "${node.name}"`,
-      undo: async () => {
-        const current = parseCanvas(await fs.readText(id))
-        await write(id, { version: 1, blocks: current.blocks.filter((b) => !next.ids.includes(b.id)) })
-      },
+      undo: { commandId: 'canvas.apply', params: { id, remove: next.ids } },
     }
+  },
+})
+
+registerCommand<{ id: string; remove?: string[]; put?: CanvasBlock[] }, void>({
+  id: 'canvas.apply',
+  title: 'Rehacer bloques de un lienzo',
+  description: 'Quita bloques por id y devuelve otros tal como estaban.',
+  // The written inverse of every canvas edit: taking blocks out and putting blocks back is all three of them.
+  ai: false,
+  params: {},
+  async run({ id, remove, put }) {
+    const gone = new Set(remove ?? [])
+    const back = new Map((put ?? []).map((b) => [b.id, b]))
+    const current = parseCanvas(await fs.readText(id))
+    const blocks = current.blocks.filter((b) => !gone.has(b.id)).map((b) => back.get(b.id) ?? b)
+    for (const b of back.values()) if (!blocks.some((x) => x.id === b.id)) blocks.push(b)
+    await write(id, { version: 1, blocks })
+    return { result: undefined }
   },
 })
 
@@ -116,10 +131,7 @@ registerCommand<{ id: string; blockId: string; content?: string; title?: string;
     return {
       result: undefined,
       label: `Bloque actualizado en "${node.name}"`,
-      undo: async () => {
-        const current = parseCanvas(await fs.readText(id))
-        await write(id, { version: 1, blocks: current.blocks.map((b) => (b.id === blockId ? before : b)) })
-      },
+      undo: { commandId: 'canvas.apply', params: { id, put: [before] } },
     }
   },
 })
@@ -141,10 +153,7 @@ registerCommand<{ id: string; blockId: string }, void>({
     return {
       result: undefined,
       label: `Bloque quitado de "${node.name}"`,
-      undo: async () => {
-        const current = parseCanvas(await fs.readText(id))
-        if (!current.blocks.some((b) => b.id === blockId)) await write(id, { version: 1, blocks: [...current.blocks, removed] })
-      },
+      undo: { commandId: 'canvas.apply', params: { id, put: [removed] } },
     }
   },
 })

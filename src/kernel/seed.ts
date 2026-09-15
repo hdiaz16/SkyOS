@@ -13,7 +13,7 @@ Por ahora funciona como un escritorio tranquilo, con pocas acciones bien cuidada
 - Ctrl+K lleva el foco a la barra desde cualquier lugar.
 - Clic derecho en el escritorio para crear carpetas, notas y otros tipos de archivo.
 - Arrastra archivos desde tu computadora para importarlos.
-- Ctrl+Z deshace la última acción. Todo lo que pasa aquí se puede deshacer.
+- Ctrl+Z deshace la última acción sobre tus archivos, tus widgets y tus ventanas, hoy y mañana. Lo que Sky haga en una app conectada pasa allá y solo queda anotado.
 - Doble clic abre. F2 renombra. Supr envía a la papelera.
 - Haz clic en la hora para ver el calendario.
 

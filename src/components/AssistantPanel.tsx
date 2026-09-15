@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { AlertCircle, Check, Loader2, Sparkles, Square, Trash2, Undo2, Volume2, VolumeX, X, FileText } from 'lucide-react'
+import { AlertCircle, Check, ExternalLink, Loader2, Sparkles, Square, Trash2, Undo2, Volume2, VolumeX, X, FileText } from 'lucide-react'
 import { speak, speechAvailable, stopSpeaking } from '../ai/speech'
 import { useSession, type Turn } from '../ai/session'
 import { commandIdForTool } from '../ai/tools'
@@ -8,7 +8,7 @@ import { modelLabel, TIER_LABELS, type Tier } from '../ai/router'
 import type { Usage } from '../ai/types'
 import { useAiSettings } from '../ai/settings'
 import type { ToolEvent } from '../ai/agent'
-import { getCommand, undoEntry, undoRun, useJournal } from '../kernel/commands'
+import { getCommand, standingOf, undoEntry, undoRun, useJournal } from '../kernel/commands'
 import { cn } from '../lib/utils'
 import { Markdown } from './Markdown'
 
@@ -199,7 +199,7 @@ function ToolChip({ ev }: { ev: ToolEvent }) {
   const entry = useJournal((s) => (ev.result?.entryId ? s.entries.find((e) => e.id === ev.result?.entryId) : undefined))
   const pending = !ev.result
   const failed = ev.result?.isError
-  const canUndo = !!entry && !entry.undone && !!entry.undo
+  const standing = entry ? standingOf(entry) : undefined
   return (
     <li
       className={cn(
@@ -215,7 +215,7 @@ function ToolChip({ ev }: { ev: ToolEvent }) {
         <Check className="h-3.5 w-3.5 shrink-0 text-accent" />
       )}
       <span className="min-w-0 flex-1 truncate">{failed ? `${describeCall(ev)}: ${ev.result?.content}` : describeCall(ev)}</span>
-      {canUndo && (
+      {standing === 'undoable' && entry && (
         <button
           type="button"
           onClick={() => void undoEntry(entry.id)}
@@ -224,6 +224,12 @@ function ToolChip({ ev }: { ev: ToolEvent }) {
           <Undo2 className="h-3 w-3" />
           Deshacer
         </button>
+      )}
+      {standing === 'external' && (
+        <span title="Pasó en la app conectada; desde aquí no se puede deshacer" className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-ink-3">
+          <ExternalLink className="h-3 w-3" />
+          En la app
+        </span>
       )}
     </li>
   )

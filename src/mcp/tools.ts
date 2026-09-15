@@ -258,7 +258,8 @@ export async function executeMcpTool(name: string, input: Record<string, unknown
     if (result.isError) return { content, isError: true, undoable: false }
     const readOnly = tool.annotations?.readOnlyHint === true
     if (readOnly) return { content, isError: false, undoable: false }
-    const entry = { id: nanoid(8), commandId: `mcp.${server.id}.${tool.name}`, label: `${server.name} · ${tool.title ?? tool.name}`, at: Date.now(), source: 'ai' as const, runId, undone: false }
+    // It happened in someone else's house: it belongs in the journal as history, never as something to undo.
+    const entry = { id: nanoid(8), commandId: `mcp.${server.id}.${tool.name}`, label: `${server.name} · ${tool.title ?? tool.name}`, at: Date.now(), source: 'ai' as const, runId, external: true, undone: false }
     useJournal.getState().push(entry)
     return { content, isError: false, label: entry.label, entryId: entry.id, undoable: false }
   } catch (err) {

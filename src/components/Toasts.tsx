@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Undo2, X } from 'lucide-react'
-import { undoEntry, useJournal, useToasts } from '../kernel/commands'
+import { standingOf, undoEntry, useJournal, useToasts } from '../kernel/commands'
 import { cn } from '../lib/utils'
 
 export function Toasts() {
@@ -13,7 +13,7 @@ export function Toasts() {
       <AnimatePresence initial={false}>
         {toasts.map((t) => {
           const entry = t.entryId ? entries.find((e) => e.id === t.entryId) : undefined
-          const canUndo = !!entry && !entry.undone
+          const canUndo = !!entry && standingOf(entry) === 'undoable'
           return (
             <motion.div
               key={t.id}

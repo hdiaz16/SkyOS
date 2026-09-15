@@ -21,6 +21,7 @@ import { mcp } from './mcp/manager'
 import { startSync } from './system/sync'
 import { watchNetwork } from './system/network'
 import { startWorkspace } from './state/workspace'
+import { startJournal } from './kernel/journal'
 import { armAudio, play } from './system/sound'
 import { isEditableTarget } from './lib/utils'
 
@@ -52,12 +53,18 @@ export default function App() {
     void startWorkspace().then((stop) => {
       stopWorkspace = stop
     })
+    // And what was done to it, so "deshacer" still means something after a reload.
+    let stopJournal: (() => void) | undefined
+    void startJournal().then((stop) => {
+      stopJournal = stop
+    })
     return () => {
       stopMcp()
       stopSync()
       stopNetwork()
       disarmAudio()
       stopWorkspace?.()
+      stopJournal?.()
     }
   }, [])
 

@@ -4,6 +4,7 @@ import type { Widget } from './widgets'
 import { readSession } from '../system/session'
 import type { McpServerRecord, OAuthClient } from '../mcp/types'
 import type { ConversationRow } from '../ai/conversation'
+import type { JournalEntry } from './commands'
 
 export interface BlobRow {
   id: string
@@ -91,6 +92,8 @@ export class MesaDB extends Dexie {
   syncState!: Table<SyncStateRow, string>
   /** The open windows, saved so the desk survives a reload; a single row. */
   workspace!: Table<WorkspaceRow, string>
+  /** What was done and what can still be taken back, one row per action (kernel/journal.ts). */
+  journal!: Table<JournalEntry, string>
 
   constructor(name: string) {
     super(name)
@@ -120,6 +123,9 @@ export class MesaDB extends Dexie {
     })
     this.version(7).stores({
       workspace: 'id',
+    })
+    this.version(8).stores({
+      journal: 'id, at',
     })
   }
 }
