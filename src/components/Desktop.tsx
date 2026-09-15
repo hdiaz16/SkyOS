@@ -26,7 +26,8 @@ export function Desktop() {
     if ((e.target as HTMLElement).closest('[data-node]')) return
     e.preventDefault()
     useUi.getState().clearSelection()
-    useUi.getState().openMenu(e.clientX, e.clientY, folderMenu(ROOT_ID, { x: e.clientX, y: e.clientY }))
+    const at = { x: e.clientX, y: e.clientY }
+    void folderMenu(ROOT_ID, at).then((items) => useUi.getState().openMenu(at.x, at.y, items))
   }
 
   const onDragOver = (e: DragEvent) => {

@@ -1,6 +1,7 @@
 import { fs } from '../kernel/fs'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { widgets } from '../kernel/widgets'
+import { readProject, summarizeProject } from '../kernel/project'
 import { useWindows, type Win } from '../state/windows'
 import { formatBytes } from '../lib/utils'
 import { useUi } from '../state/ui'
@@ -27,6 +28,7 @@ export const SYSTEM_PROMPT = `Eres Sky, un escritorio web: la persona te habla y
 - Imagen o captura adjunta: haz lo que pidan con ella; descríbela solo si lo piden.
 - Flujo guardado por su nombre: flows_run y ejecuta sus instrucciones. "Guárdalo como flujo": flows_save con pasos concretos.
 - Ventanas: "cierra lo que no uso" es ui_closeWindows scope "stale"; "acomoda las demás" es ui_arrangeWindows. Encadénalas si lo piden junto.
+- Proyecto activo en el <estado>: es la memoria de esa carpeta. Úsala para retomar sin preguntar lo ya sabido, y con project_update anota decisiones, pendientes y una línea de bitácora cuando cierres un avance real. Carpeta de trabajo de varios días que aún no es proyecto: propónlo en una frase.
 - Plan visual, esquema, diagrama o tablero: canvas_create con los bloques listos (markdown, mermaid, html), o canvas_addBlocks al lienzo activo. En cualquier respuesta puedes dibujar con un bloque mermaid.
 - Apps conectadas (Notion, Slack, Drive, Gmail, Calendar, GitHub, Todoist, Spotify, Evernote): sus herramientas empiezan por mcp_ y solo aparecen cuando la petición nombra la app o lo que guarda. Si el <estado> la marca conectada y no ves sus herramientas, pide que la nombre. Si no está conectada, dilo y abre ui_openApps con esa app. Lo que hagas ahí sale de este equipo y no se deshace desde aquí: si vas a escribir, enviar o borrar en la app, dilo en la misma frase antes de hacerlo.
 
@@ -102,14 +104,23 @@ async function describeActive(top: Win | undefined): Promise<string[]> {
     const items = await fs.list(folderId)
     const lines = items.slice(0, CONTEXT_ITEMS).map(describeNode)
     if (items.length > CONTEXT_ITEMS) lines.push(`- …y ${items.length - CONTEXT_ITEMS} más (fs_list para verlos)`)
-    return [`Carpeta activa (contexto por defecto): «${folder.name}» (id ${folder.id}), ${items.length} elementos:`, ...(lines.length ? lines : ['- (vacía)'])]
+    const project = await readProject(folderId)
+    return [
+      `Carpeta activa (contexto por defecto): «${folder.name}» (id ${folder.id}), ${items.length} elementos:`,
+      ...(lines.length ? lines : ['- (vacía)']),
+      ...(project ? summarizeProject(project) : []),
+    ]
   }
   if (top.props.nodeId) {
     const node = await fs.get(top.props.nodeId)
     if (!node) return []
     const parent = node.parentId === ROOT_ID ? 'Escritorio' : ((await fs.get(node.parentId))?.name ?? '?')
     const where = node.parentId === ROOT_ID ? parent : `«${parent}» (id ${node.parentId})`
-    return [`Archivo activo (contexto por defecto): «${node.name}» (id ${node.id}, ${fileKind(node)}, ${formatBytes(node.size)}) en ${where}.`]
+    const project = node.parentId === ROOT_ID ? null : await readProject(node.parentId)
+    return [
+      `Archivo activo (contexto por defecto): «${node.name}» (id ${node.id}, ${fileKind(node)}, ${formatBytes(node.size)}) en ${where}.`,
+      ...(project ? summarizeProject(project) : []),
+    ]
   }
   if (top.app === 'app' && top.props.app) return [`App activa: ${top.props.app}.`]
   return []

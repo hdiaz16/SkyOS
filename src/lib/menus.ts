@@ -1,4 +1,5 @@
 import { dispatch, useToasts, type CommandContext } from '../kernel/commands'
+import { projectFile } from '../kernel/project'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { USER_WIDGET_TYPES, WIDGET_META } from '../kernel/widgets'
 import { useUi } from '../state/ui'
@@ -62,7 +63,19 @@ export function widgetMenu(): MenuItem[] {
   ]
 }
 
-export function folderMenu(parentId: string, at?: Point): MenuItem[] {
+/** Either the way in to a folder's memory or the way to give it one; a folder is only ever in one of the two. */
+async function projectItem(folderId: string): Promise<MenuItem[]> {
+  if (folderId === ROOT_ID) return []
+  const file = await projectFile(folderId)
+  return [
+    { type: 'separator' },
+    file
+      ? { label: 'Abrir memoria del proyecto', onSelect: () => void dispatch('ui.open', { id: file.id }) }
+      : { label: 'Convertir en proyecto', onSelect: () => void dispatch('project.start', { folderId }) },
+  ]
+}
+
+export async function folderMenu(parentId: string, at?: Point): Promise<MenuItem[]> {
   const items: MenuItem[] = [
     { label: 'Nueva carpeta', onSelect: () => void createFolderAndRename(parentId) },
     { label: 'Nueva nota', onSelect: () => void createFileAndOpen(parentId, 'note') },
@@ -81,6 +94,7 @@ export function folderMenu(parentId: string, at?: Point): MenuItem[] {
     items.push({ type: 'separator' }, { label: 'Resumir contenido con Sky', onSelect: () => void runTask(() => summarizeFolder(parentId)) })
   }
   items.push({ type: 'separator' }, { label: 'Importar archivos…', onSelect: () => importInto(parentId) })
+  items.push(...(await projectItem(parentId)))
   return items
 }
 
@@ -121,7 +135,7 @@ async function runTask(task: () => Promise<unknown>): Promise<void> {
   }
 }
 
-export function nodeMenu(node: FsNode, ids: string[], at?: Point): MenuItem[] {
+export async function nodeMenu(node: FsNode, ids: string[], at?: Point): Promise<MenuItem[]> {
   const many = ids.length > 1
   const items: MenuItem[] = []
   if (!many) {
@@ -142,6 +156,7 @@ export function nodeMenu(node: FsNode, ids: string[], at?: Point): MenuItem[] {
       if (canAttach(node)) aiItems.push({ label: 'Pedir a Sky sobre este archivo…', onSelect: () => void attachSelection([node.id]) })
       if (aiItems.length) items.push({ type: 'separator' }, ...aiItems)
     }
+    if (node.kind === 'folder') items.push(...(await projectItem(node.id)))
     items.push({ type: 'separator' })
   } else if (isAiConfigured()) {
     items.push(

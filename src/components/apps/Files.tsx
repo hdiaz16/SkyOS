@@ -1,7 +1,9 @@
 import { useEffect, useState, type DragEvent, type MouseEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, FilePlus2, FolderPlus, Sparkles, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FilePlus2, FolderPlus, Square, Sparkles, Upload } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { readProject } from '../../kernel/project'
+import { useSession } from '../../ai/session'
 import { ROOT_ID } from '../../kernel/types'
 import { dispatch } from '../../kernel/commands'
 import { useWindows, type Win } from '../../state/windows'
@@ -57,7 +59,8 @@ export function FilesApp({ win }: { win: Win }) {
     if ((e.target as HTMLElement).closest('[data-node]')) return
     e.preventDefault()
     useUi.getState().clearSelection()
-    useUi.getState().openMenu(e.clientX, e.clientY, folderMenu(folderId, { x: e.clientX, y: e.clientY }))
+    const at = { x: e.clientX, y: e.clientY }
+    void folderMenu(folderId, at).then((items) => useUi.getState().openMenu(at.x, at.y, items))
   }
 
   const onDragOver = (e: DragEvent) => {
@@ -123,6 +126,8 @@ export function FilesApp({ win }: { win: Win }) {
         </ToolButton>
       </div>
 
+      <ProjectStrip folderId={folderId} />
+
       <div
         className={cn('scrollbar-thin relative min-h-0 flex-1 overflow-y-auto p-3 transition-colors', dragOver && 'bg-accent-soft')}
         onMouseDown={onBodyMouseDown}
@@ -162,6 +167,56 @@ export function FilesApp({ win }: { win: Win }) {
               : ''}
         </span>
       </div>
+    </div>
+  )
+}
+
+/** How many open items fit in the strip before it stops being a glance and starts being a list. */
+const STRIP_PENDING = 4
+
+/**
+ * What this folder remembers, when the folder is a project: the goal, what is still open, and one way back in.
+ * It is the difference between opening a folder and picking up where you left off.
+ */
+function ProjectStrip({ folderId }: { folderId: string }) {
+  const mem = useLiveQuery(() => readProject(folderId), [folderId])
+  if (!mem) return null
+  const open = mem.pending.slice(0, STRIP_PENDING)
+  return (
+    <div className="shrink-0 border-b border-line px-3 py-2">
+      <div className="flex items-baseline gap-2">
+        <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-accent">Proyecto</span>
+        <p className="min-w-0 flex-1 truncate text-[12.5px] text-ink-2" title={mem.goal}>
+          {mem.goal || 'Sin objetivo todavía'}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            useSession.getState().setOpen(true)
+            void useSession.getState().send(`¿Dónde nos quedamos en «${mem.name}»?`)
+          }}
+          className="shrink-0 text-[11.5px] font-medium text-accent transition hover:underline"
+        >
+          Retomar
+        </button>
+      </div>
+      {open.length > 0 && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {open.map((p) => (
+            <button
+              key={p}
+              type="button"
+              title="Marcar como hecho"
+              onClick={() => void dispatch('project.togglePending', { folderId, text: p })}
+              className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-2 transition hover:text-ink"
+            >
+              <Square className="h-3 w-3 shrink-0 text-ink-3" />
+              <span className="truncate">{p}</span>
+            </button>
+          ))}
+          {mem.pending.length > open.length && <span className="text-[12px] text-ink-3">+{mem.pending.length - open.length}</span>}
+        </div>
+      )}
     </div>
   )
 }

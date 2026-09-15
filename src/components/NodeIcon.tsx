@@ -45,7 +45,8 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
     const ui = useUi.getState()
     const ids = selected && ui.selection.length > 1 ? ui.selection : [node.id]
     if (!selected) ui.select([node.id])
-    ui.openMenu(e.clientX, e.clientY, nodeMenu(node, ids, { x: e.clientX, y: e.clientY }))
+    const at = { x: e.clientX, y: e.clientY }
+    void nodeMenu(node, ids, at).then((items) => ui.openMenu(at.x, at.y, items))
   }
 
   const onDragStart = (e: DragEvent) => {

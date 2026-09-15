@@ -26,8 +26,9 @@ internos lo conservan para no perder datos.
 - Pantalla de inicio con las personas que usan este navegador; PIN opcional (PBKDF2). Cerrar sesión vuelve al inicio.
 - Aislamiento real: cada cuenta tiene su base de datos, su carpeta de archivos, sus ajustes, su llave de IA, sus widgets,
   flujos e índice. Nada se comparte entre cuentas.
-- Splash de arranque y onboarding de cuatro pantallas (saludo, nombre, cómo trabajamos, tu espacio) con el orbe de Sky; las respuestas se integran al prompt
-  del sistema para que Sky hable y actúe como cada persona pidió.
+- Splash de arranque y onboarding de dos pantallas: tu nombre y entrar. Todo lo demás empieza con valores sensatos y se
+  cambia en Ajustes; la ubicación se detecta sola mientras escribes y el micrófono lo pide el navegador la primera vez
+  que dictas. Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.
 
 **Escritorio**
 
@@ -38,7 +39,8 @@ internos lo conservan para no perder datos.
 
 **Barra de Sky** (Ctrl+K)
 
-- Pide cosas en lenguaje natural: la IA usa los mismos comandos que la interfaz y todo queda deshacible.
+- Pide cosas en lenguaje natural: la IA usa los mismos comandos que la interfaz, y lo que toca tus archivos, widgets y
+  ventanas se puede deshacer.
 - Busca archivos por nombre o por significado, ejecuta acciones, lanza flujos guardados y abre Google.
 - Calculadora y conversor local: `15% de 3400`, `120 km a millas`, `72 f a c`, `2 gb en mb`.
 - Captura de pantalla con selector de área, y dictado por voz con Whisper cuando hay una llave de Groq.
@@ -56,6 +58,23 @@ internos lo conservan para no perder datos.
 - Búsqueda por significado en el dispositivo: un modelo multilingüe pequeño (Transformers.js, una descarga de unos
   120 MB) convierte los textos en vectores dentro de un Web Worker; la barra encuentra "el reporte de los costos"
   sin tokens ni red. Índice de resúmenes con un modelo rápido como segunda opinión.
+
+**Proyectos: una carpeta que recuerda**
+
+- Cualquier carpeta se convierte en proyecto con un clic derecho (o pidiéndoselo a Sky). A partir de ahí guarda objetivo,
+  decisiones, pendientes y bitácora en un `Proyecto.md` dentro de la propia carpeta: se puede leer y editar a mano, viaja
+  a la nube con el resto y sobrevive a una exportación.
+- Al abrir la carpeta, una franja muestra el objetivo y lo que falta, con un botón **Retomar** que le pregunta a Sky
+  dónde nos quedamos. Sky lee esa memoria en cada petición hecha dentro del proyecto y anota los avances al cerrarlos.
+
+**Deshacer, historial y lo que sale afuera**
+
+- Cada acción guarda su inverso como un comando con sus parámetros, no como una función en memoria: el diario se escribe
+  en la base de la cuenta y deshacer sigue funcionando después de recargar o al día siguiente.
+- El estado del sistema (arriba a la derecha) tiene **Lo que hice** con las tres clases a la vista: lo que se puede
+  deshacer, lo que ya solo es historial y lo que pasó en una app conectada, que vive fuera de este equipo.
+- Ctrl+Z recorre lo de esta sesión; lo de ayer se deshace a propósito desde esa lista. Un deshacer que llega tarde
+  (la papelera ya se vació) falla diciendo por qué en vez de fingir que funcionó.
 
 **Lienzo (Text-to-UI)**
 
@@ -211,8 +230,10 @@ src/
   kernel/            núcleo sin UI
     fs.ts            sistema de archivos (OPFS + Dexie), una base por usuario
     widgets.ts       widgets persistidos · flows.ts rutinas guardadas
-    commands.ts      registro de comandos, dispatch, diario y deshacer
-    commands/        fs.*, ui.*, widgets.*, flows.*, consultas y sistema
+    project.ts       memoria de proyecto en un Proyecto.md dentro de la carpeta
+    commands.ts      registro de comandos, dispatch, diario y deshacer con inversos escritos
+    journal.ts       el diario en disco: deshacer que sobrevive a la recarga
+    commands/        fs.*, ui.*, widgets.*, flows.*, project.*, consultas y sistema
   ai/                capa de IA neutral al proveedor
     settings.ts      proveedores (Groq, Anthropic, OpenAI, OpenRouter, Ollama), niveles de modelo
     router.ts        modelo automático por dificultad
@@ -224,6 +245,7 @@ src/
     indexer.ts       índice y búsqueda por significado · classify.ts sugerencias al importar
     snap.ts          captura de pantalla · voice.ts dictado · terminal.ts consola
   state/             Zustand: ventanas, selección y menús, ajustes, diálogo
+    workspace.ts     el escritorio como lo dejaste: ventanas guardadas y devueltas al arrancar
   components/        shell (splash, login, onboarding, orbe), escritorio, barra, panel, ventanas, widgets, apps
   lib/               calculadora, unidades, clima, divisas, menús, utilidades
 ```
