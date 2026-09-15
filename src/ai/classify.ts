@@ -80,7 +80,11 @@ export async function suggestPlacement(created: FsNode[]): Promise<void> {
   for (const s of suggestions) {
     const node = byId.get(s.id)
     if (!node) continue
-    if (Array.isArray(s.tags) && s.tags.length) await fs.setTags(node.id, s.tags.map(String))
+    // Through the command bus: labelling is a change to the person's files, so it respects the autonomy
+    // they chose, lands in the log and can be undone like everything else Sky does.
+    if (Array.isArray(s.tags) && s.tags.length) {
+      await dispatch('fs.setTags', { id: node.id, tags: s.tags.map(String) }, { source: 'ai' }).catch(() => undefined)
+    }
     if (s.folderId && folderIds.has(s.folderId) && (s.confidence ?? 1) >= MIN_CONFIDENCE) {
       moves.push({ node, folderId: s.folderId, folder: folders.find((f) => f.id === s.folderId)?.name ?? s.folder ?? 'carpeta' })
     }

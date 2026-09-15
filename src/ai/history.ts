@@ -24,6 +24,20 @@ export function trimHistory(history: ChatMessage[], max: number): ChatMessage[] 
   if (history.length <= max) return history
   let start = history.length - max
   while (start < history.length && !isPrompt(history[start])) start++
+  // A turn that chained many tools can fill the whole window with call/result pairs and no beginning: the
+  // walk above then runs off the end and the conversation comes back empty. Falling back to the last thing
+  // the person actually said keeps the thread, even if it means carrying a few messages more than asked.
+  if (start >= history.length) {
+    let last = -1
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (isPrompt(history[i])) {
+        last = i
+        break
+      }
+    }
+    if (last < 0) return history
+    return history.slice(last)
+  }
   return history.slice(start)
 }
 

@@ -72,7 +72,10 @@ export async function buildSystemPrompt(): Promise<string> {
 }
 
 async function describeFolder(id: string, indent: string, depth: number): Promise<string[]> {
-  const items = await fs.list(id)
+  const all = await fs.list(id)
+  // A desk with three hundred files used to send three hundred lines, every turn, to a provider that meters
+  // tokens by the minute. What does not fit is counted, and fs_list is there for the rest.
+  const items = all.slice(0, CONTEXT_ITEMS)
   const lines: string[] = []
   for (const n of items) {
     if (n.kind === 'folder') {
@@ -83,6 +86,7 @@ async function describeFolder(id: string, indent: string, depth: number): Promis
       lines.push(`${indent}- ${n.name} (id ${n.id})${n.tags?.length ? ` #${n.tags.join(' #')}` : ''}`)
     }
   }
+  if (all.length > items.length) lines.push(`${indent}- …y ${all.length - items.length} más (fs_list para verlos)`)
   return lines
 }
 

@@ -128,10 +128,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
 
   const runId = nanoid(8)
   const emit = (e: AgentEvent) => opts.onEvent?.(e)
+  // What the last few messages were about, used to decide which app tools are worth sending. The stored
+  // history still carries the whole <estado> block of the desk, and letting that in matched every keyword
+  // there is: the file names on the desktop decided which connected apps travelled.
   const recent = (opts.history ?? [])
     .slice(-4)
     .flatMap((m) => m.parts)
-    .map((p) => (p.type === 'text' ? p.text : p.type === 'tool_call' ? p.name : ''))
+    .map((p) => (p.type === 'text' ? (p.text.startsWith('<estado>') ? '' : p.text) : p.type === 'tool_call' ? p.name : ''))
     .join(' ')
   // Free tiers cap tokens per minute; other providers can carry far more app tooling per request.
   let mcpBudget = settings.provider === 'groq' ? DEFAULT_MCP_BUDGET_BYTES : DEFAULT_MCP_BUDGET_BYTES * 5
