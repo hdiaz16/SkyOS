@@ -6,7 +6,7 @@ import { hasSharedGroqKey } from '../../config'
 import { users } from '../../system/users'
 import { useAuth } from '../../system/auth'
 import { startSession } from '../../system/session'
-import { applyTheme, persistThemeFor } from '../../state/settings'
+import { persistThemeFor } from '../../state/settings'
 import { AUTO_MODEL, persistAiSettingsFor, presetFor, type ProviderId } from '../../ai/settings'
 import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
@@ -43,10 +43,6 @@ export function Onboarding() {
   const index = ORDER.indexOf(step)
   const next = () => setStep(ORDER[Math.min(index + 1, ORDER.length - 1)])
   const back = () => setStep(ORDER[Math.max(index - 1, 0)])
-
-  useEffect(() => {
-    applyTheme('dark')
-  }, [])
 
   // Nobody should have to type where they are: as soon as the name is in, Sky works the place out from the
   // network address, so the screen that follows already has an answer. The city box is the last resort.
@@ -91,12 +87,14 @@ export function Onboarding() {
   }
 
   const finish = async () => {
-    // Sensible from the first second and changeable any day in Ajustes: close and warm, ready to act, night
-    // light, the microphone asked for the first time you press dictate.
+    // Sensible from the first second and changeable any day in Ajustes: close and warm, ready to act, and the
+    // microphone asked for the first time you press dictate.
     const profile: UserProfile = { tone: 'warm', purpose: 'mixed', autonomy: 'act', location: location ?? undefined, microphone: 'skipped', voice: true }
     // A PIN is set later, in Ajustes › Cuenta: asking for one before the desktop even exists slows everybody down.
     const user = await users.create({ name, profile })
-    persistThemeFor(user.id, 'dark')
+    // Entering SkyOS is daylight: the arrival is light and the desktop that follows starts light too. Night is
+    // a choice the person makes in Ajustes › Apariencia, not the state they are handed.
+    persistThemeFor(user.id, 'light')
     const chosen = ownKey ? provider : 'groq'
     const preset = presetFor(chosen)
     persistAiSettingsFor(user.id, {

@@ -1,4 +1,3 @@
-import { seedIfEmpty } from '../kernel/seed'
 import { widgets } from '../kernel/widgets'
 import { useSession } from '../ai/session'
 import { speak } from '../ai/speech'
@@ -25,14 +24,13 @@ export function greetingFor(user: UserRow): string {
  */
 export function firstBoot(): Promise<void> {
   done ??= (async () => {
-    await seedIfEmpty()
     const user = useAuth.getState().current
     if (!user?.setupPending) return
     const existing = await widgets.list()
     if (existing.length === 0) {
-      // No place of its own: the weather follows the profile, so a later "vivo en…" updates it too.
+      // The only thing on a new desktop. No place of its own: the weather follows the profile, so a later
+      // "vivo en…" updates it too. Recientes tiene poco que mostrar cuando todavía no hay nada.
       await widgets.create('weather')
-      await widgets.create('recent')
     } else {
       // An adopted legacy desktop may carry the old demo widgets; currency only appears when someone adds it.
       for (const w of existing) if (w.type === 'currency') await widgets.remove(w.id)
