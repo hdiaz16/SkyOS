@@ -154,16 +154,22 @@ export const fs = {
       const target = await requireNode(targetParentId)
       if (target.kind !== 'folder') throw new Error('El destino no es una carpeta')
     }
-    const previous: Record<string, string> = {}
+    // Everything is checked before anything moves. Half a move is the worst outcome: some files travelled,
+    // the rest did not, and because the call ended in an error there is no journal entry to put them back.
+    const going: FsNode[] = []
     for (const id of ids) {
       const node = await requireNode(id)
       if (node.parentId === targetParentId) continue
       if (node.kind === 'folder' && (await isSameOrDescendant(id, targetParentId))) {
-        throw new Error('No puedes mover una carpeta dentro de sí misma')
+        throw new Error(`No puedes mover "${node.name}" dentro de sí misma`)
       }
-      previous[id] = node.parentId
+      going.push(node)
+    }
+    const previous: Record<string, string> = {}
+    for (const node of going) {
+      previous[node.id] = node.parentId
       const name = await fs.uniqueName(targetParentId, node.name)
-      await db.nodes.update(id, { parentId: targetParentId, name, updatedAt: now() })
+      await db.nodes.update(node.id, { parentId: targetParentId, name, updatedAt: now() })
     }
     return previous
   },

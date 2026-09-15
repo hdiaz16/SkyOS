@@ -26,10 +26,17 @@ export function formatRelative(ts: number): string {
   return new Date(ts).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
 }
 
+/**
+ * Whether a keystroke belongs to what the person is editing rather than to the desktop. Text fields are the
+ * obvious case; the other one is an app that keeps its own history — a spreadsheet, a canvas — where Ctrl+Z
+ * has to mean "the cell I just typed", never "the files Sky moved a minute ago". Those mark themselves with
+ * `data-own-undo`.
+ */
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return true
+  return !!target.closest('[data-own-undo]')
 }
 
 export function stripExt(name: string): string {

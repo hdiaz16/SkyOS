@@ -271,7 +271,8 @@ export default function SheetEditor({ blob, nodeId, name }: { blob: Blob; nodeId
   }
 
   return (
-    <div className="flex h-full flex-col">
+    // The grid has its own undo stack; Ctrl+Z here must not reach back into the file system.
+    <div data-own-undo className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-line bg-surface px-3 py-1.5 text-[12px]">
         <span className={cn('text-ink-3', dirty && 'text-ink-2')}>{dirty ? 'Cambios sin guardar' : 'Todo guardado'}</span>
         <span className="flex-1" />

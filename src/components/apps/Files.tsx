@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronRight, FilePlus2, FolderPlus, Square, Sparkles, Upload } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { readProject } from '../../kernel/project'
+import { useDialog } from '../../state/dialog'
 import { useSession } from '../../ai/session'
 import { ROOT_ID } from '../../kernel/types'
 import { dispatch } from '../../kernel/commands'
@@ -186,9 +187,25 @@ function ProjectStrip({ folderId }: { folderId: string }) {
     <div className="shrink-0 border-b border-line px-3 py-2">
       <div className="flex items-baseline gap-2">
         <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-accent">Proyecto</span>
-        <p className="min-w-0 flex-1 truncate text-[12.5px] text-ink-2" title={mem.goal}>
+        {/* Lo que Sky recuerda se corrige aquí mismo; el archivo entero se abre con «Abrir memoria del proyecto». */}
+        <button
+          type="button"
+          title={mem.goal ? `${mem.goal}\n\nClic para cambiarlo` : 'Clic para escribir el objetivo'}
+          onClick={async () => {
+            const goal = await useDialog.getState().ask({
+              title: `Objetivo de «${mem.name}»`,
+              description: 'Una o dos frases. Sky lo lee cada vez que trabajas aquí.',
+              initialValue: mem.goal,
+              placeholder: 'Qué queremos lograr',
+              confirmLabel: 'Guardar',
+              multiline: true,
+            })
+            if (goal) await dispatch('project.update', { folderId, goal })
+          }}
+          className={cn('min-w-0 flex-1 truncate rounded px-1 text-left text-[12.5px] transition hover:bg-surface-2', mem.goal ? 'text-ink-2' : 'text-ink-3')}
+        >
           {mem.goal || 'Sin objetivo todavía'}
-        </p>
+        </button>
         <button
           type="button"
           onClick={() => {

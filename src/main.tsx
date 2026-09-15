@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { MotionConfig } from 'motion/react'
 import './index.css'
 import './kernel/commands/index'
 import './ai/commands'
@@ -50,8 +51,12 @@ if (isCallbackPage()) {
   handleCallbackPage()
 } else {
   createRoot(document.getElementById('root')!).render(
+    // "Reducir movimiento" es una preferencia del sistema operativo de la persona, no un ajuste más:
+    // con ella puesta, las animaciones se quedan en su estado final en vez de recorrerlo.
     <StrictMode>
-      <Shell />
+      <MotionConfig reducedMotion="user">
+        <Shell />
+      </MotionConfig>
     </StrictMode>,
   )
 }

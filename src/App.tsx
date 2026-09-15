@@ -22,6 +22,7 @@ import { startSync } from './system/sync'
 import { watchNetwork } from './system/network'
 import { startWorkspace } from './state/workspace'
 import { startJournal } from './kernel/journal'
+import { watchProjectThread } from './ai/threads'
 import { armAudio, play } from './system/sound'
 import { isEditableTarget } from './lib/utils'
 
@@ -58,6 +59,8 @@ export default function App() {
     void startJournal().then((stop) => {
       stopJournal = stop
     })
+    // Open a project and Sky is in that project's conversation; leave it and the everyday one comes back.
+    const stopThreads = watchProjectThread()
     return () => {
       stopMcp()
       stopSync()
@@ -65,6 +68,7 @@ export default function App() {
       disarmAudio()
       stopWorkspace?.()
       stopJournal?.()
+      stopThreads()
     }
   }, [])
 

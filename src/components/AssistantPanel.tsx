@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { AlertCircle, Check, ExternalLink, Loader2, Sparkles, Square, Trash2, Undo2, Volume2, VolumeX, X, FileText } from 'lucide-react'
+import { AlertCircle, Check, ExternalLink, FolderGit2, Loader2, Sparkles, Square, Trash2, Undo2, Volume2, VolumeX, X, FileText } from 'lucide-react'
 import { speak, speechAvailable, stopSpeaking } from '../ai/speech'
 import { useSession, type Turn } from '../ai/session'
 import { commandIdForTool } from '../ai/tools'
@@ -32,6 +32,7 @@ function describeCall(ev: ToolEvent): string {
 
 export function AssistantPanel() {
   const turns = useSession((s) => s.turns)
+  const threadName = useSession((s) => s.threadName)
   const running = useSession((s) => s.running)
   const stop = useSession((s) => s.stop)
   const clear = useSession((s) => s.clear)
@@ -53,9 +54,17 @@ export function AssistantPanel() {
       className="glass pointer-events-auto absolute inset-x-0 bottom-full mb-2 flex max-h-[62vh] flex-col overflow-hidden rounded-2xl shadow-win"
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
-        <Sparkles className="h-4 w-4 text-accent" strokeWidth={2} />
-        <span className="text-[13px] font-medium text-ink">Sky</span>
-        {running && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-3" />}
+        <Sparkles className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} />
+        <span className="shrink-0 text-[13px] font-medium text-ink">Sky</span>
+        {/* Which conversation this is: the everyday one has no name, a project's says whose. */}
+        {threadName && (
+          <span className="flex min-w-0 items-center gap-1 text-[12px] text-ink-3" title={`Conversación del proyecto «${threadName}»`}>
+            <span aria-hidden>·</span>
+            <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-accent" />
+            <span className="truncate">{threadName}</span>
+          </span>
+        )}
+        {running && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-ink-3" />}
         <div className="flex-1" />
         {running ? (
           <button
@@ -97,9 +106,11 @@ export function AssistantPanel() {
         {turns.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
             <Sparkles className="mb-1 h-5 w-5 text-accent" />
-            <p className="text-[13.5px] text-ink-2">Aquí queda lo que hablamos</p>
+            <p className="text-[13.5px] text-ink-2">{threadName ? `Lo que hablemos sobre «${threadName}» se queda aquí` : 'Aquí queda lo que hablamos'}</p>
             <p className="text-[12.5px] leading-relaxed text-ink-3">
-              Escribe abajo, arrastra un archivo y dime qué hacer con él, o selecciona texto en cualquier ventana para preguntarme sobre esa parte.
+              {threadName
+                ? 'Este proyecto tiene su propia conversación, aparte de la general. Pregúntame dónde nos quedamos o pídeme el siguiente paso.'
+                : 'Escribe abajo, arrastra un archivo y dime qué hacer con él, o selecciona texto en cualquier ventana para preguntarme sobre esa parte.'}
             </p>
           </div>
         ) : (

@@ -24,8 +24,8 @@ Los hallazgos vienen de leer el código, no de suponer.
 | C2 | Deshacer con inversos serializables que sobreviven la recarga. | hecho | Deshacer lo de ayer funciona; lo irreversible no ofrece botón. |
 | C3 | Acciones externas marcadas y visibles. | hecho | «En la app» en la conversación y en el historial. |
 | C4 | Proyecto: objetivo, decisiones, pendientes, bitácora. | hecho | Vive en `Proyecto.md` dentro de la carpeta; editable a mano. |
-| C5 | Conversación propia por proyecto. | pendiente | Dos proyectos conservan hilos separados; cambiar de proyecto cambia el contexto. |
-| C6 | Memoria corregible desde la interfaz. | pendiente | Se puede editar y borrar lo que Sky recuerda sin abrir el archivo. |
+| C5 | Conversación propia por proyecto. | hecho | Dos proyectos conservan hilos separados; cambiar de proyecto cambia el contexto y el panel dice en cuál estás. |
+| C6 | Memoria corregible desde la interfaz. | hecho | El objetivo se edita desde la franja; el archivo completo se abre desde el menú. |
 | C7 | Trabajos interrumpidos al cerrar la pestaña. | pendiente | Al volver figuran como interrumpidos, no como corriendo. |
 
 ## P2 · Recorridos, acabado y rendimiento
@@ -33,10 +33,10 @@ Los hallazgos vienen de leer el código, no de suponer.
 | # | Punto | Estado | Criterio de aceptación |
 |---|---|---|---|
 | U1 | Estado de archivo ausente en toda ventana. | hecho | Restaurar o cerrar, nunca un cargador infinito. |
-| U2 | Organización: nombres duplicados, destinos inválidos, ciclos de carpetas. | pendiente | Mover una carpeta dentro de sí misma se rechaza con motivo. |
+| U2 | Organización: nombres duplicados, destinos inválidos, ciclos de carpetas. | hecho | Se valida todo antes de mover nada: o se mueve completo o no se mueve nada, con el motivo dicho. |
 | U3 | Teclado y foco en menús y diálogos. | pendiente | Todo operable sin ratón; Escape consistente; foco devuelto. |
-| U4 | Ctrl+Z dentro de un editor no revierte operaciones de archivos. | pendiente | Escribiendo en un editor, Ctrl+Z deshace texto. |
-| U5 | Movimiento reducido respetado. | pendiente | Con `prefers-reduced-motion` no hay animaciones de entrada. |
+| U4 | Ctrl+Z dentro de un editor no revierte operaciones de archivos. | hecho | Campos de texto y apps con historial propio (hoja de cálculo) se quedan con su Ctrl+Z. |
+| U5 | Movimiento reducido respetado. | hecho | `MotionConfig reducedMotion="user"` en la raíz: la preferencia del sistema manda. |
 | U6 | Degradación de búsqueda sin modelo local. | pendiente | Distingue «sin coincidencias», «índice pendiente» y «error». |
 
 ## Verificación

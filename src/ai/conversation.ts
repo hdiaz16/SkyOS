@@ -6,7 +6,17 @@ import type { ChatMessage, Part, Usage } from './types'
  * The conversation survives reloads: turns for the panel and the model-facing history live in the user's
  * database, alongside a rolling summary of what fell out of the window. Heavy parts (images, PDFs) are
  * replaced by a note so the store stays light; the files themselves are still on the desktop.
+ *
+ * There is one thread for everyday talk and one per project, because a project is a different conversation:
+ * what was decided about the proposal has no business turning up while you are sorting photos. They are rows
+ * in the same table, told apart by their id.
  */
+
+/** The everyday thread, the one you get when no project is in front. */
+export const MAIN_THREAD = 'main'
+
+/** The thread that belongs to a project folder. */
+export const threadOf = (folderId: string): string => `proyecto:${folderId}`
 
 export interface StoredTurn {
   id: string
@@ -22,7 +32,8 @@ export interface StoredTurn {
 }
 
 export interface ConversationRow {
-  id: 'main'
+  /** `main`, or `proyecto:<id de la carpeta>`. */
+  id: string
   turns: StoredTurn[]
   history: ChatMessage[]
   /** Compact memory of older turns, written by the model when the history is trimmed. */
@@ -45,11 +56,11 @@ export function lightHistory(history: ChatMessage[]): ChatMessage[] {
 }
 
 export const conversationStore = {
-  load: (): Promise<ConversationRow | undefined> => db.conversation.get('main'),
+  load: (id: string): Promise<ConversationRow | undefined> => db.conversation.get(id),
 
-  async save(row: Omit<ConversationRow, 'id' | 'updatedAt'>): Promise<void> {
-    await db.conversation.put({ id: 'main', turns: row.turns.slice(-MAX_TURNS_KEPT), history: lightHistory(row.history), summary: row.summary, updatedAt: Date.now() })
+  async save(id: string, row: Omit<ConversationRow, 'id' | 'updatedAt'>): Promise<void> {
+    await db.conversation.put({ id, turns: row.turns.slice(-MAX_TURNS_KEPT), history: lightHistory(row.history), summary: row.summary, updatedAt: Date.now() })
   },
 
-  clear: (): Promise<void> => db.conversation.delete('main'),
+  clear: (id: string): Promise<void> => db.conversation.delete(id),
 }

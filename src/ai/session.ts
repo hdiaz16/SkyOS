@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { runAgent, type ToolEvent } from './agent'
 import type { Tier } from './router'
 import type { Attachment, ChatMessage, Usage } from './types'
-import { conversationStore, type StoredTurn } from './conversation'
+import { conversationStore, MAIN_THREAD, type StoredTurn } from './conversation'
 import { trimHistory } from './history'
 import { useNetwork, whenOnline } from '../system/network'
 
@@ -39,12 +39,18 @@ interface SessionState {
   history: ChatMessage[]
   /** Compact memory of turns that fell out of the history window. */
   summary: string | null
+  /** Which conversation is on screen: the everyday one, or a project's own. */
+  thread: string
+  /** The project's name when this thread belongs to one, so the panel can say whose head Sky is in. */
+  threadName: string | null
   loaded: boolean
   controller: AbortController | null
   pending: PendingAttachment[]
   setOpen: (open: boolean) => void
   /** Restores the conversation saved for this account. Safe to call more than once. */
   load: () => Promise<void>
+  /** Puts away the thread on screen and brings up another one. Does nothing while Sky is answering. */
+  switchThread: (thread: string, name: string | null) => Promise<void>
   /** Adds a message from Sky without calling the model (greetings, system notes). Opens the panel. */
   say: (text: string) => void
   attach: (part: Attachment, label: string) => void
@@ -93,10 +99,15 @@ function toStored(t: Turn): StoredTurn | null {
 
 let persistTimer: number | undefined
 /** Writes the conversation to the user's database shortly after it changes. */
-function persist(state: Pick<SessionState, 'turns' | 'history' | 'summary'>): void {
+function rowOf(state: Pick<SessionState, 'turns' | 'history' | 'summary'>) {
+  return { turns: state.turns.map(toStored).filter((t): t is StoredTurn => !!t), history: state.history, summary: state.summary ?? undefined }
+}
+
+function persist(state: Pick<SessionState, 'turns' | 'history' | 'summary' | 'thread'>): void {
   window.clearTimeout(persistTimer)
+  const thread = state.thread
   persistTimer = window.setTimeout(() => {
-    void conversationStore.save({ turns: state.turns.map(toStored).filter((t): t is StoredTurn => !!t), history: state.history, summary: state.summary ?? undefined })
+    void conversationStore.save(thread, rowOf(state))
   }, 300)
 }
 
@@ -153,16 +164,35 @@ export const useSession = create<SessionState>((set, get) => ({
   turns: [],
   history: [],
   summary: null,
+  thread: MAIN_THREAD,
+  threadName: null,
   loaded: false,
   controller: null,
   pending: [],
 
   setOpen: (open) => set({ open }),
 
+  switchThread: async (thread, name) => {
+    const state = get()
+    if (state.thread === thread || state.running) return
+    // What is on screen goes to its own row right now: a switch must not lose the last thing that was said.
+    window.clearTimeout(persistTimer)
+    await conversationStore.save(state.thread, rowOf(state))
+    const row = await conversationStore.load(thread).catch(() => undefined)
+    set({
+      thread,
+      threadName: name,
+      turns: row ? row.turns.map((t) => ({ id: t.id, role: t.role, text: t.text, status: t.status, error: t.error, model: t.model, tier: t.tier, usage: t.usage, toolEvents: [] })) : [],
+      history: row?.history ?? [],
+      summary: row?.summary ?? null,
+      pending: [],
+    })
+  },
+
   load: async () => {
     if (get().loaded) return
     try {
-      const row = await conversationStore.load()
+      const row = await conversationStore.load(get().thread)
       if (row) {
         const turns: Turn[] = row.turns.map((t) => ({ id: t.id, role: t.role, text: t.text, status: t.status, error: t.error, model: t.model, tier: t.tier, usage: t.usage, toolEvents: [] }))
         set({ turns, history: row.history, summary: row.summary ?? null })
@@ -297,8 +327,11 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   clear: () => {
+    // Only the thread on screen: emptying the project you are in must not touch the everyday conversation.
+    const thread = get().thread
     get().controller?.abort()
     set({ turns: [], history: [], summary: null, running: false, controller: null })
-    void conversationStore.clear()
+    window.clearTimeout(persistTimer)
+    void conversationStore.clear(thread)
   },
 }))
