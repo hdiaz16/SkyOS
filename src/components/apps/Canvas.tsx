@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, Code2, GitBranch, Pencil, Plus, Sparkles, StickyNote, Trash2, type LucideIcon } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { FileMissing, Opening } from './FileState'
+import { useFileNode } from '../../lib/hooks'
 import { appendBlocks, BLOCK_LABELS, canvasExtent, parseCanvas, serializeCanvas, type BlockKind, type CanvasBlock, type CanvasDoc } from '../../kernel/canvas'
 import type { Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
@@ -33,7 +34,7 @@ type Geometry = Pick<CanvasBlock, 'x' | 'y' | 'w' | 'h'>
  */
 export function CanvasApp({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
-  const node = useLiveQuery(() => fs.get(nodeId), [nodeId])
+  const { status, node } = useFileNode(nodeId)
   const [doc, setDoc] = useState<CanvasDoc | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const loadedVersion = useRef(0)
@@ -93,7 +94,8 @@ export function CanvasApp({ win }: { win: Win }) {
     if ((e.target as HTMLElement).hasAttribute('data-board')) setEditing(null)
   }
 
-  if (!doc) return <div className="flex h-full items-center justify-center text-[13px] text-ink-3">Abriendo el lienzo…</div>
+  if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
+  if (!doc) return <Opening what="Abriendo el lienzo…" />
   const extent = canvasExtent(doc.blocks)
   const count = doc.blocks.length
 

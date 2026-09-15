@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { LayoutList, Loader2, Presentation } from 'lucide-react'
 import type { PPTXPreviewer } from 'pptx-preview'
 import { fs } from '../../kernel/fs'
+import { FileMissing } from './FileState'
+import { useFileNode } from '../../lib/hooks'
 import { fileKind } from '../../kernel/types'
 import type { Win } from '../../state/windows'
 import { cn } from '../../lib/utils'
@@ -14,7 +15,7 @@ import { cn } from '../../lib/utils'
  */
 export function OfficeViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
-  const node = useLiveQuery(() => fs.get(nodeId), [nodeId])
+  const { status, node } = useFileNode(nodeId)
   const key = `${nodeId}:${node?.updatedAt ?? 0}`
   // Keyed by file version, so a new version shows "Abriendo…" without resetting state inside the effect.
   const [loaded, setLoaded] = useState<{ key: string; blob: Blob | null; error?: string } | null>(null)
@@ -30,6 +31,7 @@ export function OfficeViewer({ win }: { win: Win }) {
   }, [nodeId, key])
 
   const current = loaded?.key === key ? loaded : null
+  if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
   if (current?.error) return <Message text={current.error} />
   if (!node || !current?.blob) return <Message text="Abriendo…" spinner />
   const kind = fileKind(node)

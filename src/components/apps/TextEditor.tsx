@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, CornerDownLeft, Languages, Loader2, Sparkles, Square, Wand2, X } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { FileMissing, Opening } from './FileState'
+import { useFileNode } from '../../lib/hooks'
 import { dispatch } from '../../kernel/commands'
 import { useWindows, type Win } from '../../state/windows'
 import { runAgent } from '../../ai/agent'
@@ -34,7 +35,7 @@ const CONTEXT_AFTER = 800
 
 export function TextEditor({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
-  const node = useLiveQuery(() => fs.get(nodeId), [nodeId])
+  const { status: fileStatus, node } = useFileNode(nodeId)
   const [text, setText] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>('saved')
   const [selection, setSelection] = useState({ start: 0, end: 0 })
@@ -177,9 +178,8 @@ export function TextEditor({ win }: { win: Win }) {
     setAssist(null)
   }
 
-  if (text === null) {
-    return <div className="flex h-full items-center justify-center text-[13px] text-ink-3">Abriendo…</div>
-  }
+  if (fileStatus === 'trashed' || fileStatus === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={fileStatus} name={win.title} />
+  if (text === null) return <Opening />
 
   return (
     <div className="relative flex h-full flex-col">

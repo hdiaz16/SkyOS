@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { Loader2, Minus, Plus, Scan, Sparkles } from 'lucide-react'
-import { fs } from '../../kernel/fs'
+import { FileMissing } from './FileState'
 import type { Win } from '../../state/windows'
-import { useBlobUrl } from '../../lib/hooks'
+import { useBlobUrl, useFileNode } from '../../lib/hooks'
 
 // pdf.js renders in a worker; Vite bundles it from the installed package.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
@@ -19,7 +18,7 @@ const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
  */
 export function PdfViewer({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
-  const node = useLiveQuery(() => fs.get(nodeId), [nodeId])
+  const { status, node } = useFileNode(nodeId)
   const url = useBlobUrl(nodeId, node?.updatedAt)
   const container = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(720)
@@ -43,6 +42,7 @@ export function PdfViewer({ win }: { win: Win }) {
     setZoom(next)
   }
 
+  if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
   if (!url) return <Message text="Abriendo…" spinner />
   if (failed) return <Message text="No pude leer este PDF. Puede estar dañado o protegido." />
 

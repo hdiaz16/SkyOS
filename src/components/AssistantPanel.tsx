@@ -94,9 +94,17 @@ export function AssistantPanel() {
         }}
         className="scrollbar-thin flex-1 space-y-3 overflow-y-auto px-4 py-3 select-text"
       >
-        {turns.map((t) => (
-          <TurnView key={t.id} turn={t} />
-        ))}
+        {turns.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+            <Sparkles className="mb-1 h-5 w-5 text-accent" />
+            <p className="text-[13.5px] text-ink-2">Aquí queda lo que hablamos</p>
+            <p className="text-[12.5px] leading-relaxed text-ink-3">
+              Escribe abajo, arrastra un archivo y dime qué hacer con él, o selecciona texto en cualquier ventana para preguntarme sobre esa parte.
+            </p>
+          </div>
+        ) : (
+          turns.map((t) => <TurnView key={t.id} turn={t} />)
+        )}
       </div>
     </motion.div>
   )
