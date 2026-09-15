@@ -12,7 +12,7 @@ const TRASH_WORDS = ['papelera', 'basura', 'restaura', 'restaurar', 'recupera', 
 registerCommand<{ parentId?: string; name?: string }, FsNode>({
   id: 'fs.createFolder',
   title: 'Nueva carpeta',
-  description: 'Crea una carpeta vacía dentro de otra carpeta. Usa "root" como parentId para el escritorio.',
+  description: 'Crea una carpeta.',
   params: {
     parentId: { type: 'string', description: 'Carpeta destino. "root" es el escritorio.' },
     name: { type: 'string', description: 'Nombre de la carpeta.' },
@@ -27,7 +27,7 @@ registerCommand<{ parentId?: string; type?: string; name?: string; content?: str
   id: 'fs.createFile',
   title: 'Nuevo archivo',
   description:
-    'Crea un archivo de un tipo dado (note = Markdown, text, csv, json, html, script; canvas = lienzo visual, mejor con canvas.create) con contenido opcional.',
+    'Crea un archivo con contenido opcional. note = Markdown; también text, csv, json, html, script.',
   params: {
     parentId: { type: 'string', description: 'Carpeta destino. "root" es el escritorio.' },
     type: { type: 'string', description: 'Tipo de archivo.', enum: FILE_TYPE_IDS },

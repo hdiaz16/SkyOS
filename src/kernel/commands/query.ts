@@ -71,7 +71,7 @@ registerCommand<{ id: string; maxChars?: number }, unknown>({
   id: 'fs.read',
   title: 'Leer archivo',
   description:
-    'Devuelve el contenido de un archivo, recortado a maxChars (por defecto 20000): texto tal cual; PDF, Word, Excel y PowerPoint a través de su texto extraído. Para imágenes y otros binarios devuelve solo metadatos.',
+    'Lee un archivo: texto tal cual, y PDF, Word, Excel o PowerPoint por su texto extraído. Imágenes y otros binarios devuelven solo metadatos.',
   params: {
     id: { type: 'string', description: 'Id del archivo.', required: true },
     maxChars: { type: 'number', description: 'Máximo de caracteres a devolver.' },
@@ -121,7 +121,7 @@ registerCommand<{ ids: string[]; maxCharsEach?: number }, ReadManyItem[]>({
   id: 'fs.readMany',
   title: 'Leer varios archivos',
   description:
-    'Devuelve el contenido de varios archivos en una sola llamada (hasta 12; cada uno recortado a maxCharsEach, por defecto 4000): texto tal cual y documentos (PDF, Word, Excel, PowerPoint) por su texto extraído. Úsalo para resumir, comparar o extraer datos de una selección o carpeta en vez de leer uno por uno con fs.read.',
+    'Lee hasta 12 archivos de una vez (texto y documentos). Prefiérelo a fs.read uno por uno para resumir o comparar una selección.',
   params: {
     ids: { type: 'array', items: { type: 'string', description: 'Id' }, description: 'Ids de los archivos.', required: true },
     maxCharsEach: { type: 'number', description: 'Máximo de caracteres por archivo.' },
@@ -154,7 +154,7 @@ registerCommand<{ query: string; limit?: number }, Array<{ id: string; name: str
   id: 'fs.semanticSearch',
   title: 'Buscar por significado',
   description:
-    'Encuentra archivos por lo que dicen, no por su nombre: describe el contenido ("el reporte con los costos del servidor") y devuelve los más afines con una puntuación. Corre en el dispositivo, sin costo. Úsalo antes que fs.find cuando la persona describa un contenido.',
+    'Busca archivos por lo que dicen, no por su nombre. Sin costo, en el dispositivo: úsalo antes que fs.find cuando describan un contenido.',
   params: {
     query: { type: 'string', description: 'Descripción del contenido buscado.', required: true },
     limit: { type: 'number', description: 'Máximo de resultados (por defecto 8).' },
