@@ -11,13 +11,18 @@ de Groq (gratuita) o de Anthropic, u otro proveedor compatible con OpenAI inclui
 
 ```bash
 npm install
-npm run dev
+npm run dev     # el escritorio en http://localhost:5173
+npm test        # las pruebas de lo que es caro romper sin darse cuenta
+npm run lint    # oxlint
+npm run build   # tipos y paquete de producción
 ```
 
-Abre `http://localhost:5173` en Chrome o Edge. La primera vez aparece el onboarding: nombre, cómo quieres que te hable,
-para qué usarás Sky, cuánta autonomía darle, tema, ubicación, proveedor de IA (Groq por defecto, con enlace para crear
-la llave) y un PIN opcional. El repositorio se llama `mesa` por su nombre de trabajo original; los identificadores
-internos lo conservan para no perder datos.
+Abre `http://localhost:5173` en Chrome o Edge. La primera vez aparece el onboarding: tu nombre y entrar. Lo demás
+—tono, autonomía, tema, PIN, proveedor— empieza con valores sensatos y se cambia en Ajustes. El repositorio se llama
+`mesa` por su nombre de trabajo original; los identificadores internos lo conservan para no perder datos.
+
+Qué protege SkyOS y qué no, con sus límites dichos sin adornos: [SECURITY.md](SECURITY.md). El estado del pulido en
+curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
 
 ## Qué hace
 
