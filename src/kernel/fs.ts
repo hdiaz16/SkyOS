@@ -30,6 +30,19 @@ async function subtreeIds(id: string): Promise<string[]> {
   return out
 }
 
+/**
+ * The folder something is about to be created in. Creating into an id that is gone, into a file, or into
+ * something already in the trash used to succeed quietly and leave the new file nowhere: it existed, and no
+ * window could reach it.
+ */
+async function requireFolder(parentId: string): Promise<void> {
+  if (parentId === ROOT_ID) return
+  const node = await db.nodes.get(parentId)
+  if (!node) throw new Error('Esa carpeta ya no existe')
+  if (node.kind !== 'folder') throw new Error('Eso no es una carpeta')
+  if (node.trashedAt !== null) throw new Error('Esa carpeta está en la papelera')
+}
+
 async function isSameOrDescendant(ancestorId: string, nodeId: string): Promise<boolean> {
   let cur: string | undefined = nodeId
   while (cur && cur !== ROOT_ID) {
@@ -48,9 +61,11 @@ export const fs = {
     return rows.filter((n) => n.trashedAt === null).sort(sortNodes)
   },
 
+  /** What was thrown away, not what was inside it: a file that went in with its folder is not its own entry. */
   async listTrash(): Promise<FsNode[]> {
     const rows = await db.nodes.filter((n) => n.trashedAt !== null).toArray()
-    return rows.sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0))
+    const inside = new Set(rows.map((n) => n.id))
+    return rows.filter((n) => !inside.has(n.parentId)).sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0))
   },
 
   /** Ancestors from the top-level folder down to the node itself. */
@@ -82,6 +97,7 @@ export const fs = {
   },
 
   async createFolder(parentId: string, name: string): Promise<FsNode> {
+    await requireFolder(parentId)
     const t = now()
     const node: FsNode = {
       id: nanoid(10),
@@ -99,6 +115,7 @@ export const fs = {
   },
 
   async createFile(parentId: string, name: string, blob: Blob, mime = ''): Promise<FsNode> {
+    await requireFolder(parentId)
     const t = now()
     const cleanName = name.trim() || 'Archivo'
     const node: FsNode = {
@@ -125,7 +142,10 @@ export const fs = {
 
   async readText(id: string): Promise<string> {
     const blob = await blobs.get(id)
-    return blob ? blob.text() : ''
+    // Returning '' for "the bytes are not there" is how an editor ends up showing an empty document and then
+    // saving that emptiness over whatever was really in the file.
+    if (!blob) throw new Error('No pude leer el contenido de este archivo')
+    return blob.text()
   },
 
   async writeBlob(id: string, blob: Blob): Promise<void> {
@@ -174,10 +194,17 @@ export const fs = {
     return previous
   },
 
+  /**
+   * A folder goes to the trash with everything inside it. Marking only the folder left its children alive:
+   * unreachable, but still counted, still searchable, still fed to Sky as if they were on the desk. They all
+   * carry the same timestamp, which is how restoring knows what went in together.
+   */
   async trash(ids: string[]): Promise<void> {
     const t = now()
+    const all = new Set<string>()
+    for (const id of ids) for (const sub of await subtreeIds(id)) all.add(sub)
     await db.transaction('rw', db.nodes, async () => {
-      for (const id of ids) await db.nodes.update(id, { trashedAt: t })
+      for (const id of all) await db.nodes.update(id, { trashedAt: t })
     })
   },
 
@@ -192,7 +219,17 @@ export const fs = {
           if (!parent || parent.trashedAt !== null) parentId = ROOT_ID
         }
         const name = await fs.uniqueName(parentId, node.name, id)
+        const stamp = node.trashedAt
         await db.nodes.update(id, { trashedAt: null, parentId, name })
+        // Whatever went in with it comes back with it, and only that: something thrown away before this
+        // folder arrived stays where the person left it.
+        if (node.kind === 'folder' && stamp !== null) {
+          for (const sub of await subtreeIds(id)) {
+            if (sub === id) continue
+            const child = await db.nodes.get(sub)
+            if (child?.trashedAt === stamp) await db.nodes.update(sub, { trashedAt: null })
+          }
+        }
       }
     })
   },

@@ -133,8 +133,11 @@ export async function extractedText(node: FsNode, opts: TextOptions = {}): Promi
 export async function textOf(node: FsNode, opts: TextOptions = {}): Promise<string | null> {
   if (node.kind !== 'file') return null
   const kind = fileKind(node)
-  if (kind === 'text') return fs.readText(node.id)
-  if (kind === 'canvas') return canvasText(await fs.readText(node.id))
+  if (kind === 'text') return fs.readText(node.id).catch(() => null)
+  if (kind === 'canvas') {
+    const raw = await fs.readText(node.id).catch(() => null)
+    return raw === null ? null : canvasText(raw)
+  }
   return extractedText(node, opts)
 }
 

@@ -150,21 +150,6 @@ registerCommand<{ ids: string[]; maxCharsEach?: number }, ReadManyItem[]>({
   },
 })
 
-registerCommand<{ query: string; limit?: number }, Array<{ id: string; name: string; score: number; snippet: string }>>({
-  id: 'fs.semanticSearch',
-  title: 'Buscar por significado',
-  description:
-    'Busca archivos por lo que dicen, no por su nombre. Sin costo, en el dispositivo: úsalo antes que fs.find cuando describan un contenido.',
-  params: {
-    query: { type: 'string', description: 'Descripción del contenido buscado.', required: true },
-    limit: { type: 'number', description: 'Máximo de resultados (por defecto 8).' },
-  },
-  async run({ query, limit }) {
-    const { vectorSearch } = await import('../../ai/embeddings')
-    return { result: await vectorSearch(query, limit ?? 8) }
-  },
-})
-
 registerCommand<{ id: string }, unknown>({
   id: 'fs.info',
   title: 'Detalles',

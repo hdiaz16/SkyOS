@@ -107,6 +107,11 @@ type AnyCommand = CommandDef<unknown, unknown>
 const registry = new Map<string, AnyCommand>()
 
 export function registerCommand<P, R>(def: CommandDef<P, R>): void {
+  // Two commands with the same id used to mean the second one silently replaced the first, and nothing said
+  // so: the one that ran was whichever module happened to be imported last.
+  if (import.meta.env.DEV && registry.has(def.id)) {
+    console.error(`[comandos] "${def.id}" ya estaba registrado; el anterior queda reemplazado en silencio.`)
+  }
   registry.set(def.id, def as unknown as AnyCommand)
 }
 

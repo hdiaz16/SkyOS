@@ -37,6 +37,7 @@ export function TextEditor({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
   const { status: fileStatus, node } = useFileNode(nodeId)
   const [text, setText] = useState<string | null>(null)
+  const [unreadable, setUnreadable] = useState(false)
   const [status, setStatus] = useState<Status>('saved')
   const [selection, setSelection] = useState({ start: 0, end: 0 })
   const [assist, setAssist] = useState<Assist | null>(null)
@@ -52,12 +53,16 @@ export function TextEditor({ win }: { win: Win }) {
   useEffect(() => {
     if (!node || node.updatedAt === loadedVersion.current || latest.current.dirty) return
     let alive = true
-    fs.readText(nodeId).then((t) => {
-      if (!alive) return
-      loadedVersion.current = node.updatedAt
-      latest.current = { text: t, dirty: false }
-      setText(t)
-    })
+    fs.readText(nodeId).then(
+      (t) => {
+        if (!alive) return
+        loadedVersion.current = node.updatedAt
+        latest.current = { text: t, dirty: false }
+        setText(t)
+      },
+      // Opening an unreadable file as an empty document is how its content gets saved over with nothing.
+      () => alive && setUnreadable(true),
+    )
     return () => {
       alive = false
     }
@@ -179,6 +184,14 @@ export function TextEditor({ win }: { win: Win }) {
   }
 
   if (fileStatus === 'trashed' || fileStatus === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={fileStatus} name={win.title} />
+  if (unreadable) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+        <p className="text-[14px] text-ink-2">No pude leer «{win.title}»</p>
+        <p className="text-[12px] leading-relaxed text-ink-3">Su contenido no está donde debería. Se abre vacío para no escribir encima de lo que quede.</p>
+      </div>
+    )
+  }
   if (text === null) return <Opening />
 
   return (

@@ -200,11 +200,23 @@ registerCommand<{ parentId?: string; files: File[] }, FsNode[]>({
   ai: false,
   params: {},
   async run({ parentId = ROOT_ID, files }) {
+    // One file that will not go in must not take the others with it, and it must not vanish either: whatever
+    // entered stays and is undoable, and the rest are named.
     const created: FsNode[] = []
-    for (const file of files) created.push(await fs.createFile(parentId, file.name, file, file.type))
-    if (!created.length) return { result: created }
-    const label =
-      created.length === 1 ? `"${created[0].name}" importado` : `${created.length} archivos importados`
+    const failed: string[] = []
+    for (const file of files) {
+      try {
+        created.push(await fs.createFile(parentId, file.name, file, file.type))
+      } catch {
+        failed.push(file.name)
+      }
+    }
+    if (!created.length) {
+      if (failed.length) throw new Error(failed.length === 1 ? `No pude importar "${failed[0]}"` : `No pude importar ninguno de los ${failed.length} archivos`)
+      return { result: created }
+    }
+    const entraron = created.length === 1 ? `"${created[0].name}" importado` : `${created.length} archivos importados`
+    const label = failed.length ? `${entraron}; ${failed.length === 1 ? `"${failed[0]}" no pudo` : `${failed.length} no pudieron`}` : entraron
     return { result: created, label, undo: { commandId: 'fs.trash', params: { ids: created.map((n) => n.id) } } }
   },
 })

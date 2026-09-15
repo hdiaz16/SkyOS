@@ -117,7 +117,10 @@ export async function readProject(folderId: string): Promise<ProjectMemory | nul
   if (!folder || folder.kind !== 'folder') return null
   const file = await projectFile(folderId)
   if (!file) return null
-  return parseProject(await fs.readText(file.id), folder, file.id)
+  // This is read on every turn to build Sky's picture of the desk; a memory that cannot be read has to be
+  // absence, not an exception that takes the whole picture down with it.
+  const raw = await fs.readText(file.id).catch(() => null)
+  return raw === null ? null : parseProject(raw, folder, file.id)
 }
 
 /** Turns a folder into a project: one file, and from then on Sky knows what is being built here. */

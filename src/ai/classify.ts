@@ -38,7 +38,7 @@ export async function suggestPlacement(created: FsNode[]): Promise<void> {
   const files = await Promise.all(
     created.map(async (n) => {
       const kind = fileKind(n)
-      const excerpt = kind === 'text' ? (await fs.readText(n.id)).slice(0, EXCERPT) : ''
+      const excerpt = kind === 'text' ? (await fs.readText(n.id).catch(() => '')).slice(0, EXCERPT) : ''
       return { id: n.id, name: n.name, type: kind, excerpt }
     }),
   )

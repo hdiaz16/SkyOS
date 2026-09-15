@@ -36,7 +36,8 @@ export function indexPending(signal?: AbortSignal): Promise<number> {
 
     const pending: Array<{ node: FsNode; text: string; hash: string }> = []
     for (const node of files) {
-      const text = await fs.readText(node.id)
+      // One unreadable file must not stop the sweep for all the others.
+      const text = await fs.readText(node.id).catch(() => '')
       if (!text.trim()) continue
       const hash = hashText(text)
       const row = await db.fileIndex.get(node.id)

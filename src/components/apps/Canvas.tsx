@@ -36,6 +36,7 @@ export function CanvasApp({ win }: { win: Win }) {
   const nodeId = win.props.nodeId ?? ''
   const { status, node } = useFileNode(nodeId)
   const [doc, setDoc] = useState<CanvasDoc | null>(null)
+  const [unreadable, setUnreadable] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const loadedVersion = useRef(0)
   const dirty = useRef(false)
@@ -46,11 +47,14 @@ export function CanvasApp({ win }: { win: Win }) {
   useEffect(() => {
     if (!node || node.updatedAt === loadedVersion.current || dirty.current) return
     let alive = true
-    void fs.readText(nodeId).then((t) => {
-      if (!alive) return
-      loadedVersion.current = node.updatedAt
-      setDoc(parseCanvas(t))
-    })
+    void fs.readText(nodeId).then(
+      (t) => {
+        if (!alive) return
+        loadedVersion.current = node.updatedAt
+        setDoc(parseCanvas(t))
+      },
+      () => alive && setUnreadable(true),
+    )
     return () => {
       alive = false
     }
@@ -95,6 +99,14 @@ export function CanvasApp({ win }: { win: Win }) {
   }
 
   if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
+  if (unreadable) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+        <p className="text-[14px] text-ink-2">No pude leer este lienzo</p>
+        <p className="text-[12px] leading-relaxed text-ink-3">Su contenido no está donde debería, así que no lo abro en blanco para no perderlo.</p>
+      </div>
+    )
+  }
   if (!doc) return <Opening what="Abriendo el lienzo…" />
   const extent = canvasExtent(doc.blocks)
   const count = doc.blocks.length
