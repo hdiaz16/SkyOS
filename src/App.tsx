@@ -20,6 +20,7 @@ import { useSession } from './ai/session'
 import { mcp } from './mcp/manager'
 import { startSync } from './system/sync'
 import { watchNetwork } from './system/network'
+import { startWorkspace } from './state/workspace'
 import { armAudio, play } from './system/sound'
 import { isEditableTarget } from './lib/utils'
 
@@ -46,11 +47,17 @@ export default function App() {
     const stopSync = startSync()
     const stopNetwork = watchNetwork()
     const disarmAudio = armAudio()
+    // The desk as it was left: restored before anything else can open a window of its own.
+    let stopWorkspace: (() => void) | undefined
+    void startWorkspace().then((stop) => {
+      stopWorkspace = stop
+    })
     return () => {
       stopMcp()
       stopSync()
       stopNetwork()
       disarmAudio()
+      stopWorkspace?.()
     }
   }, [])
 

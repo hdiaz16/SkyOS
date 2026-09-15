@@ -37,6 +37,17 @@ export interface ExtractRow {
   failed?: boolean
 }
 
+/**
+ * The windows that were open when the desktop was last left, so a reload finds them where they were. The
+ * shape of a stored window lives with the code that writes it (state/workspace.ts); here it is just rows.
+ */
+export interface WorkspaceRow {
+  id: string
+  windows: unknown[]
+  nextZ: number
+  updatedAt: number
+}
+
 /** What this device and one cloud last agreed on for a file; drives two-way sync. */
 export interface SyncStateRow {
   /** `${providerId}:${nodeId}` */
@@ -78,6 +89,8 @@ export class MesaDB extends Dexie {
   extracts!: Table<ExtractRow, string>
   /** Cloud sync links, one per file and provider. */
   syncState!: Table<SyncStateRow, string>
+  /** The open windows, saved so the desk survives a reload; a single row. */
+  workspace!: Table<WorkspaceRow, string>
 
   constructor(name: string) {
     super(name)
@@ -104,6 +117,9 @@ export class MesaDB extends Dexie {
     })
     this.version(6).stores({
       syncState: 'key, providerId, nodeId, remotePath',
+    })
+    this.version(7).stores({
+      workspace: 'id',
     })
   }
 }
