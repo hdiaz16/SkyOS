@@ -72,7 +72,12 @@ const spanish = (message: string): string => {
  */
 export async function sendCode(email: string, creating: boolean): Promise<void> {
   if (!client) throw new AccountError('Este SkyOS no tiene cuentas configuradas.')
-  const { error } = await client.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: creating } })
+  // Where the link in the email should land. Supabase only honours origins listed in its redirect allow list,
+  // so a deployment has to name this one there; otherwise the link bounces to whatever Site URL it has.
+  const { error } = await client.auth.signInWithOtp({
+    email: email.trim(),
+    options: { shouldCreateUser: creating, emailRedirectTo: window.location.origin },
+  })
   if (!error) return
   const m = error.message.toLowerCase()
   if (m.includes('signups not allowed') || m.includes('not found') || m.includes('user not found')) {

@@ -55,9 +55,13 @@ export const useAuth = create<AuthState>((set, get) => ({
     })
     const account = accountsEnabled ? await currentAccount() : null
     if (accountsEnabled) {
-      // A session that outlives its account — signed out elsewhere, expired, revoked — must not open a desktop.
       watchAccount((next) => {
-        if (!next && useAuth.getState().status === 'ready') useAuth.setState({ stale: 'closed' })
+        const status = useAuth.getState().status
+        // A session that outlives its account — signed out elsewhere, expired, revoked — must not open a desktop.
+        if (!next && status === 'ready') return useAuth.setState({ stale: 'closed' })
+        // The other half: the email's link was opened in another tab, and this one is still waiting for a code
+        // it will never get. The account arrived; that is the same as typing it.
+        if (next && status === 'account') void useAuth.getState().enter(next)
       })
     }
 
