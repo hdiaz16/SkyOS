@@ -19,6 +19,7 @@ const LOCATION_WORDS = ['ubicacion', 'ubicación', 'vivo en', 'estoy en', 'ciuda
 
 registerCommand<{ place: string }, { place: string; lat: number; lon: number }>({
   id: 'user.setLocation',
+  risk: 'write',
   keywords: LOCATION_WORDS,
   title: 'Cambiar ubicación',
   description:
@@ -45,6 +46,7 @@ registerCommand<{ place: string }, { place: string; lat: number; lon: number }>(
 
 registerCommand<{ location: UserLocation | null }, void>({
   id: 'user.restoreLocation',
+  risk: 'write',
   title: 'Devolver la ubicación',
   description: 'Vuelve a la ubicación anterior sin volver a buscarla.',
   // The written inverse of user.setLocation: the old place travels with the entry instead of being looked up again.

@@ -1,12 +1,20 @@
 import { create } from 'zustand'
 import type { UserRow } from './db'
 import { users } from './users'
-import { endSession, readSession, startSession } from './session'
+import { currentSession, endSession, readSession, startSession, watchSessionChange } from './session'
 
 export type ShellStatus = 'loading' | 'login' | 'onboarding' | 'ready'
 
+/** Why this tab stopped: somebody else came in, or the session was closed from elsewhere. */
+export type Stale = 'switched' | 'closed'
+
 interface AuthState {
   status: ShellStatus
+  /**
+   * Set when another tab changed the session. This tab holds one person's databases, workers and open files;
+   * there is no honest way to carry on as somebody else, so it stops and says so.
+   */
+  stale: Stale | null
   users: UserRow[]
   current: UserRow | null
   load: () => Promise<void>
@@ -20,11 +28,17 @@ interface AuthState {
 
 export const useAuth = create<AuthState>((set, get) => ({
   status: 'loading',
+  stale: null,
   users: [],
   current: null,
 
   load: async () => {
-    const session = readSession()
+    // From here on this tab answers to one person only; if that changes elsewhere, it stands down.
+    watchSessionChange(() => {
+      if (useAuth.getState().stale) return
+      useAuth.setState({ stale: readSession() ? 'switched' : 'closed' })
+    })
+    const session = currentSession()
     if (session) {
       const user = await users.get(session.userId)
       if (user) {

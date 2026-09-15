@@ -103,7 +103,10 @@ export function BrowserApp({ win }: { win: Win }) {
           title={win.title}
           onLoad={() => setLoading(false)}
           className="min-h-0 min-w-0 flex-1 border-0 bg-white"
-          allow="clipboard-write"
+          // The page keeps what it needs to work — its own origin, scripts, forms, popups — but not the right
+          // to navigate the desktop out from under the person, and not the clipboard.
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+          referrerPolicy="no-referrer"
         />
         <AnimatePresence>{taskId && <KeyPointsPanel key={taskId} taskId={taskId} onClose={() => setTaskId(null)} />}</AnimatePresence>
       </div>

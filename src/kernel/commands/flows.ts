@@ -9,6 +9,7 @@ const FLOW_WORDS = ['flujo', 'flujos', 'rutina', 'rutinas', 'guarda esto', 'guar
 
 registerCommand<{ name: string; instructions: string }, ReturnType<typeof summarize>>({
   id: 'flows.save',
+  risk: 'write',
   keywords: FLOW_WORDS,
   title: 'Guardar flujo',
   description:
@@ -29,6 +30,7 @@ registerCommand<{ name: string; instructions: string }, ReturnType<typeof summar
 
 registerCommand<{ flow: FlowRow | null; id?: string }, void>({
   id: 'flows.restore',
+  risk: 'write',
   title: 'Devolver un flujo',
   description: 'Devuelve un flujo a como estaba, o lo elimina si no había ninguno.',
   // The written inverse of saving and deleting a flow.
@@ -68,6 +70,7 @@ registerCommand<{ name: string }, { name: string; instructions: string }>({
 
 registerCommand<{ name: string }, void>({
   id: 'flows.delete',
+  risk: 'write',
   keywords: FLOW_WORDS,
   title: 'Eliminar flujo',
   description: 'Elimina un flujo guardado por nombre.',

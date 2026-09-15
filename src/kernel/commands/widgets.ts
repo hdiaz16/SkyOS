@@ -50,6 +50,7 @@ const WIDGET_WORDS = ['widget', 'widgets', 'reloj', 'clima', 'tiempo', 'temporiz
 
 registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: number; y?: number; w?: number; h?: number }, Widget>({
   id: 'widgets.create',
+  risk: 'write',
   keywords: WIDGET_WORDS,
   title: 'Añadir widget',
   description: `Coloca un widget en el escritorio. ${TYPE_HELP}`,
@@ -76,6 +77,7 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
 
 registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
   id: 'widgets.update',
+  risk: 'write',
   keywords: WIDGET_WORDS,
   title: 'Actualizar widget',
   description: `Cambia el título o la configuración de un widget existente (la config se fusiona con la actual). ${TYPE_HELP}`,
@@ -98,6 +100,7 @@ registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
 
 registerCommand<{ id: string }, void>({
   id: 'widgets.remove',
+  risk: 'write',
   keywords: WIDGET_WORDS,
   title: 'Quitar widget',
   description: 'Quita un widget del escritorio.',
@@ -115,6 +118,7 @@ registerCommand<{ id: string }, void>({
 
 registerCommand<{ widget: Widget | null; id?: string }, void>({
   id: 'widgets.restore',
+  risk: 'write',
   title: 'Devolver un widget',
   description: 'Devuelve un widget a como estaba, o lo quita si no había ninguno.',
   // The written inverse of the three widget commands: with a widget it comes back, without one it goes away.

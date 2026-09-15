@@ -24,8 +24,10 @@ internos lo conservan para no perder datos.
 **Sesiones**
 
 - Pantalla de inicio con las personas que usan este navegador; PIN opcional (PBKDF2). Cerrar sesión vuelve al inicio.
-- Aislamiento real: cada cuenta tiene su base de datos, su carpeta de archivos, sus ajustes, su llave de IA, sus widgets,
-  flujos e índice. Nada se comparte entre cuentas.
+- Separación por perfil: cada cuenta tiene su base de datos, su carpeta de archivos, sus ajustes, su llave de IA, sus
+  widgets, flujos e índice; la sesión se fija al cargar la pestaña, y si otra pestaña entra con otra cuenta, esta se
+  detiene en vez de mezclar. El PIN evita entradas de paso, **no** cifra nada: los perfiles son comodidad entre personas
+  de confianza, no una frontera de seguridad. El alcance exacto está en [SECURITY.md](SECURITY.md).
 - Splash de arranque y onboarding de dos pantallas: tu nombre y entrar. Todo lo demás empieza con valores sensatos y se
   cambia en Ajustes; la ubicación se detecta sola mientras escribes y el micrófono lo pide el navegador la primera vez
   que dictas. Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.

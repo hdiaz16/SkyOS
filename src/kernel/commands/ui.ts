@@ -118,6 +118,7 @@ const THEME_NAMES: Record<Theme, string> = { system: 'del sistema', light: 'clar
 
 registerCommand<{ theme?: Theme }, Theme>({
   id: 'ui.theme',
+  risk: 'write',
   keywords: LOOK_WORDS,
   title: 'Cambiar tema',
   description: 'Cambia entre tema claro, oscuro o el del sistema. Sin parámetro alterna al siguiente.',
@@ -133,6 +134,7 @@ registerCommand<{ theme?: Theme }, Theme>({
 
 registerCommand<Record<string, never>, void>({
   id: 'ui.palette',
+  risk: 'write',
   keywords: LOOK_WORDS,
   title: 'Barra de Sky',
   description: 'Lleva el foco a la barra principal.',

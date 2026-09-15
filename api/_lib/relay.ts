@@ -41,6 +41,8 @@ export const OAUTH_POLICY: RelayPolicy = {
 }
 
 const USER_AGENT = 'skyos-bridge/1.0'
+/** A tool call is a few kilobytes; anything of this size is not one. */
+const MAX_RELAY_BYTES = 4 * 1024 * 1024
 const MAX_REDIRECTS = 5
 const REDIRECTS: ReadonlySet<number> = new Set([301, 302, 303, 307, 308])
 const BODYLESS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -91,6 +93,36 @@ export function isPrivateHost(hostname: string): boolean {
     return false
   }
   return false
+}
+
+/* ---------- who may use these routes ---------- */
+
+/**
+ * Only the desktop this function ships with. A browser sends `Sec-Fetch-Site: same-origin` on its own — page
+ * code cannot set it — and `Origin` on anything that is not a plain navigation, so requiring one of the two
+ * turns away the plain `curl` that would otherwise use these routes as an open proxy. It does not turn away
+ * someone who deliberately forges both: that is what the budget in the AI route is for, and it is written down
+ * in SECURITY.md rather than dressed up as authentication.
+ *
+ * A self-hosted desktop on another domain declares it in RELAY_ALLOWED_ORIGINS, comma separated.
+ */
+export function originAllowed(request: Request): boolean {
+  const origin = request.headers.get('Origin')
+  const site = request.headers.get('Sec-Fetch-Site')
+  const extra = (process.env.RELAY_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (origin && extra.includes(origin)) return true
+  if (origin) {
+    try {
+      if (new URL(origin).host === new URL(request.url).host) return true
+    } catch {
+      return false
+    }
+    return false
+  }
+  return site === 'same-origin'
 }
 
 export class RelayError extends Error {
@@ -190,6 +222,7 @@ export const errorResponse = (request: Request, status: number, message: string)
 /** Repeats the browser's request against `?target=` and streams the answer back. */
 export async function relay(request: Request, policy: RelayPolicy): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, policy.exposeHeaders) })
+  if (!originAllowed(request)) return errorResponse(request, 403, 'Esta ruta solo atiende al escritorio de este sitio.')
   try {
     const method = request.method.toUpperCase()
     if (policy.methods && !policy.methods.includes(method)) throw new RelayError(405, `Método no permitido para ${policy.label}.`)
@@ -198,6 +231,7 @@ export async function relay(request: Request, policy: RelayPolicy): Promise<Resp
     const headers = pick(request.headers, policy.requestHeaders, policy.requestPrefixes ?? [])
     headers.set('User-Agent', USER_AGENT)
     const body = BODYLESS.has(method) ? undefined : await request.arrayBuffer().then((b) => (b.byteLength ? b : undefined))
+    if (body && body.byteLength > MAX_RELAY_BYTES) throw new RelayError(413, 'La petición es demasiado grande.')
 
     const signal = policy.timeoutMs === undefined ? request.signal : AbortSignal.any([request.signal, AbortSignal.timeout(policy.timeoutMs)])
     const upstream = await send({ url, method, headers, body }, signal, policy.label)

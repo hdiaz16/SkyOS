@@ -39,8 +39,35 @@ function clientMetadata(origin: string): Plugin {
   }
 }
 
+/**
+ * Anything named VITE_ is baked into the file the browser downloads: it is published, not configured. A key
+ * there is fine while developing on your own machine and is a leak the moment the build is served to anybody
+ * else, so the production build refuses to carry one. Set GROQ_API_KEY (no prefix) instead and the key stays
+ * on the server, where /api/ai adds it.
+ */
+function noSecretsInTheBundle(env: Record<string, string>): Plugin {
+  return {
+    name: 'sky-no-secrets-in-the-bundle',
+    apply: 'build',
+    config() {
+      if (env.VITE_GROQ_KEY?.trim()) {
+        throw new Error(
+          'VITE_GROQ_KEY tiene valor y este es un build de producción: esa llave quedaría dentro del JavaScript que descarga cualquiera.\n' +
+            'Quítala del entorno y usa GROQ_API_KEY (sin VITE_), que vive en el servidor. Para desarrollo local usa `npm run dev`.',
+        )
+      }
+      if (env.VITE_GOOGLE_CLIENT_SECRET?.trim()) {
+        console.warn(
+          '\n[SkyOS] VITE_GOOGLE_CLIENT_SECRET viaja en el paquete: en una página pública deja de ser secreto.\n' +
+            '        Registra el cliente de Google como "Aplicación de página única" (PKCE, sin secreto) y bórrala.\n',
+        )
+      }
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const origin = (env.VITE_APP_ORIGIN || 'http://127.0.0.1:5173').replace(/\/+$/, '')
-  return { plugins: [react(), tailwindcss(), clientMetadata(origin)], worker: { format: 'es' } }
+  return { plugins: [react(), tailwindcss(), clientMetadata(origin), noSecretsInTheBundle(env)], worker: { format: 'es' } }
 })

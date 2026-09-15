@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useDialog } from '../state/dialog'
+import { cn } from '../lib/utils'
 
 /** A single, calm question with a text field. Used when an action needs one line from the user. */
 export function PromptDialog() {
@@ -12,16 +13,23 @@ function Dialog() {
   const request = useDialog((s) => s.request)!
   const close = useDialog((s) => s.close)
   const [value, setValue] = useState(request.initialValue ?? '')
+  const confirming = !!request.confirm
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close(null)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // Whoever was working keeps their place: the dialog borrows the focus and gives it back.
+    const before = document.activeElement as HTMLElement | null
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      before?.focus?.()
+    }
   }, [close])
 
   const submit = () => {
+    if (confirming) return close('sí')
     const v = value.trim()
     if (v) close(v)
   }
@@ -45,11 +53,14 @@ function Dialog() {
           e.preventDefault()
           submit()
         }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={request.title}
         className="glass relative w-[460px] max-w-full rounded-2xl p-5 shadow-win"
       >
         <h2 className="text-[15px] font-medium text-ink">{request.title}</h2>
         {request.description && <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{request.description}</p>}
-        {request.multiline ? (
+        {confirming ? null : request.multiline ? (
           <textarea
             autoFocus
             value={value}
@@ -82,8 +93,12 @@ function Dialog() {
           </button>
           <button
             type="submit"
-            disabled={!value.trim()}
-            className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40"
+            autoFocus={confirming}
+            disabled={!confirming && !value.trim()}
+            className={cn(
+              'rounded-lg px-3.5 py-1.5 text-[13px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40',
+              request.danger ? 'bg-danger' : 'bg-accent',
+            )}
           >
             {request.confirmLabel ?? 'Continuar'}
           </button>

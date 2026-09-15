@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import { useJournal } from '../kernel/commands'
+import { allowed, DECLINED } from '../kernel/consent'
 import type { ToolExecution } from '../ai/tools'
 import type { JsonSchema, ToolSpec } from '../ai/types'
 import { catalogFor } from './catalog'
@@ -250,6 +251,14 @@ export async function executeMcpTool(name: string, input: Record<string, unknown
   if (!target) return { content: `Herramienta desconocida: ${name}`, isError: true, undoable: false }
   const { server, tool } = target
   try {
+    // A write in someone else's house never happens on the model's word alone.
+    if (tool.annotations?.readOnlyHint !== true) {
+      const ok = await allowed('external', {
+        title: `¿${server.name}: ${tool.title ?? tool.name}?`,
+        detail: `Ocurre en ${server.name}, fuera de este equipo: desde aquí no se puede deshacer.`,
+      })
+      if (!ok) return { content: DECLINED, isError: true, undoable: false }
+    }
     const result: CallToolResult = await mcp.callTool(server.id, tool.name, withoutEmptyOptionals(tool, input))
     if (result.resultType === 'input_required') {
       return { content: `${server.name} necesita más información para «${tool.title ?? tool.name}» y Sky aún no puede pedirla en medio de una acción. Pide a la persona los datos que faltan y vuelve a intentarlo con argumentos completos.`, isError: true, undoable: false }

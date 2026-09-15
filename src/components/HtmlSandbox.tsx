@@ -15,14 +15,32 @@ body { font-family: "Nunito Variable", ui-sans-serif, system-ui, -apple-system, 
 }
 
 /**
+ * The promise these widgets make is that they are self-contained: their CSS and their scripts travel inside the
+ * document and they ask the network for nothing. This says so to the browser as well, so a block written from a
+ * poisoned document cannot quietly send what it can see to someone else. Images and fonts as data: URIs still
+ * work, which is what a self-contained widget uses.
+ */
+const CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  "img-src data: blob:",
+  "font-src data:",
+  "media-src data: blob:",
+  "form-action 'none'",
+  "base-uri 'none'",
+].join('; ')
+
+/**
  * AI-authored HTML inside a sandboxed iframe: scripts may run, but the document has no access to Sky's
- * origin, storage or cookies, and cannot navigate the parent page. Shared by desktop widgets and canvas blocks.
+ * origin, storage or cookies, cannot navigate the parent page and cannot reach the network. Shared by desktop
+ * widgets and canvas blocks.
  */
 export function HtmlSandbox({ html, title, className }: { html: string; title: string; className?: string }) {
   const theme = useSettings((s) => s.theme)
 
   const srcDoc = useMemo(() => {
-    const base = `<style>${themeCss()}</style>`
+    const base = `<meta http-equiv="Content-Security-Policy" content="${CSP}"><style>${themeCss()}</style>`
     if (/<html[\s>]/i.test(html)) {
       return /<head[\s>]/i.test(html) ? html.replace(/<head([^>]*)>/i, `<head$1>${base}`) : html.replace(/<html([^>]*)>/i, `<html$1><head>${base}</head>`)
     }

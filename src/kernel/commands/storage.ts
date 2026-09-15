@@ -8,6 +8,7 @@ const SYNC_WORDS = ['sincroniza', 'sincronizar', 'sincronización', 'sincronizac
 
 registerCommand<Record<string, never>, string>({
   id: 'storage.sync',
+  risk: 'external',
   title: 'Sincronizar con la nube',
   description: 'Sube y baja lo que cambió entre el escritorio y la nube elegida (Google Drive, Dropbox u OneDrive). Corre en segundo plano; devuelve el resumen. Si no hay nube configurada, dilo y abre Ajustes › Almacenamiento con ui.openSettings.',
   params: {},

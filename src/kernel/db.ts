@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { FsNode } from './types'
 import type { Widget } from './widgets'
-import { readSession } from '../system/session'
+import { currentSession } from '../system/session'
 import type { McpServerRecord, OAuthClient } from '../mcp/types'
 import type { ConversationRow } from '../ai/conversation'
 import type { JournalEntry } from './commands'
@@ -130,5 +130,9 @@ export class MesaDB extends Dexie {
   }
 }
 
-/** The signed-in user's database. Each account has its own; nothing is shared between them. */
-export const db = new MesaDB(readSession()?.dbName ?? 'mesa')
+/**
+ * The signed-in user's database, fixed when this tab loaded. Each account has its own and nothing is shared.
+ * With nobody signed in the name is one no account can ever have, so a stray query before the login screen
+ * cannot read the first user's desktop.
+ */
+export const db = new MesaDB(currentSession()?.dbName ?? 'mesa-sin-sesion')

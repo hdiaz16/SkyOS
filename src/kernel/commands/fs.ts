@@ -11,6 +11,7 @@ const TRASH_WORDS = ['papelera', 'basura', 'restaura', 'restaurar', 'recupera', 
 
 registerCommand<{ parentId?: string; name?: string }, FsNode>({
   id: 'fs.createFolder',
+  risk: 'write',
   title: 'Nueva carpeta',
   description: 'Crea una carpeta.',
   params: {
@@ -25,6 +26,7 @@ registerCommand<{ parentId?: string; name?: string }, FsNode>({
 
 registerCommand<{ parentId?: string; type?: string; name?: string; content?: string }, FsNode>({
   id: 'fs.createFile',
+  risk: 'write',
   title: 'Nuevo archivo',
   description:
     'Crea un archivo con contenido opcional. note = Markdown; también text, csv, json, html, script.',
@@ -46,6 +48,7 @@ registerCommand<{ parentId?: string; type?: string; name?: string; content?: str
 
 registerCommand<{ id: string; name: string }, string>({
   id: 'fs.rename',
+  risk: 'write',
   title: 'Renombrar',
   description: 'Cambia el nombre de un archivo o carpeta.',
   params: {
@@ -67,6 +70,8 @@ registerCommand<{ id: string; name: string }, string>({
 
 registerCommand<{ ids: string[]; targetParentId: string }, void>({
   id: 'fs.move',
+  risk: 'write',
+  scale: ({ ids }) => ids?.length ?? 1,
   title: 'Mover',
   description: 'Mueve uno o varios elementos a otra carpeta.',
   params: {
@@ -89,6 +94,8 @@ registerCommand<{ ids: string[]; targetParentId: string }, void>({
 
 registerCommand<{ previous: Record<string, string> }, void>({
   id: 'fs.moveBack',
+  risk: 'write',
+  scale: ({ previous }) => Object.keys(previous ?? {}).length,
   title: 'Devolver a su carpeta',
   description: 'Devuelve elementos a la carpeta en la que estaban.',
   // The written inverse of fs.move: each element goes home on its own, which a single destination cannot say.
@@ -108,6 +115,8 @@ registerCommand<{ previous: Record<string, string> }, void>({
 
 registerCommand<{ ids: string[] }, void>({
   id: 'fs.trash',
+  risk: 'write',
+  scale: ({ ids }) => ids?.length ?? 1,
   title: 'Mover a la papelera',
   description: 'Envía elementos a la papelera. Se pueden restaurar después.',
   params: {
@@ -129,6 +138,8 @@ registerCommand<{ ids: string[] }, void>({
 
 registerCommand<{ ids: string[] }, void>({
   id: 'fs.restore',
+  risk: 'write',
+  scale: ({ ids }) => ids?.length ?? 1,
   keywords: TRASH_WORDS,
   title: 'Restaurar',
   description: 'Saca elementos de la papelera y los devuelve a su carpeta original.',
@@ -151,6 +162,8 @@ registerCommand<{ ids: string[] }, void>({
 
 registerCommand<{ ids: string[] }, void>({
   id: 'fs.purge',
+  risk: 'destructive',
+  scale: ({ ids }) => ids?.length ?? 1,
   keywords: TRASH_WORDS,
   title: 'Eliminar definitivamente',
   description: 'Borra elementos para siempre. No se puede deshacer.',
@@ -166,6 +179,7 @@ registerCommand<{ ids: string[] }, void>({
 
 registerCommand<Record<string, never>, number>({
   id: 'fs.emptyTrash',
+  risk: 'destructive',
   keywords: TRASH_WORDS,
   title: 'Vaciar papelera',
   description: 'Borra todo lo que hay en la papelera. No se puede deshacer.',
@@ -179,6 +193,8 @@ registerCommand<Record<string, never>, number>({
 
 registerCommand<{ parentId?: string; files: File[] }, FsNode[]>({
   id: 'fs.import',
+  risk: 'write',
+  scale: ({ files }) => files?.length ?? 1,
   title: 'Importar archivos',
   description: 'Importa archivos del dispositivo del usuario.',
   ai: false,
@@ -195,6 +211,7 @@ registerCommand<{ parentId?: string; files: File[] }, FsNode[]>({
 
 registerCommand<{ id: string; content: string }, void>({
   id: 'fs.writeText',
+  risk: 'write',
   title: 'Escribir contenido',
   description: 'Reemplaza el contenido completo de un archivo de texto.',
   params: {
@@ -216,6 +233,7 @@ registerCommand<{ id: string; content: string }, void>({
 
 registerCommand<{ id: string; tags: string[] }, string[]>({
   id: 'fs.setTags',
+  risk: 'write',
   title: 'Etiquetar',
   description: 'Asigna etiquetas a un archivo o carpeta (palabras clave cortas, en minúsculas). Reemplaza las anteriores.',
   params: {

@@ -5,7 +5,8 @@ import './kernel/commands/index'
 import './ai/commands'
 import { Shell } from './components/system/Shell'
 import { handleCallbackPage, isCallbackPage } from './mcp/popup'
-import { dispatch, listCommands, useJournal } from './kernel/commands'
+import { dispatch, execute, listCommands, useJournal } from './kernel/commands'
+import { useDialog } from './state/dialog'
 import { fs } from './kernel/fs'
 import { useUi } from './state/ui'
 import { useWindows } from './state/windows'
@@ -27,7 +28,9 @@ if (import.meta.env.DEV) {
   Object.assign(window, {
     mesa: {
       dispatch,
+      execute,
       listCommands,
+      useDialog,
       fs,
       widgets,
       flows,

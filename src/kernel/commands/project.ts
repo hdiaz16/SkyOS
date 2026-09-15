@@ -35,6 +35,7 @@ function currentFolder(folderId?: string): string {
 
 registerCommand<{ folderId?: string; goal?: string }, ReturnType<typeof summarize>>({
   id: 'project.start',
+  risk: 'write',
   keywords: PROJECT_WORDS,
   title: 'Convertir en proyecto',
   description:
@@ -79,6 +80,7 @@ registerCommand<{ folderId?: string }, ReturnType<typeof summarize> | null>({
 
 registerCommand<ProjectPatch & { folderId?: string }, ReturnType<typeof summarize>>({
   id: 'project.update',
+  risk: 'write',
   keywords: PROJECT_WORDS,
   title: 'Anotar en el proyecto',
   description:
@@ -109,6 +111,7 @@ registerCommand<ProjectPatch & { folderId?: string }, ReturnType<typeof summariz
 
 registerCommand<{ folderId?: string; text: string; done?: boolean }, void>({
   id: 'project.togglePending',
+  risk: 'write',
   title: 'Marcar un pendiente',
   description: 'Tacha o reabre un pendiente del proyecto.',
   // What the checkbox in the folder's project strip calls; the model uses project_update instead.

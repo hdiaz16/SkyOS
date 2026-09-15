@@ -21,7 +21,21 @@ export type Entrance = 'flood' | 'plain'
 const KEY = 'mesa:session'
 const HANDOFF_KEY = 'mesa:handoff'
 
-export function readSession(): SessionInfo | null {
+/**
+ * The session this page runs as, decided once when the tab loaded. Everything per-user — the database, the
+ * OPFS folder, the suffixed localStorage keys — is derived from this and only this. Reading localStorage again
+ * later would be a mistake: another tab can sign in as somebody else at any moment, and a tab that followed
+ * that change would keep writing to one person's database while stamping another person's name on the keys.
+ */
+const PINNED = readStoredSession()
+
+/** The user this tab belongs to, for as long as it lives. */
+export const currentSession = (): SessionInfo | null => PINNED
+
+/** What is stored right now. Only the boot path wants this; per-user stores want `currentSession`. */
+export const readSession = readStoredSession
+
+function readStoredSession(): SessionInfo | null {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return null
@@ -35,8 +49,29 @@ export function readSession(): SessionInfo | null {
 
 /** Suffix for per-user localStorage keys, e.g. ":abc123". Empty when nobody is signed in. */
 export function sessionSuffix(): string {
-  const s = readSession()
-  return s ? `:${s.userId}` : ''
+  return PINNED ? `:${PINNED.userId}` : ''
+}
+
+/**
+ * Tells this tab when another one signs in as somebody else or signs out. There is no safe way to carry on:
+ * the databases, the workers and the open files all belong to the person this tab started as. The caller's job
+ * is to stop, not to migrate.
+ */
+export function watchSessionChange(onChanged: () => void): () => void {
+  const check = () => {
+    const now = readStoredSession()
+    if ((now?.userId ?? null) !== (PINNED?.userId ?? null)) onChanged()
+  }
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key === KEY) check()
+  }
+  window.addEventListener('storage', onStorage)
+  // A tab that was in the background can come back to a session that changed while nobody was looking.
+  document.addEventListener('visibilitychange', check)
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    document.removeEventListener('visibilitychange', check)
+  }
 }
 
 /** Marks the next page load as a hand-over (no splash): signing in, or coming back from an authorization page. */

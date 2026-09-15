@@ -6,6 +6,7 @@ import { applyTheme, useSettings } from '../../state/settings'
 import App from '../../App'
 import { Backdrop } from '../Backdrop'
 import { Login } from './Login'
+import { SessionEnded } from './SessionEnded'
 import { Onboarding } from './Onboarding'
 import { OrbStage } from './OrbStage'
 import { BELOW_ORB, useOrbStage } from './orbStore'
@@ -28,6 +29,7 @@ type Phase = 'splash' | 'content'
  */
 export function Shell() {
   const status = useAuth((s) => s.status)
+  const stale = useAuth((s) => s.stale)
   const theme = useSettings((s) => s.theme)
   const [phase, setPhase] = useState<Phase>(handoff ? 'content' : 'splash')
   const [minElapsed, setMinElapsed] = useState(handoff !== null)
@@ -59,13 +61,17 @@ export function Shell() {
     if (status !== 'loading') document.documentElement.classList.remove('handoff-flood')
   }, [status])
 
-  const desktop = phase === 'content' && status === 'ready'
+  // Unmounting the desktop is what actually stops the work: every subscription, saver and worker it started
+  // is torn down by its own cleanup, so nothing of this person's keeps running under somebody else's session.
+  const desktop = phase === 'content' && status === 'ready' && !stale
   const screen = phase === 'splash' ? 'splash' : status
   const flooded = handoff === 'flood' && status === 'loading'
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {desktop ? (
+      {stale ? (
+        <SessionEnded reason={stale} />
+      ) : desktop ? (
         <motion.div
           initial={handoff === 'flood' ? { opacity: 1, scale: 1.03 } : { opacity: 0, scale: 1.015 }}
           animate={{ opacity: 1, scale: 1 }}

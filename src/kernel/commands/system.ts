@@ -69,6 +69,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  */
 registerCommand<{ windows: Array<Partial<Win> & { id: string }> }, void>({
   id: 'ui.applyLayout',
+  risk: 'write',
   title: 'Devolver las ventanas a su sitio',
   description: 'Devuelve posición, tamaño o estado a las ventanas indicadas.',
   ai: false,
@@ -82,6 +83,7 @@ registerCommand<{ windows: Array<Partial<Win> & { id: string }> }, void>({
 
 registerCommand<{ windows: Win[] }, void>({
   id: 'ui.restoreWindows',
+  risk: 'write',
   title: 'Volver a abrir ventanas',
   description: 'Vuelve a abrir ventanas que se cerraron, tal como estaban.',
   ai: false,
@@ -95,6 +97,8 @@ registerCommand<{ windows: Win[] }, void>({
 
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.closeWindows',
+  risk: 'write',
+  scale: ({ ids }) => ids?.length ?? 1,
   keywords: WINDOW_WORDS,
   title: 'Cerrar ventanas',
   description:
@@ -119,6 +123,8 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
 
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.minimizeWindows',
+  risk: 'write',
+  scale: ({ ids }) => ids?.length ?? 1,
   keywords: WINDOW_WORDS,
   title: 'Minimizar ventanas',
   description: 'Minimiza ventanas por id o por alcance: "all", "inactive" (todas menos la activa) o "stale" (sin usar 10 minutos o más).',
@@ -178,6 +184,7 @@ function computeLayout(wins: Win[], layout: Layout): Array<Partial<Win> & { id: 
 
 registerCommand<{ layout?: Layout }, number>({
   id: 'ui.arrangeWindows',
+  risk: 'write',
   keywords: WINDOW_WORDS,
   title: 'Ordenar ventanas',
   description: 'Acomoda las ventanas visibles: "grid" (cuadrícula), "cascade" (cascada), "columns" o "rows".',
@@ -199,6 +206,7 @@ registerCommand<{ layout?: Layout }, number>({
 
 registerCommand<Record<string, never>, { zen: boolean; hidden: number }>({
   id: 'ui.zen',
+  risk: 'write',
   keywords: WINDOW_WORDS,
   title: 'Modo Zen',
   description: 'Alterna el modo Zen (Ctrl+Mayús+Z): todas las ventanas menos la activa se desvanecen para dejar solo el documento en curso; volver a llamarlo las trae de vuelta.',
@@ -220,6 +228,7 @@ registerCommand<Record<string, never>, { zen: boolean; hidden: number }>({
 
 registerCommand<Record<string, never>, number>({
   id: 'ui.stackWindows',
+  risk: 'write',
   keywords: WINDOW_WORDS,
   title: 'Apilar ventanas',
   description: 'Reúne las ventanas visibles en un mazo detrás de la activa, ordenado por uso reciente (también con doble clic en el fondo del escritorio).',
@@ -240,6 +249,7 @@ registerCommand<Record<string, never>, number>({
 
 registerCommand<{ id?: string; target?: 'left' | 'right' | 'max' | 'restore' }, void>({
   id: 'ui.snapWindow',
+  risk: 'write',
   keywords: WINDOW_WORDS,
   title: 'Ajustar ventana',
   description: 'Lleva una ventana (la activa si no se da id) a la mitad izquierda, la derecha, a pantalla completa ("max") o de vuelta a su tamaño ("restore").',
@@ -264,6 +274,7 @@ registerCommand<{ id?: string; target?: 'left' | 'right' | 'max' | 'restore' }, 
 
 registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
   id: 'ui.cleanDesktop',
+  risk: 'write',
   keywords: WINDOW_WORDS,
   title: 'Limpiar escritorio',
   description: 'Deja solo la ventana activa. Por defecto minimiza las demás; con mode "close" las cierra. Quita la selección.',
@@ -291,6 +302,7 @@ registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
 
 registerCommand<Record<string, never>, void>({
   id: 'system.logout',
+  risk: 'destructive',
   keywords: WINDOW_WORDS,
   title: 'Cerrar sesión',
   description: 'Cierra la sesión de la persona actual y vuelve a la pantalla de inicio. Sus archivos se conservan.',

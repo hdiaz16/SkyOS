@@ -1,5 +1,5 @@
 import { db } from './db'
-import { readSession } from '../system/session'
+import { currentSession } from '../system/session'
 
 export type BlobEngine = 'opfs' | 'indexeddb'
 
@@ -25,7 +25,7 @@ function opfsSupported(): boolean {
 }
 
 /** Each account keeps its bytes in its own OPFS folder; the pre-accounts desktop lives at the root. */
-const STORAGE_DIR = readSession()?.storageDir ?? ''
+const STORAGE_DIR = currentSession()?.storageDir ?? 'sin-sesion'
 
 let dirPromise: Promise<FileSystemDirectoryHandle> | null = null
 

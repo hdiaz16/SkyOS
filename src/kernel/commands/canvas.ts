@@ -45,6 +45,7 @@ const plural = (n: number) => `${n} bloque${n === 1 ? '' : 's'}`
 
 registerCommand<{ name?: string; parentId?: string; blocks?: BlockInput[]; open?: boolean }, { id: string; name: string; blockIds: string[] }>({
   id: 'canvas.create',
+  risk: 'write',
   title: 'Crear lienzo',
   description: `Crea un lienzo (.canvas): un tablero libre donde conviven notas en Markdown, tablas, diagramas Mermaid y bloques HTML, y lo abre. Úsalo cuando pidan un plan visual, un esquema, un diagrama, un tablero o un "lienzo"; entrega los bloques ya listos. ${BLOCK_HELP}`,
   params: {
@@ -66,6 +67,7 @@ registerCommand<{ name?: string; parentId?: string; blocks?: BlockInput[]; open?
 
 registerCommand<{ id: string; blocks: BlockInput[] }, { blockIds: string[] }>({
   id: 'canvas.addBlocks',
+  risk: 'write',
   title: 'Añadir bloques a un lienzo',
   description: `Coloca bloques nuevos en un lienzo existente (el archivo activo, normalmente); se acomodan solos en filas. ${BLOCK_HELP}`,
   params: {
@@ -89,6 +91,7 @@ registerCommand<{ id: string; blocks: BlockInput[] }, { blockIds: string[] }>({
 
 registerCommand<{ id: string; remove?: string[]; put?: CanvasBlock[] }, void>({
   id: 'canvas.apply',
+  risk: 'write',
   title: 'Rehacer bloques de un lienzo',
   description: 'Quita bloques por id y devuelve otros tal como estaban.',
   // The written inverse of every canvas edit: taking blocks out and putting blocks back is all three of them.
@@ -107,6 +110,7 @@ registerCommand<{ id: string; remove?: string[]; put?: CanvasBlock[] }, void>({
 
 registerCommand<{ id: string; blockId: string; content?: string; title?: string; kind?: BlockKind }, void>({
   id: 'canvas.updateBlock',
+  risk: 'write',
   title: 'Cambiar un bloque del lienzo',
   description: 'Reemplaza el contenido, el título o el tipo de un bloque existente (ids con canvas.read).',
   params: {
@@ -138,6 +142,7 @@ registerCommand<{ id: string; blockId: string; content?: string; title?: string;
 
 registerCommand<{ id: string; blockId: string }, void>({
   id: 'canvas.removeBlock',
+  risk: 'write',
   title: 'Quitar un bloque del lienzo',
   description: 'Quita un bloque del lienzo (ids con canvas.read).',
   params: {

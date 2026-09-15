@@ -17,6 +17,7 @@ const BACKGROUND_REPLY = 'En marcha en segundo plano; una tarjeta avisará cuand
 
 registerCommand<{ ids: string[] }, string>({
   id: 'tasks.synthesize',
+  risk: 'write',
   title: 'Sintetizar archivos en segundo plano',
   description:
     'Lee varios archivos (o carpetas) y produce un documento que los une: qué dicen en conjunto, lo esencial de cada uno, coincidencias y lo que importa ahora. Corre en segundo plano: responde de inmediato y la persona recibe una tarjeta con el resultado al terminar. Úsalo cuando pidan sintetizar, unir o comparar varios archivos.',
@@ -32,6 +33,7 @@ registerCommand<{ ids: string[] }, string>({
 
 registerCommand<{ ids: string[] }, string>({
   id: 'tasks.pending',
+  risk: 'write',
   title: 'Extraer pendientes en segundo plano',
   description:
     'Lee varios archivos (o carpetas) y produce una lista de tareas con los pendientes, compromisos y fechas que aparecen en ellos. Corre en segundo plano y avisa al terminar.',
@@ -47,6 +49,7 @@ registerCommand<{ ids: string[] }, string>({
 
 registerCommand<{ folderId: string }, string>({
   id: 'tasks.summarizeFolder',
+  risk: 'write',
   title: 'Resumir carpeta en segundo plano',
   description:
     'Lee los documentos de una carpeta (dos niveles) y redacta un resumen: qué hay, temas, fechas y cifras, sugerencias. Corre en segundo plano y avisa al terminar. Para el escritorio usa el id root.',

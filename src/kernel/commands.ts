@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { play } from '../system/sound'
+import { allowed, DECLINED, type Risk } from './consent'
 
 /** Who asked for the command. The AI and the user share the same command surface. */
 export type Source = 'user' | 'ai' | 'system'
@@ -46,6 +47,14 @@ export interface CommandDef<P = unknown, R = unknown> {
   title: string
   description: string
   params: Record<string, ParamSpec>
+  /**
+   * What this does to the world. Decides whether Sky has to ask the person first (kernel/consent.ts); what the
+   * person does with their own hands is never gated. Leaving it out means "this only reads", and in
+   * development a command that changes something while claiming to read says so in the console.
+   */
+  risk?: Risk
+  /** How many things one call touches, when that is not one: ten files at once is not a small change. */
+  scale?: (params: P) => number
   /** Whether the AI may call this command as a tool. Defaults to true. */
   ai?: boolean
   /**
@@ -162,8 +171,16 @@ export async function execute<R = unknown>(
 ): Promise<Execution<R>> {
   const def = registry.get(id)
   if (!def) throw new Error(`Comando desconocido: ${id}`)
+  // The gate, before anything happens and whatever the model was told: see kernel/consent.ts.
+  if (ctx.source === 'ai') {
+    const ok = await allowed(def.risk ?? 'read', { title: `¿${def.title}?`, count: def.scale?.(params) ?? 1 })
+    if (!ok) throw new Error(DECLINED)
+  }
   try {
     const out = await def.run(params, ctx)
+    if (import.meta.env.DEV && out.label && (def.risk ?? 'read') === 'read') {
+      console.error(`[consent] "${id}" cambió algo y no declara risk; añádelo en su registerCommand.`)
+    }
     let entry: JournalEntry | undefined
     if (out.label) {
       entry = {
