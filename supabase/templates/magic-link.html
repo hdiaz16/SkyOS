@@ -1,0 +1,153 @@
+<!--
+  El correo con el que se entra a SkyOS.
+
+  Dónde va:  Supabase → Authentication → Emails → Magic Link → pega esto en el cuerpo.
+  Asunto:    Tu código para entrar: {{ .Token }}
+
+  {{ .Token }} es el código de seis dígitos y {{ .ConfirmationURL }} el enlace. Los dos llevan al mismo sitio:
+  quien esté frente a la pantalla escribe el código, y quien abra el correo en el teléfono usa el botón. Si
+  quitas {{ .Token }} de la plantilla, la pantalla del código deja de servir y solo queda el enlace.
+
+  Escrito para correo, no para navegador: tablas, estilos en línea y ninguna imagen que cargar. El bloque de
+  estilos de abajo solo añade el modo oscuro donde el cliente lo soporta; sin él se ve igual de bien en claro.
+-->
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
+    <style>
+      @media (prefers-color-scheme: dark) {
+        .lienzo { background: #131a16 !important; }
+        .tarjeta { background: #1b2420 !important; border-color: rgba(230, 239, 233, 0.1) !important; }
+        .tinta { color: #e6efe9 !important; }
+        .tinta-2 { color: #9db0a5 !important; }
+        .tinta-3 { color: #6f8177 !important; }
+        .codigo { background: rgba(61, 122, 90, 0.18) !important; color: #8fd3ae !important; }
+        .raya { border-color: rgba(230, 239, 233, 0.1) !important; }
+      }
+    </style>
+  </head>
+  <body class="lienzo" style="margin: 0; padding: 0; background: #eef2ee; -webkit-font-smoothing: antialiased">
+    <div style="display: none; max-height: 0; overflow: hidden; opacity: 0">Tu código para entrar a SkyOS: {{ .Token }}</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="lienzo" style="background: #eef2ee">
+      <tr>
+        <td align="center" style="padding: 40px 16px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px">
+            <!-- el orbe -->
+            <tr>
+              <td align="center" style="padding-bottom: 22px">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td
+                      align="center"
+                      width="52"
+                      height="52"
+                      style="
+                        width: 52px;
+                        height: 52px;
+                        background: #3d7a5a;
+                        border-radius: 26px;
+                        font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                        font-size: 19px;
+                        line-height: 52px;
+                        color: #ffffff;
+                        letter-spacing: -1px;
+                      "
+                    >
+                      &#8734;
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                class="tarjeta"
+                style="
+                  background: #fbfcfa;
+                  border: 1px solid rgba(31, 42, 36, 0.08);
+                  border-radius: 20px;
+                  padding: 36px 32px 30px;
+                  font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                "
+              >
+                <p class="tinta" style="margin: 0; font-size: 21px; line-height: 1.3; font-weight: 700; color: #1f2a24; text-align: center">Aquí está tu código</p>
+                <p class="tinta-2" style="margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: #5f6f66; text-align: center">
+                  Escríbelo en la pantalla donde lo pediste. Sirve una hora y una sola vez.
+                </p>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 26px 0 8px">
+                  <tr>
+                    <td
+                      class="codigo"
+                      align="center"
+                      style="
+                        background: rgba(61, 122, 90, 0.12);
+                        border-radius: 14px;
+                        padding: 18px 12px;
+                        font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+                        font-size: 32px;
+                        font-weight: 700;
+                        letter-spacing: 10px;
+                        color: #2c6045;
+                        text-indent: 10px;
+                      "
+                    >
+                      {{ .Token }}
+                    </td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 26px 0 0">
+                  <tr>
+                    <td class="raya" style="border-top: 1px solid rgba(31, 42, 36, 0.08); font-size: 0; line-height: 0">&nbsp;</td>
+                  </tr>
+                </table>
+
+                <p class="tinta-2" style="margin: 22px 0 14px; font-size: 13.5px; line-height: 1.6; color: #5f6f66; text-align: center">
+                  ¿Abriste este correo en otro aparato? Entra con un toque:
+                </p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center">
+                      <a
+                        href="{{ .ConfirmationURL }}"
+                        style="
+                          display: inline-block;
+                          background: #3d7a5a;
+                          color: #ffffff;
+                          text-decoration: none;
+                          font-size: 14px;
+                          font-weight: 600;
+                          padding: 12px 26px;
+                          border-radius: 999px;
+                        "
+                        >Entrar a SkyOS</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 22px 12px 0; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+                <p class="tinta-3" style="margin: 0; font-size: 12px; line-height: 1.7; color: #98a69e; text-align: center">
+                  Te llega este correo porque alguien pidió entrar a SkyOS con tu dirección. Si no fuiste tú, no tienes que hacer nada:
+                  sin el código nadie pasa.
+                </p>
+                <p class="tinta-3" style="margin: 14px 0 0; font-size: 12px; line-height: 1.7; color: #98a69e; text-align: center">
+                  SkyOS
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
