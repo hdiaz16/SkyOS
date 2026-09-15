@@ -5,7 +5,13 @@ import { widgets, type TodoItem, type Widget } from '../../kernel/widgets'
 import { cn } from '../../lib/utils'
 
 export function TodoWidget({ widget }: { widget: Widget }) {
-  const items = (Array.isArray(widget.config.items) ? widget.config.items : []) as TodoItem[]
+  // A list written by Sky arrives as plain {text, done}: without ids every row looked like the same row, so
+  // ticking one ticked them all and deleting one deleted the lot. They get an id here, by position, and the
+  // first save writes it down for good.
+  const items = (Array.isArray(widget.config.items) ? widget.config.items : []).map((raw, i) => {
+    const item = (raw ?? {}) as Partial<TodoItem>
+    return { id: item.id ?? `i${i}`, text: String(item.text ?? ''), done: !!item.done }
+  })
   const [draft, setDraft] = useState('')
 
   const save = (next: TodoItem[]) => void widgets.setConfig(widget.id, { items: next })

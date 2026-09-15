@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { Check, Code2, GitBranch, Pencil, Plus, Sparkles, StickyNote, Trash2, type LucideIcon } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { useToasts } from '../../kernel/commands'
 import { FileMissing, Opening } from './FileState'
 import { useFileNode } from '../../lib/hooks'
 import { appendBlocks, BLOCK_LABELS, canvasExtent, parseCanvas, serializeCanvas, type BlockKind, type CanvasBlock, type CanvasDoc } from '../../kernel/canvas'
@@ -60,17 +61,34 @@ export function CanvasApp({ win }: { win: Win }) {
     }
   }, [node, nodeId])
 
-  useEffect(() => () => window.clearTimeout(timer.current), [])
+  // Moving a block and closing the window within the same half second used to lose the move: the timer was
+  // cleared and nobody wrote. Whatever is pending goes to disk on the way out.
+  const pending = useRef<CanvasDoc | null>(null)
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current)
+      if (dirty.current && pending.current) void fs.writeText(nodeId, serializeCanvas(pending.current)).catch(() => undefined)
+    },
+    [nodeId],
+  )
 
   const commit = (next: CanvasDoc) => {
     setDoc(next)
     dirty.current = true
+    pending.current = next
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(async () => {
-      await fs.writeText(nodeId, serializeCanvas(next))
+      try {
+        await fs.writeText(nodeId, serializeCanvas(next))
+      } catch {
+        // Saying nothing here is how a canvas quietly stops saving; the person has to know to copy it out.
+        useToasts.getState().push({ message: 'No pude guardar el lienzo. Copia lo que necesites antes de cerrarlo.', kind: 'error' })
+        return
+      }
       const fresh = await fs.get(nodeId)
       if (fresh) loadedVersion.current = fresh.updatedAt
       dirty.current = false
+      pending.current = null
     }, SAVE_DELAY_MS)
   }
 
@@ -182,14 +200,26 @@ function Block({ block, editing, onEdit, onDone, onChange, onRemove, onAsk }: Bl
     if (e.button !== 0) return
     if ((e.target as HTMLElement).closest('button, input, textarea, a')) return
     e.preventDefault()
+    // An HTML block is a separate document: letting go over one used to swallow the pointerup and leave the
+    // block glued to the hand. Capturing keeps every event coming back here.
+    const handle = e.currentTarget as HTMLElement
+    try {
+      handle.setPointerCapture(e.pointerId)
+    } catch {
+      // Not every pointer can be captured; the window listeners below still finish the gesture.
+    }
     const sx = e.clientX
     const sy = e.clientY
     const start: Geometry = { x: block.x, y: block.y, w: block.w, h: block.h }
-    const move = (ev: globalThis.PointerEvent) => {
-      live.current = apply(ev.clientX - sx, ev.clientY - sy, start)
+    const move = (ev: Event) => {
+      const p = ev as globalThis.PointerEvent
+      live.current = apply(p.clientX - sx, p.clientY - sy, start)
       setGeo(live.current)
     }
     const up = () => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', up)
+      handle.removeEventListener('pointercancel', up)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       const g = live.current

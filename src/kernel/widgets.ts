@@ -126,7 +126,10 @@ function nextPosition(existing: Widget[], w: number, h: number): { x: number; y:
 }
 
 export const widgets = {
-  list: () => db.widgets.orderBy('updatedAt').toArray(),
+  // Ordered by when they were made, not by when they were last touched: sorting by updatedAt meant that
+  // saving a note reshuffled the desktop under the person's hands and took the caret with it. Sorted here
+  // rather than by index, so no stored data has to change.
+  list: async () => (await db.widgets.toArray()).sort((a, b) => a.createdAt - b.createdAt),
   get: (id: string) => db.widgets.get(id),
 
   async create(
