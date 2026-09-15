@@ -273,7 +273,9 @@ function StorageSection() {
       <CloudSyncPanel />
     <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
       <Row label="Dónde viven tus archivos">{fs.engine === 'opfs' ? 'Sistema de archivos del navegador' : 'IndexedDB'}</Row>
-      <Row label="Contenido">{stats ? `${stats.files} archivos · ${stats.folders} carpetas · ${formatBytes(stats.bytes)}` : '…'}</Row>
+      <Row label="Contenido">
+        {stats ? `${stats.files} archivos · ${stats.folders} carpetas · ${formatBytes(stats.bytes)}${stats.trashed ? ` · ${stats.trashed} en la papelera` : ''}` : '…'}
+      </Row>
       <div>
         <Row label="Espacio del navegador">
           {estimate ? `${formatBytes(estimate.usage)} de ${formatBytes(estimate.quota)}` : estimate === false ? 'Tu navegador no lo dice' : '…'}

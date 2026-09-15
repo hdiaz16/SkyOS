@@ -283,19 +283,26 @@ export const fs = {
     return rows.slice(0, limit)
   },
 
-  async stats(): Promise<{ files: number; folders: number; bytes: number }> {
+  /** What there is, and separately what is in the trash: counting both as one answered «tienes 132 archivos»
+   *  to someone who could see 92 on their desktop. */
+  async stats(): Promise<{ files: number; folders: number; bytes: number; trashed: number }> {
     const rows = await db.nodes.toArray()
     let files = 0
     let folders = 0
     let bytes = 0
+    let trashed = 0
     for (const n of rows) {
+      if (n.trashedAt !== null) {
+        trashed++
+        continue
+      }
       if (n.kind === 'folder') folders++
       else {
         files++
         bytes += n.size
       }
     }
-    return { files, folders, bytes }
+    return { files, folders, bytes, trashed }
   },
 
   engine: blobs.engine,

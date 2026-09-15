@@ -75,8 +75,13 @@ function save(): void {
   if (!loaded) return
   window.clearTimeout(timer)
   timer = window.setTimeout(() => {
-    const { windows, nextZ } = useWindows.getState()
-    void db.workspace.put({ id: ROW_ID, windows: windows.filter((w) => !NOT_RESTORED.has(w.app)).map(toStored), nextZ, updatedAt: Date.now() })
+    const { windows, nextZ, zen } = useWindows.getState()
+    // Zen only lives in memory, but the minimising it does was being saved: a reload came back with Zen off and
+    // three windows minimised, and the shortcut answered «no hay otras ventanas que apartar». What Zen put
+    // away is written down as visible, so reloading simply ends the mode.
+    const away = new Set(zen ?? [])
+    const rows = windows.filter((w) => !NOT_RESTORED.has(w.app)).map((w) => toStored(away.has(w.id) ? { ...w, minimized: false } : w))
+    void db.workspace.put({ id: ROW_ID, windows: rows, nextZ, updatedAt: Date.now() })
   }, SAVE_DELAY_MS)
 }
 

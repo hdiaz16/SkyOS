@@ -1,6 +1,6 @@
 import { registerCommand } from '../commands'
 import { fs } from '../fs'
-import { useWindows, type Win } from '../../state/windows'
+import { MIN_H, MIN_W, useWindows, type Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
 import { useSettings } from '../../state/settings'
 import { endSession } from '../../system/session'
@@ -98,7 +98,10 @@ registerCommand<{ windows: Win[] }, void>({
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.closeWindows',
   risk: 'write',
-  scale: ({ ids }) => ids?.length ?? 1,
+  // Counted the way the command itself counts. Reading only `ids` left the scale at 1 for «cierra todas las
+  // ventanas», so the rule that more than ten is never a small change never fired — fourteen windows closed
+  // without a question, and the undo does not survive a reload.
+  scale: ({ ids, scope }) => targets(scope ?? 'stale', ids).length,
   keywords: WINDOW_WORDS,
   title: 'Cerrar ventanas',
   description:
@@ -124,7 +127,7 @@ registerCommand<{ ids?: string[]; scope?: Scope }, number>({
 registerCommand<{ ids?: string[]; scope?: Scope }, number>({
   id: 'ui.minimizeWindows',
   risk: 'write',
-  scale: ({ ids }) => ids?.length ?? 1,
+  scale: ({ ids, scope }) => targets(scope ?? 'inactive', ids).filter((w) => !w.minimized).length,
   keywords: WINDOW_WORDS,
   title: 'Minimizar ventanas',
   description: 'Minimiza ventanas por id o por alcance: "all", "inactive" (todas menos la activa) o "stale" (sin usar 10 minutos o más).',
@@ -152,34 +155,51 @@ const TOP = 52
 const BOTTOM = 104
 const GAP = 12
 
-function computeLayout(wins: Win[], layout: Layout): Array<Partial<Win> & { id: string }> {
+/**
+ * Where each window goes, and which arrangement it really was. The maths used to ignore the minimum window
+ * size: six columns on a laptop came out 226 px wide, the store pushed every one of them back to 360, and the
+ * last window ended up past the right edge — while the label announced six tidy columns. Now what does not fit
+ * wraps onto more rows, and when not even that fits it falls back to a cascade, where every title bar is at
+ * least reachable. The caller is told which of the two happened so it can say so.
+ */
+function computeLayout(wins: Win[], layout: Layout): { patches: Array<Partial<Win> & { id: string }>; used: Layout; cols: number; rows: number } {
   const W = window.innerWidth
   const H = window.innerHeight - TOP - BOTTOM
   const n = wins.length
   if (layout === 'cascade') {
-    return wins.map((w, i) => ({
-      id: w.id,
-      x: 24 + i * 32,
-      y: TOP + i * 28,
-      w: Math.min(w.w, W - 48 - i * 32),
-      h: Math.min(w.h, H - i * 28),
-    }))
+    return {
+      used: 'cascade',
+      cols: 1,
+      rows: n,
+      patches: wins.map((w, i) => ({
+        id: w.id,
+        x: 24 + i * 32,
+        y: TOP + i * 28,
+        w: Math.min(w.w, W - 48 - i * 32),
+        h: Math.min(w.h, H - i * 28),
+      })),
+    }
   }
-  let cols = 1
-  let rows = 1
-  if (layout === 'columns') cols = n
-  else if (layout === 'rows') rows = n
-  else {
-    cols = Math.ceil(Math.sqrt(n))
-    rows = Math.ceil(n / cols)
-  }
+  const maxCols = Math.max(1, Math.floor((W - GAP) / (MIN_W + GAP)))
+  const maxRows = Math.max(1, Math.floor((H - GAP) / (MIN_H + GAP)))
+  let cols: number
+  if (layout === 'columns') cols = Math.min(n, maxCols)
+  else if (layout === 'rows') cols = Math.ceil(n / Math.min(n, maxRows))
+  else cols = Math.min(Math.ceil(Math.sqrt(n)), maxCols)
+  const rows = Math.ceil(n / cols)
   const cw = (W - GAP * (cols + 1)) / cols
   const ch = (H - GAP * (rows + 1)) / rows
-  return wins.map((w, i) => {
-    const c = i % cols
-    const r = Math.floor(i / cols)
-    return { id: w.id, x: GAP + c * (cw + GAP), y: TOP + GAP + r * (ch + GAP), w: cw, h: ch }
-  })
+  if (cw < MIN_W || ch < MIN_H) return { ...computeLayout(wins, 'cascade'), used: 'cascade' }
+  return {
+    used: layout,
+    cols,
+    rows,
+    patches: wins.map((w, i) => {
+      const c = i % cols
+      const r = Math.floor(i / cols)
+      return { id: w.id, x: GAP + c * (cw + GAP), y: TOP + GAP + r * (ch + GAP), w: cw, h: ch }
+    }),
+  }
 }
 
 registerCommand<{ layout?: Layout }, number>({
@@ -193,11 +213,22 @@ registerCommand<{ layout?: Layout }, number>({
     const wins = useWindows.getState().windows.filter((w) => !w.minimized)
     if (!wins.length) return { result: 0 }
     const before = wins.map((w) => ({ id: w.id, x: w.x, y: w.y, w: w.w, h: w.h }))
-    useWindows.getState().patchMany(computeLayout(wins, layout))
+    const { patches, used, cols, rows } = computeLayout(wins, layout)
+    useWindows.getState().patchMany(patches)
     const names: Record<Layout, string> = { grid: 'en cuadrícula', cascade: 'en cascada', columns: 'en columnas', rows: 'en filas' }
+    // Said the way it ended up looking: six windows asked for in columns may come out in two columns of three,
+    // and on a small screen not even that fits.
+    const como =
+      used !== layout
+        ? `${names[used]}: ${names[layout]} no caben en esta pantalla`
+        : used === 'columns' && cols < wins.length
+          ? `en ${cols} columnas`
+          : used === 'rows' && rows < wins.length
+            ? `en ${rows} filas`
+            : names[used]
     return {
       result: wins.length,
-      label: `${plural(wins.length, 'ventana ordenada', 'ventanas ordenadas')} ${names[layout]}`,
+      label: `${plural(wins.length, 'ventana ordenada', 'ventanas ordenadas')} ${como}`,
       undo: { commandId: 'ui.applyLayout', params: { windows: before } },
       ephemeral: true,
     }
@@ -220,7 +251,10 @@ registerCommand<Record<string, never>, { zen: boolean; hidden: number }>({
     return {
       result: { zen: !!now, hidden: now?.length ?? 0 },
       label: now ? `Modo Zen: ${plural(now.length, 'ventana apartada', 'ventanas apartadas')}` : 'Modo Zen apagado',
-      undo: { commandId: 'ui.zen', params: {} },
+      // A toggle is not an inverse. Undoing «Modo Zen apagado» used to switch Zen back on and hide everything
+      // again, because it re-ran the toggle against however things are now instead of undoing what it did.
+      // Turning it on is undone by bringing those same windows back; turning it off leaves nothing to undo.
+      undo: now ? { commandId: 'ui.applyLayout', params: { windows: now.map((id) => ({ id, minimized: false })) } } : undefined,
       ephemeral: true,
     }
   },
@@ -265,6 +299,9 @@ registerCommand<{ id?: string; target?: 'left' | 'right' | 'max' | 'restore' }, 
     if (target === 'restore') {
       if (win.maximized) wm.toggleMaximize(win.id)
       else if (win.prev) wm.patchMany([{ id: win.id, ...win.prev, prev: undefined }])
+      // Nothing to come back from: announcing «ajustada», sounding the toast and leaving an entry in the
+      // journal was claiming a move that never happened.
+      else return { result: undefined }
     } else {
       wm.snap(win.id, target)
     }
@@ -275,6 +312,7 @@ registerCommand<{ id?: string; target?: 'left' | 'right' | 'max' | 'restore' }, 
 registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
   id: 'ui.cleanDesktop',
   risk: 'write',
+  scale: ({ mode }) => targets('inactive').filter((w) => mode === 'close' || !w.minimized).length,
   keywords: WINDOW_WORDS,
   title: 'Limpiar escritorio',
   description: 'Deja solo la ventana activa. Por defecto minimiza las demás; con mode "close" las cierra. Quita la selección.',

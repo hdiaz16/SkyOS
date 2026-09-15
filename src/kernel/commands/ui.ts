@@ -60,6 +60,9 @@ registerCommand<{ folderId?: string }, void>({
 
 registerCommand<{ url?: string; query?: string }, void>({
   id: 'ui.openBrowser',
+  // Not a read: when a browser window is already open this replaces the page in it, and that window has no way
+  // back. The address it had goes in the journal so there is one.
+  risk: 'write',
   title: 'Abrir navegador',
   description: 'Abre el navegador web. Con "query" busca en Google; con "url" abre esa dirección. Sin parámetros abre Google.',
   params: {
@@ -71,12 +74,19 @@ registerCommand<{ url?: string; query?: string }, void>({
     const wm = useWindows.getState()
     const existing = wm.windows.find((w) => w.app === 'browser')
     if (existing) {
+      const before = typeof existing.props.url === 'string' ? existing.props.url : GOOGLE_HOME
       wm.setProps(existing.id, { url: target })
       wm.setTitle(existing.id, titleForUrl(target))
       wm.focus(existing.id)
-    } else {
-      wm.open('browser', { title: titleForUrl(target), props: { url: target } })
+      if (before === target) return { result: undefined }
+      return {
+        result: undefined,
+        label: `Navegador en ${titleForUrl(target)}`,
+        undo: { commandId: 'ui.openBrowser', params: { url: before } },
+        ephemeral: true,
+      }
     }
+    wm.open('browser', { title: titleForUrl(target), props: { url: target } })
     return { result: undefined }
   },
 })
@@ -125,10 +135,13 @@ registerCommand<{ theme?: Theme }, Theme>({
   params: { theme: { type: 'string', description: 'system, light o dark', enum: ['system', 'light', 'dark'] } },
   async run({ theme }) {
     const s = useSettings.getState()
+    const before = s.theme
     if (theme) s.setTheme(theme)
     else s.cycleTheme()
     const next = useSettings.getState().theme
-    return { result: next, label: `Tema ${THEME_NAMES[next]}` }
+    // The only write in this group that had no inverse: the dialog promised «se puede deshacer después» and
+    // then the entry showed up with nothing to press.
+    return { result: next, label: `Tema ${THEME_NAMES[next]}`, undo: next === before ? undefined : { commandId: 'ui.theme', params: { theme: before } } }
   },
 })
 

@@ -70,6 +70,22 @@ export function fitAll(): void {
   if (patches.length) useWindows.getState().patchMany(patches)
 }
 
+/**
+ * The size to come back to. A window that is already snapped keeps the one it had: snapping left twice, or
+ * left and then maximised, used to make «restaura la ventana» point at the half screen, and the size the
+ * person had chosen was gone for good.
+ */
+function prevFor(w: Win): Win['prev'] {
+  if (w.maximized || isSnapped(w)) return w.prev
+  return { x: w.x, y: w.y, w: w.w, h: w.h }
+}
+
+const isSnapped = (w: Win): boolean =>
+  (['left', 'right', 'max'] as const).some((t) => {
+    const g = snapGeometry(t)
+    return Math.abs(g.x - w.x) < 2 && Math.abs(g.y - w.y) < 2 && Math.abs(g.w - w.w) < 2 && Math.abs(g.h - w.h) < 2
+  })
+
 export function snapGeometry(target: SnapTarget): Geometry {
   const ws = workspace()
   if (target === 'max') return ws
@@ -132,8 +148,8 @@ const DEFAULTS: Record<AppId, { w: number; h: number; title: string }> = {
   canvas: { w: 1000, h: 680, title: 'Lienzo' },
 }
 
-const MIN_W = 360
-const MIN_H = 240
+export const MIN_W = 360
+export const MIN_H = 240
 
 const place = (w: Win, g: Geometry, extra: Partial<Win> = {}): Win => ({ ...w, ...g, settling: true, ...extra })
 
@@ -185,17 +201,20 @@ export const useWindows = create<WindowsState>((set, get) => ({
 
   minimize: (id) => set((s) => ({ windows: s.windows.map((w) => (w.id === id ? { ...w, minimized: true } : w)) })),
 
+  // Moving or resizing by hand ends the maximised state. Leaving the flag on meant the green button kept
+  // offering "Restaurar tamaño" over a window that was no longer maximised, and pressing it threw the window
+  // back to an old geometry instead of filling the screen.
   move: (id, x, y) =>
     set((s) => ({
       windows: s.windows.map((w) =>
-        w.id === id ? { ...w, x: Math.round(x), y: Math.max(28, Math.round(y)) } : w,
+        w.id === id ? { ...w, x: Math.round(x), y: Math.max(28, Math.round(y)), maximized: false, prev: undefined } : w,
       ),
     })),
 
   resize: (id, w, h) =>
     set((s) => ({
       windows: s.windows.map((win) =>
-        win.id === id ? { ...win, w: Math.max(MIN_W, Math.round(w)), h: Math.max(MIN_H, Math.round(h)) } : win,
+        win.id === id ? { ...win, w: Math.max(MIN_W, Math.round(w)), h: Math.max(MIN_H, Math.round(h)), maximized: false, prev: undefined } : win,
       ),
     })),
 
@@ -214,7 +233,7 @@ export const useWindows = create<WindowsState>((set, get) => ({
   snap: (id, target) =>
     set((s) => ({
       ...(play('snap'), {}),
-      windows: s.windows.map((w) => (w.id === id ? place(w, snapGeometry(target), { prev: w.maximized ? w.prev : { x: w.x, y: w.y, w: w.w, h: w.h }, maximized: target === 'max' }) : w)),
+      windows: s.windows.map((w) => (w.id === id ? place(w, snapGeometry(target), { prev: prevFor(w), maximized: target === 'max' }) : w)),
     })),
 
   toggleMaximize: (id) =>
