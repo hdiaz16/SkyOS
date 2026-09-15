@@ -107,6 +107,38 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   `VITE_BRIDGE_URL=http://127.0.0.1:8787` en `.env.local`. Sky intenta primero directo y solo usa el puente cuando
   el navegador bloquea la llamada.
 
+## Publicar en internet (Vercel + dominio propio)
+
+El escritorio es una página estática, pero el despliegue lleva cuatro funciones pequeñas en `api/` que hacen lo
+que un navegador solo no puede:
+
+| Función | Para qué |
+| --- | --- |
+| `api/ai/[...path].ts` | Habla con Groq poniendo la llave del lado del servidor, así el modelo incluido funciona sin que nadie pegue una llave y sin que la llave viaje al navegador. Solo atiende a la propia página y solo tres rutas: `chat/completions`, `models` y `audio/transcriptions`. |
+| `api/mcp/proxy.ts` | Repite las llamadas a servidores MCP que no envían cabeceras CORS, en streaming, para que Notion, Slack o Drive respondan desde el navegador. |
+| `api/oauth/proxy.ts` | Lo mismo para el descubrimiento, el registro y el canje de tokens del OAuth de MCP. |
+| `api/geo.ts` | Dice en qué ciudad está la visita leyendo las cabeceras de la red de Vercel: ubicación sin permiso ni terceros. |
+
+**Variables en Vercel** (Project → Settings → Environment Variables):
+
+| Variable | Valor | Nota |
+| --- | --- | --- |
+| `GROQ_API_KEY` | `gsk_…` | Sin el prefijo `VITE_`. Si además existe `VITE_GROQ_KEY`, bórrala: esa sí acaba en el paquete del navegador. |
+| `VITE_APP_ORIGIN` | `https://sky-os.cloud` | Permite identificarse ante los servidores MCP con Client ID Metadata Documents. |
+| `VITE_BRIDGE_URL` | vacía | En un despliegue el puente se sirve solo, en `/api`. |
+| `VITE_GOOGLE_CLIENT_ID` / `_SECRET` | opcional | Solo para Drive, Docs, Gmail y Calendar. |
+| `VITE_MS_CLIENT_ID` | opcional | Solo para sincronizar con OneDrive. |
+
+**Dominio en GoDaddy.** En Vercel: Project → Settings → Domains → añadir `sky-os.cloud` y `www.sky-os.cloud`.
+Luego, en GoDaddy → DNS:
+
+| Tipo | Nombre | Dato |
+| --- | --- | --- |
+| A | `@` | `76.76.21.21` (sustituye el registro que apunta a WebsiteBuilder) |
+| CNAME | `www` | `cname.vercel-dns.com` |
+
+Los `NS`, el `SOA` y el `TXT` de DMARC se quedan como están. El certificado lo emite Vercel en unos minutos.
+
 ## Principios de diseño
 
 - **Vidrio funcional, noche por defecto.** Superficies esmeriladas (`.glass`: blur 24 px), bordes con luz propia en

@@ -1,3 +1,12 @@
 {
-  "rewrites": [{ "source": "/oauth/callback", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/oauth/callback", "destination": "/index.html" }],
+  "headers": [
+    {
+      "source": "/oauth/client-metadata.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    }
+  ]
 }

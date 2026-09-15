@@ -1,4 +1,4 @@
-import { resolveKey, useAiSettings, type AiSettingsState } from './settings'
+import { baseUrlFor, resolveKey, useAiSettings, usesRelay, type AiSettingsState } from './settings'
 import { AiError, sharedKeyBusy } from './types'
 
 /**
@@ -6,12 +6,12 @@ import { AiError, sharedKeyBusy } from './types'
  * answers the conversation, because the transcript is just text dropped into the command bar.
  */
 
-const TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const MODEL = 'whisper-large-v3-turbo'
 const MAX_SECONDS = 60
 
 export function dictationAvailable(state: AiSettingsState = useAiSettings.getState()): boolean {
-  return !!resolveKey(state, 'groq') && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
+  const reachable = !!resolveKey(state, 'groq') || usesRelay(state, 'groq')
+  return reachable && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
 }
 
 export async function transcribe(audio: Blob, apiKey: string, shared = false): Promise<string> {
@@ -21,7 +21,9 @@ export async function transcribe(audio: Blob, apiKey: string, shared = false): P
   form.append('language', 'es')
   form.append('response_format', 'json')
   form.append('temperature', '0')
-  const res = await fetch(TRANSCRIBE_URL, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form })
+  // With the included key there is nothing to send: the relay adds it on the server side.
+  const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined
+  const res = await fetch(`${baseUrlFor(undefined, 'groq').replace(/\/+$/, '')}/audio/transcriptions`, { method: 'POST', headers, body: form })
   if (!res.ok) {
     if (shared) throw sharedKeyBusy()
     if (res.status === 401) throw new AiError('La llave de Groq no es válida.')

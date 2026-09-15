@@ -151,3 +151,35 @@ export function currentPosition(timeoutMs = 8000): Promise<{ lat: number; lon: n
     )
   })
 }
+
+export interface ApproximatePlace extends Place {
+  /** How the position was found: the deployment's own edge network, or a public lookup service. */
+  source: 'edge' | 'service'
+}
+
+/**
+ * Roughly where this browser is, from its address, with no permission prompt. The deployment answers first
+ * (`/api/geo`, free and private); a public service covers development and static hosting. Null when neither
+ * knows, which is when it is fair to ask the person to type their city.
+ */
+export async function approximateLocation(): Promise<ApproximatePlace | null> {
+  try {
+    const res = await fetch('/api/geo', { signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      const d = (await res.json()) as { place?: string | null; lat?: number; lon?: number }
+      if (d.place && typeof d.lat === 'number' && typeof d.lon === 'number') return { name: d.place, lat: d.lat, lon: d.lon, source: 'edge' }
+    }
+  } catch {
+    // no deployment behind this page; try the public service
+  }
+  try {
+    const res = await fetch('https://ipwho.is/?fields=success,city,region,country,latitude,longitude', { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return null
+    const d = (await res.json()) as { success?: boolean; city?: string; region?: string; country?: string; latitude?: number; longitude?: number }
+    if (!d.success || typeof d.latitude !== 'number' || typeof d.longitude !== 'number') return null
+    const name = [d.city, d.region, d.country].filter(Boolean).join(', ')
+    return name ? { name, lat: d.latitude, lon: d.longitude, source: 'service' } : null
+  } catch {
+    return null
+  }
+}

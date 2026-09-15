@@ -4,7 +4,7 @@ import { widgets, type Widget } from '../../kernel/widgets'
 import { useDialog } from '../../state/dialog'
 import { useAuth } from '../../system/auth'
 import { users } from '../../system/users'
-import { currentPosition, describeCode, fetchWeather, geocode, reverseGeocode, type Weather, type WeatherKind } from '../../lib/weather'
+import { approximateLocation, currentPosition, describeCode, fetchWeather, geocode, reverseGeocode, type Weather, type WeatherKind } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number }>
@@ -63,8 +63,14 @@ export function WeatherWidget({ widget }: { widget: Widget }) {
               await useAuth.getState().refreshCurrent()
             }
           } catch {
-            if (alive) setState({ status: 'needs-place', reason: 'Sin acceso a tu ubicación' })
-            return
+            // No permission, no GPS: the network address still places the person well enough for weather.
+            const near = await approximateLocation()
+            if (!near) {
+              if (alive) setState({ status: 'needs-place', reason: 'No pude averiguar dónde estás' })
+              return
+            }
+            coords = { lat: near.lat, lon: near.lon }
+            label = label || near.name
           }
         }
         const weather = await fetchWeather(coords.lat, coords.lon)

@@ -27,7 +27,7 @@ import { fs } from '../../kernel/fs'
 import { flows } from '../../kernel/flows'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
-import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, resolveKey, useAiSettings, usesSharedKey, type ProviderId } from '../../ai/settings'
+import { AUTO_MODEL, baseUrlFor, isAiConfigured, presetFor, PROVIDERS, resolveKey, useAiSettings, usesSharedKey, type ProviderId } from '../../ai/settings'
 import { getProvider } from '../../ai/providers'
 import { listModels } from '../../ai/providers/openaiCompat'
 import { TIER_LABELS } from '../../ai/router'
@@ -320,7 +320,7 @@ function AiSection() {
   const refreshModels = async () => {
     setLoadingModels(true)
     try {
-      const ids = await listModels(baseUrl || preset.baseUrl || '', resolveKey(ai), shared)
+      const ids = await listModels(baseUrlFor(ai), resolveKey(ai), shared)
       ai.setDiscovered(ai.provider, ids)
       useToasts.getState().push({ message: `${ids.length} modelos disponibles en ${preset.name}`, kind: 'info' })
     } catch (err) {

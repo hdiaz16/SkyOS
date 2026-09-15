@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { sessionSuffix } from '../system/session'
-import { DEFAULT_GROQ_KEY, hasSharedGroqKey } from '../config'
+import { DEFAULT_GROQ_KEY, hasAiProxy, hasSharedGroqKey, sharedGroqBaseUrl } from '../config'
 import type { Effort, ModelInfo } from './types'
 
 export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'gemini' | 'openrouter' | 'ollama' | 'custom' | 'mock'
@@ -276,9 +276,28 @@ export function isAiConfigured(state: AiSettingsState = useAiSettings.getState()
   const preset = presetFor(state.provider)
   if (!state.model.trim()) return false
   if (state.model === AUTO_MODEL && !preset.tiers) return false
-  if (preset.needsKey && !resolveKey(state)) return false
+  // Riding on the deployment's relay needs no key in the browser at all.
+  if (preset.needsKey && !resolveKey(state) && !usesRelay(state)) return false
   if (state.provider === 'custom' && !state.baseUrls.custom) return false
   return true
+}
+
+/** True when this request would travel through the deployment's own relay instead of carrying a key. */
+export const usesRelay = (state: AiSettingsState = useAiSettings.getState(), provider: ProviderId = state.provider): boolean =>
+  provider === 'groq' && hasAiProxy && !state.keys.groq
+
+/** Where requests to a provider go: what the person configured, the relay for the included key, or the preset. */
+export function baseUrlFor(state: AiSettingsState | undefined = undefined, provider?: ProviderId): string {
+  const s = state ?? useAiSettings.getState()
+  const id = provider ?? s.provider
+  return resolveBaseUrl(s, id)
+}
+
+function resolveBaseUrl(state: AiSettingsState, provider: ProviderId): string {
+  const own = state.baseUrls[provider]
+  if (own) return own
+  if (provider === 'groq' && !state.keys.groq) return sharedGroqBaseUrl()
+  return presetFor(provider).baseUrl ?? ''
 }
 
 /** True when requests to this provider would ride on Sky's included key rather than the person's own. */

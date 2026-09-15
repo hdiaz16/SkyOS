@@ -1,5 +1,5 @@
 import type { AiProvider } from '../types'
-import { presetFor, resolveKey, useAiSettings, usesSharedKey, type AiSettingsState } from '../settings'
+import { baseUrlFor, presetFor, resolveKey, useAiSettings, usesRelay, usesSharedKey, type AiSettingsState } from '../settings'
 import { createAnthropicProvider } from './anthropic'
 import { createOpenAICompatProvider } from './openaiCompat'
 import { createMockProvider } from './mock'
@@ -10,7 +10,7 @@ let cache: { key: string; provider: AiProvider } | null = null
 export function getProvider(state: AiSettingsState = useAiSettings.getState()): AiProvider | null {
   const preset = presetFor(state.provider)
   const apiKey = resolveKey(state)
-  const baseUrl = state.baseUrls[state.provider] || preset.baseUrl || ''
+  const baseUrl = baseUrlFor(state)
   const key = `${state.provider}|${apiKey}|${baseUrl}`
   if (cache?.key === key) return cache.provider
 
@@ -24,7 +24,7 @@ export function getProvider(state: AiSettingsState = useAiSettings.getState()): 
       break
     default:
       provider =
-        baseUrl && (!preset.needsKey || apiKey)
+        baseUrl && (!preset.needsKey || apiKey || usesRelay(state))
           ? createOpenAICompatProvider({ id: state.provider, name: preset.name, baseUrl, apiKey: apiKey || undefined, shared: usesSharedKey(state), vision: preset.vision })
           : null
   }

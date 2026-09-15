@@ -10,7 +10,7 @@ import { applyTheme, persistThemeFor, type Theme } from '../../state/settings'
 import { AUTO_MODEL, persistAiSettingsFor, presetFor, type ProviderId } from '../../ai/settings'
 import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
-import { currentPosition, GeoError, geocode, geolocationPossible, reverseGeocode } from '../../lib/weather'
+import { approximateLocation, currentPosition, GeoError, geocode, geolocationPossible, reverseGeocode } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 import { BELOW_ORB, useOrbStage } from './orbStore'
 
@@ -60,7 +60,11 @@ export function Onboarding() {
   const [autonomy, setAutonomy] = useState<Autonomy>('act')
   const [theme, setTheme] = useState<Theme>('dark')
   const [location, setLocation] = useState<UserLocation | null>(null)
+  // 'idle' means the automatic pass is still running; the city box only appears after it fails.
   const [locState, setLocState] = useState<'idle' | 'asking' | 'ok' | 'denied' | 'unavailable'>('idle')
+  const detected = useRef(false)
+  /** Set when the place came from the network address rather than the person or the browser's own position. */
+  const [approximate, setApproximate] = useState(false)
   const [city, setCity] = useState('')
   const [cityState, setCityState] = useState<'idle' | 'searching' | 'missing'>('idle')
   const [micState, setMicState] = useState<'idle' | 'asking' | 'granted' | 'denied'>('idle')
@@ -85,11 +89,41 @@ export function Onboarding() {
       const pos = await currentPosition(12000)
       const place = await reverseGeocode(pos.lat, pos.lon)
       setLocation({ lat: pos.lat, lon: pos.lon, place })
+      setApproximate(false)
       setLocState('ok')
     } catch (err) {
+      // The browser said no; the network address still knows the city well enough for weather and time.
+      const near = await approximateLocation()
+      if (near) {
+        setLocation({ lat: near.lat, lon: near.lon, place: near.name })
+        setApproximate(true)
+        setLocState('ok')
+        return
+      }
       setLocState(err instanceof GeoError && err.reason === 'denied' ? 'denied' : 'unavailable')
     }
   }
+
+  // Nobody should have to type where they are: the moment the question appears, Sky works it out from the
+  // network address. The city box only shows up when that fails.
+  useEffect(() => {
+    if (step !== 'location' || detected.current) return
+    detected.current = true
+    let alive = true
+    void approximateLocation().then((near) => {
+      if (!alive) return
+      if (near) {
+        setLocation({ lat: near.lat, lon: near.lon, place: near.name })
+        setApproximate(true)
+        setLocState('ok')
+      } else {
+        setLocState('unavailable')
+      }
+    })
+    return () => {
+      alive = false
+    }
+  }, [step])
 
   // Typing a city works everywhere: no permission, no GPS, no secure origin needed.
   const searchCity = async () => {
@@ -102,13 +136,16 @@ export function Onboarding() {
       return
     }
     setLocation({ lat: place.lat, lon: place.lon, place: place.name })
+    setApproximate(false)
     setLocState('ok')
     setCityState('idle')
   }
 
   const resetLocation = () => {
     setLocation(null)
-    setLocState('idle')
+    setApproximate(false)
+    // Correcting the place by hand: show the city box instead of guessing again.
+    setLocState('unavailable')
     setCity('')
     setCityState('idle')
   }
@@ -276,13 +313,19 @@ export function Onboarding() {
               note="Solo para mostrarte el clima y la hora de tu lugar. Se guarda en tu perfil, en este navegador, y en ningún otro sitio."
             >
               <div className="flex w-full max-w-[400px] flex-col items-center gap-4">
-                {location ? (
+                {locState === 'idle' && !location ? (
+                  <p className="flex items-center gap-2 text-[14px] text-ink-3">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Buscando dónde estás…
+                  </p>
+                ) : location ? (
                   <div className="flex flex-col items-center gap-2">
                     <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-[14px] text-accent">
                       <MapPin className="h-4 w-4" />
                       {location.place}
                       <Check className="h-4 w-4" />
                     </p>
+                    {approximate && <p className="text-[12px] text-ink-3">Aproximado, por tu conexión.</p>}
                     <button type="button" onClick={resetLocation} className="text-[12px] text-ink-3 transition hover:text-ink">
                       Cambiar
                     </button>
@@ -302,9 +345,9 @@ export function Onboarding() {
                     )}
                     <p className="min-h-[18px] text-center text-[12px] leading-relaxed text-ink-3">
                       {locState === 'asking' && 'Si el navegador no te preguntó, busca el icono de ubicación en la barra de direcciones.'}
-                      {locState === 'denied' && 'El navegador no dio permiso. No pasa nada: escribe tu ciudad.'}
-                      {locState === 'unavailable' && 'No pude obtener tu posición. Escribe tu ciudad y listo.'}
-                      {locState === 'idle' && !geolocationPossible() && 'Este navegador no puede ubicarte aquí; escribe tu ciudad.'}
+                      {locState === 'denied' && 'El navegador no dio permiso y tu conexión tampoco lo dice. Escribe tu ciudad.'}
+                      {locState === 'unavailable' && 'No pude averiguar dónde estás. Escribe tu ciudad o tu estado.'}
+                      {locState === 'ok' && 'Escribe tu ciudad o tu estado, o usa tu ubicación exacta.'}
                     </p>
                     <form
                       className="flex w-full items-center gap-2"
