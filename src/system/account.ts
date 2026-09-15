@@ -24,10 +24,16 @@ export const accountsEnabled = !!(ACCOUNTS_URL && ACCOUNTS_KEY)
 /**
  * The session lives under a key of our own so it never collides with anything else on the origin, and it is
  * refreshed in the background while the desktop is open.
+ *
+ * The flow is implicit rather than PKCE on purpose. PKCE keeps a verifier in the browser that asked for the
+ * code, which is stricter and would be the better choice — except that the link in the email is opened
+ * wherever the person reads their mail, which is very often another browser or another phone. There the
+ * verifier does not exist and the link simply fails. The six-digit code, which is the way in this desktop is
+ * built around, does not depend on any of this: it is typed where it was asked for.
  */
 const client: SupabaseClient | null = accountsEnabled
   ? createClient(ACCOUNTS_URL, ACCOUNTS_KEY, {
-      auth: { storageKey: 'mesa:cuenta', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+      auth: { storageKey: 'mesa:cuenta', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
     })
   : null
 
