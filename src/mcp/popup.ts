@@ -39,7 +39,14 @@ export function savePending(p: PendingFlow): void {
 export function readPending(): PendingFlow | null {
   try {
     const raw = sessionStorage.getItem(PENDING_KEY)
-    return raw ? (JSON.parse(raw) as PendingFlow) : null
+    const pending = raw ? (JSON.parse(raw) as PendingFlow) : null
+    // A flow left halfway — the consent page opened and the person pressed Back — used to wait here for ever,
+    // ready to claim somebody else's answer hours later. After ten minutes it is over.
+    if (pending && Date.now() - (pending.startedAt ?? 0) > FLOW_TIMEOUT_MS) {
+      clearPending()
+      return null
+    }
+    return pending
   } catch {
     return null
   }
@@ -77,13 +84,22 @@ export function handleCallbackPage(): void {
   window.location.replace('/')
 }
 
-/** Callback parameters left by a redirect-based flow, if any. Consumed on read. */
-export function takeRedirectResult(): CallbackParams | null {
+/**
+ * Callback parameters left by a redirect-based flow, if any. Consumed on read, and only by the flow they
+ * belong to: connected apps and OneDrive come back through the same door, and whoever read first used to
+ * swallow the other's answer — an abandoned OneDrive attempt ate the Notion one and then complained about
+ * Microsoft, while Notion stayed unconnected without a word. The state each flow generated tells them apart.
+ */
+export function takeRedirectResult(state?: string): CallbackParams | null {
   try {
     const raw = sessionStorage.getItem(RESULT_KEY)
+    if (!raw) return null
+    const params = JSON.parse(raw) as CallbackParams
+    if (state && params.state && params.state !== state) return null
     sessionStorage.removeItem(RESULT_KEY)
-    return raw ? (JSON.parse(raw) as CallbackParams) : null
+    return params
   } catch {
+    sessionStorage.removeItem(RESULT_KEY)
     return null
   }
 }

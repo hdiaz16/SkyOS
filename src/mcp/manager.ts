@@ -253,21 +253,31 @@ export const mcp = {
     const record = await mcpStore.servers.get(id)
     if (!record) return
     const tokens = record.auth?.tokens
-    if (record.auth && tokens) {
-      try {
-        const as = (await authorizationServer(record.auth.issuer)) as AuthorizationServerMetadata & { revocation_endpoint?: string }
-        const client = await mcpStore.clients.get(record.auth.issuer)
-        if (as.revocation_endpoint && client) {
-          const body = new URLSearchParams({ token: tokens.refreshToken ?? tokens.accessToken, client_id: client.clientId })
-          if (client.clientSecret) body.set('client_secret', client.clientSecret)
-          await fetch(as.revocation_endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() }).catch(() => undefined)
-        }
-      } catch {
-        // Revocation is a courtesy; the local session goes away regardless.
-      }
-    }
+    // What matters is that the session stops living here, and that happens first. Telling the provider is a
+    // courtesy that used to go before it: several well-known lookups and a POST with no timeout, during which
+    // the card said nothing and the button stayed pressable — and if one of them hung, the token never went.
     transportFor(record).reset()
     await patch(id, { auth: record.auth ? { ...record.auth, tokens: undefined } : undefined, tools: undefined, toolsFetchedAt: undefined, status: 'disconnected', attention: undefined, account: undefined })
+    if (record.auth && tokens) {
+      void (async () => {
+        try {
+          const as = (await authorizationServer(record.auth!.issuer)) as AuthorizationServerMetadata & { revocation_endpoint?: string }
+          const client = await mcpStore.clients.get(record.auth!.issuer)
+          if (as.revocation_endpoint && client) {
+            const body = new URLSearchParams({ token: tokens.refreshToken ?? tokens.accessToken, client_id: client.clientId })
+            if (client.clientSecret) body.set('client_secret', client.clientSecret)
+            await fetch(as.revocation_endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: body.toString(),
+              signal: AbortSignal.timeout(8000),
+            }).catch(() => undefined)
+          }
+        } catch {
+          // The provider may never hear about it; on this machine the session is already gone.
+        }
+      })()
+    }
   },
 
   /** Re-reads the tool list when the cache is stale (or always, when forced). */
@@ -325,7 +335,15 @@ export const mcp = {
   async addCustom(name: string, url: string): Promise<McpServerRecord> {
     const clean = url.trim()
     if (!/^https:\/\//.test(clean)) throw new McpError('not_configured', 'La URL del servidor debe empezar con https://')
-    const record: McpServerRecord = { id: `custom-${nanoid(8)}`, name: name.trim() || new URL(clean).hostname, url: clean, status: 'disconnected', updatedAt: Date.now() }
+    // «https://» passes the check above and then new URL throws, and the browser's English message —
+    // "Failed to construct 'URL': Invalid URL" — went straight into a toast in a Spanish interface.
+    let host: string
+    try {
+      host = new URL(clean).hostname
+    } catch {
+      throw new McpError('not_configured', 'Esa dirección no es válida. Revisa que esté completa, como https://mi-servidor.com/mcp')
+    }
+    const record: McpServerRecord = { id: `custom-${nanoid(8)}`, name: name.trim() || host, url: clean, status: 'disconnected', updatedAt: Date.now() }
     await mcpStore.servers.save(record)
     await reload()
     return record

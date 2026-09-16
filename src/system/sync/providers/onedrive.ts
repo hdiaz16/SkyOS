@@ -1,7 +1,7 @@
 import { MS_OAUTH } from '../../../config'
 import { randomToken } from '../../../mcp/auth'
 import { useMcp } from '../../../mcp/manager'
-import { authorizeInBrowser, redirectUri, takeRedirectResult } from '../../../mcp/popup'
+import { authorizeInBrowser, FLOW_TIMEOUT_MS, redirectUri, takeRedirectResult } from '../../../mcp/popup'
 import { sessionSuffix } from '../../session'
 import { basename, dirname, expectOk, reach, SyncError, type RemoteFile, type SyncProvider } from '../types'
 
@@ -127,10 +127,22 @@ async function exchange(form: Record<string, string>): Promise<Tokens> {
 export async function resumeOneDrive(): Promise<boolean> {
   const raw = sessionStorage.getItem(PENDING_KEY)
   if (!raw) return false
-  sessionStorage.removeItem(PENDING_KEY)
-  const pending = JSON.parse(raw) as Pending
-  const params = takeRedirectResult()
+  let pending: Pending
+  try {
+    pending = JSON.parse(raw) as Pending
+  } catch {
+    sessionStorage.removeItem(PENDING_KEY)
+    return false
+  }
+  // An attempt abandoned half an hour ago is not an answer waiting to arrive, and it must not eat the answer
+  // of whatever the person is connecting now: only what carries this state belongs here.
+  if (Date.now() - (pending.startedAt ?? 0) > FLOW_TIMEOUT_MS) {
+    sessionStorage.removeItem(PENDING_KEY)
+    return false
+  }
+  const params = takeRedirectResult(pending.state)
   if (!params) return false
+  sessionStorage.removeItem(PENDING_KEY)
   if (params.error) throw new SyncError(params.error_description ?? params.error, 'auth')
   if (params.state !== pending.state || !params.code) throw new SyncError('La respuesta de Microsoft no corresponde a esta sesión.', 'auth')
   saveTokens(await exchange({ client_id: pending.clientId, grant_type: 'authorization_code', code: params.code, redirect_uri: pending.redirectUri, code_verifier: pending.verifier, scope: SCOPES }))

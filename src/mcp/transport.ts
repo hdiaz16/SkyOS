@@ -291,10 +291,20 @@ export class StreamableHttp {
     if (res.status === 403) throw new McpError('forbidden', 'El servidor no permite esta operación con los permisos actuales.', { status: 403, challenge: res.headers.get('www-authenticate') ?? undefined })
   }
 
+  /** What the number means, in words. «El servidor respondió 502.» is a code, and it is read by a person. */
   private async httpError(res: Response): Promise<McpError> {
     const err = await this.parseError(res)
     if (res.status === 429) return new McpError('rpc', 'El servidor está limitando las solicitudes; intenta en unos segundos.', { status: 429, rpc: err })
-    return new McpError('protocol', err?.message ?? `El servidor respondió ${res.status}.`, { status: res.status, rpc: err })
+    if (err?.message) return new McpError('protocol', err.message, { status: res.status, rpc: err })
+    const said =
+      res.status >= 500
+        ? 'El servidor de la app no está respondiendo ahora mismo. Inténtalo en un momento.'
+        : res.status === 404
+          ? 'No encontré un servidor MCP en esa dirección.'
+          : res.status === 400
+            ? 'El servidor no entendió la petición.'
+            : `El servidor respondió ${res.status}.`
+    return new McpError('protocol', said, { status: res.status, rpc: err })
   }
 
   private unwrap<T>(msg: JsonRpcResponse): T {

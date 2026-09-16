@@ -170,7 +170,10 @@ function AppList({ items, category, highlight, grouped }: { items: AppItem[]; ca
 /* ---------- one app ---------- */
 
 function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean }) {
-  const busy = useMcp((s) => s.busy[item.id])
+  const managerBusy = useMcp((s) => s.busy[item.id])
+  /** What this card is doing on its own, for the steps the manager does not report. */
+  const [localBusy, setLocalBusy] = useState<string | undefined>(undefined)
+  const busy = managerBusy ?? localBusy
   const record = item.record
   const connected = isConnected(record)
   const attention = record?.status === 'attention' ? record.attention : undefined
@@ -195,8 +198,17 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
   }
 
   const disconnect = async () => {
-    await mcp.disconnect(item.id)
-    useToasts.getState().push({ message: `${item.name} desconectado`, kind: 'info' })
+    setLocalBusy('Desconectando…')
+    try {
+      await mcp.disconnect(item.id)
+      useToasts.getState().push({ message: `${item.name} desconectado`, kind: 'info' })
+    } catch (err) {
+      // It was called with `void` and no catch: a failure here left the card saying "Conectada" and nobody
+      // was told anything at all.
+      useToasts.getState().push({ message: err instanceof Error ? err.message : `No se pudo desconectar ${item.name}`, kind: 'error' })
+    } finally {
+      setLocalBusy(undefined)
+    }
   }
 
   const refreshTools = async () => {
@@ -233,7 +245,9 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
               ))}
             </div>
           )}
-          {connected && (
+          {/* Not while it needs attention: the refresh token is still stored, so this line read "La sesión se
+              renueva sola" right on top of "La sesión ya no se pudo renovar". */}
+          {connected && !attention && (
             <p className="mt-1.5 text-[12px] text-ink-3">
               {record?.account?.name ? `Como ${record.account.name}${record.account.email ? ` · ${record.account.email}` : ''} · ` : ''}
               {record?.auth?.tokens?.refreshToken

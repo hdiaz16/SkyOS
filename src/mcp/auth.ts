@@ -302,6 +302,24 @@ export async function authorize(input: AuthorizeInput): Promise<OAuthTokens> {
   }
 }
 
+/** The usual OAuth failures, said the way a person would say them. */
+function oauthReason(code: string): string {
+  switch (code) {
+    case 'server_error':
+    case 'temporarily_unavailable':
+      return 'El proveedor tuvo un problema y no pudo autorizarte. Inténtalo otra vez en un momento.'
+    case 'invalid_scope':
+      return 'Esta app no concede alguno de los permisos que Sky pidió.'
+    case 'invalid_client':
+    case 'unauthorized_client':
+      return 'El proveedor no reconoce a Sky como aplicación autorizada.'
+    case 'invalid_request':
+      return 'La petición de autorización no le pareció válida al proveedor.'
+    default:
+      return 'El proveedor no pudo completar la autorización.'
+  }
+}
+
 /** Validates the callback (state, RFC 9207 iss) and exchanges the code for tokens. */
 export async function redeem(pending: PendingFlow, params: CallbackParams): Promise<OAuthTokens> {
   clearPending()
@@ -314,7 +332,11 @@ export async function redeem(pending: PendingFlow, params: CallbackParams): Prom
   if (params.state !== pending.state) throw new McpError('protocol', 'La respuesta no corresponde a esta conexión. Inténtalo de nuevo.')
   if (params.error) {
     const cancelled = params.error === 'access_denied'
-    throw new McpError(cancelled ? 'cancelled' : 'protocol', cancelled ? 'No autorizaste la conexión.' : params.error_description ?? params.error)
+    if (cancelled) throw new McpError('cancelled', 'No autorizaste la conexión.')
+    // Without a description the raw code used to reach the toast: «server_error», «invalid_scope». A code in
+    // English is not something to read; the code stays in the console, where it is of use.
+    if (!params.error_description) console.warn('[mcp] autorización rechazada:', params.error)
+    throw new McpError('protocol', params.error_description ?? oauthReason(params.error))
   }
   if (!params.code) throw new McpError('protocol', 'El servidor de autorización no devolvió un código.')
 

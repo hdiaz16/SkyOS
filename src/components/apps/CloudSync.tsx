@@ -31,6 +31,8 @@ export function CloudSyncPanel() {
   const [, bump] = useState(0)
   const [clientDraft, setClientDraft] = useState(oneDriveClientId())
   const [leaving, setLeaving] = useState(false)
+  /** The Entra block only appears to whoever is actually setting OneDrive up. */
+  const [settingUp, setSettingUp] = useState(false)
 
   const ready = (id: SyncProviderId) => (id === 'onedrive' ? oneDriveConnected() : servers.find((s) => s.id === id)?.status === 'connected')
   const active = settings.providerId && ready(settings.providerId) ? settings.providerId : null
@@ -42,8 +44,11 @@ export function CloudSyncPanel() {
       await dispatch('ui.openApps', { app: id })
       return
     }
+    // The hardest jargon in all of Ajustes — a GUID, a redirect URI, Files.ReadWrite.AppFolder — used to sit in
+    // Almacenamiento for everyone, including people who only use Google Drive and never asked about OneDrive.
     if (!oneDriveClientId()) {
-      useToasts.getState().push({ message: 'Pega primero el id de aplicación de Microsoft Entra.', kind: 'error' })
+      setSettingUp(true)
+      useToasts.getState().push({ message: 'OneDrive necesita el id de aplicación de Microsoft Entra. Te lo pido abajo.', kind: 'info' })
       return
     }
     setLeaving(true)
@@ -121,8 +126,18 @@ export function CloudSyncPanel() {
         })}
       </div>
 
-      {!oneDriveConnected() && (
-        <div className="flex flex-col gap-1.5 rounded-xl bg-surface-2/60 p-3">
+      {settingUp && !oneDriveConnected() && (
+        <form
+          className="flex flex-col gap-1.5 rounded-xl bg-surface-2/60 p-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const clean = clientDraft.trim()
+            setOneDriveClientId(clean)
+            // Pasting it and pressing Enter used to do nothing at all: it was only kept on blur, with no sign
+            // that anything had been kept.
+            useToasts.getState().push({ message: clean ? 'Id guardado. Ya puedes darle a Conectar.' : 'Id borrado.', kind: 'info' })
+          }}
+        >
           <label className="text-[12px] font-medium text-ink-2" htmlFor="onedrive-client">
             Id de aplicación de Microsoft Entra (para OneDrive)
           </label>
@@ -131,11 +146,14 @@ export function CloudSyncPanel() {
               id="onedrive-client"
               value={clientDraft}
               onChange={(e) => setClientDraft(e.target.value)}
-              onBlur={() => setOneDriveClientId(clientDraft)}
+              onBlur={() => setOneDriveClientId(clientDraft.trim())}
               placeholder="00000000-0000-0000-0000-000000000000"
               spellCheck={false}
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 font-mono text-[12px] text-ink outline-none focus:border-accent"
             />
+            <button type="submit" className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110">
+              Guardar
+            </button>
           </div>
           <p className="text-[11px] leading-relaxed text-ink-3">
             Registra una aplicación de tipo «Aplicación de página única» con la URI de redirección{' '}
@@ -145,7 +163,7 @@ export function CloudSyncPanel() {
               <ExternalLink className="h-3 w-3" />
             </a>
           </p>
-        </div>
+        </form>
       )}
 
       <div className="flex flex-col gap-2">

@@ -4,7 +4,7 @@ import { dispatch } from '../../kernel/commands'
 import type { Win } from '../../state/windows'
 import { catalogFor } from '../../mcp/catalog'
 import { mcp, useMcp } from '../../mcp/manager'
-import type { CallToolResult, McpServerRecord, McpTool } from '../../mcp/types'
+import { McpError, type CallToolResult, type McpServerRecord, type McpTool } from '../../mcp/types'
 import { useSession } from '../../ai/session'
 import { Markdown } from '../Markdown'
 import { notionPage } from '../../mcp/notionText'
@@ -20,12 +20,15 @@ export function AppView({ win }: { win: Win }) {
   const id = win.props.app ?? ''
   const record = useMcp((s) => s.servers.find((r) => r.id === id))
   const entry = catalogFor(id)
-  if (!record || record.status === 'disconnected') {
+  // 'attention' means the token could not be renewed or more permissions are needed, and the reason is
+  // already stored. Showing the full app over it — the account, "N herramientas" — promised something that
+  // failed on every call, and the reason was never shown anywhere.
+  if (!record || record.status === 'disconnected' || record.status === 'attention') {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-[13px] text-ink-3">
-        <p>{entry?.name ?? 'Esta app'} no está conectada.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-[13px] text-ink-3">
+        <p>{record?.attention ?? `${entry?.name ?? 'Esta app'} no está conectada.`}</p>
         <button type="button" onClick={() => void dispatch('ui.openApps', { app: id })} className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft hover:brightness-110">
-          Conectar en Ajustes
+          {record?.status === 'attention' ? 'Volver a conectar' : 'Conectar en Ajustes'}
         </button>
       </div>
     )
@@ -55,6 +58,31 @@ export function AppView({ win }: { win: Win }) {
       {id === 'notion' ? <NotionView record={record} /> : <GenericView record={record} />}
     </div>
   )
+}
+
+/**
+ * What went wrong, said to whoever is reading. McpError messages are written for the model — «Pide a la
+ * persona que la vuelva a conectar» — and painting them here talked about the reader in the third person, as
+ * if an instruction meant for somebody else had leaked onto the screen.
+ */
+function humanError(err: unknown, app: string, fallback: string): string {
+  if (err instanceof McpError) {
+    switch (err.code) {
+      case 'auth_required':
+        return `Tu sesión de ${app} caducó. Vuelve a conectarla en Ajustes › Apps conectadas.`
+      case 'forbidden':
+        return `${app} necesita más permisos para esto. Vuelve a conectarla en Ajustes para concedérselos.`
+      case 'not_configured':
+        return `${app} todavía no está configurada.`
+      case 'network':
+        return `No pude hablar con ${app}. Revisa tu conexión e inténtalo de nuevo.`
+      case 'cancelled':
+        return 'Se canceló.'
+      default:
+        return err.message
+    }
+  }
+  return err instanceof Error ? err.message : fallback
 }
 
 /* ---------- shared ---------- */
@@ -129,12 +157,16 @@ function NotionView({ record }: { record: McpServerRecord }) {
     let alive = true
     mcp
       .callTool(record.id, 'notion-list-recent-pages', { limit: 20 })
-      .then((r) => alive && setRecent(asPages(payload(r))))
-      .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : 'No pude leer Notion'))
+      .then((r) => {
+        if (!alive) return
+        setRecent(asPages(payload(r)))
+        setError(null)
+      })
+      .catch((err: unknown) => alive && setError(humanError(err, record.name, 'No pude leer Notion')))
     return () => {
       alive = false
     }
-  }, [record.id])
+  }, [record.id, record.name])
 
   const search = async (e: FormEvent) => {
     e.preventDefault()
@@ -144,11 +176,14 @@ function NotionView({ record }: { record: McpServerRecord }) {
       return
     }
     setSearching(true)
+    // Cleared before asking, and cleared when the answer arrives: a one-second network cut used to leave the
+    // red banner for the rest of the session, with the list stuck on neither "Leyendo…" nor "Nada por aquí".
+    setError(null)
     try {
       const r = await mcp.callTool(record.id, 'notion-search', { query: q, query_type: 'internal', page_size: 12 })
       setResults(asPages(payload(r)))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'La búsqueda no respondió')
+      setError(humanError(err, record.name, 'La búsqueda no respondió'))
     } finally {
       setSearching(false)
     }
@@ -156,12 +191,13 @@ function NotionView({ record }: { record: McpServerRecord }) {
 
   const openPage = async (page: NotionPage) => {
     setOpening(page.url)
+    setError(null)
     try {
       const r = await mcp.callTool(record.id, 'notion-fetch', { id: page.url })
       const parsed = notionPage(payload(r) as { title?: string; text?: string } | string)
       setOpen({ ...page, title: parsed.title ?? page.title, text: parsed.markdown })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No pude abrir la página')
+      setError(humanError(err, record.name, 'No pude abrir la página'))
     } finally {
       setOpening(null)
     }
@@ -193,6 +229,7 @@ function NotionView({ record }: { record: McpServerRecord }) {
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Leyendo…
               </li>
             )}
+            {list === null && error && <li className="px-2 py-2 text-[12px] text-ink-3">No pude leer las recientes.</li>}
             {list?.length === 0 && <li className="px-2 py-2 text-[12px] text-ink-3">Nada por aquí.</li>}
             {list?.map((p) => (
               <li key={p.url}>
