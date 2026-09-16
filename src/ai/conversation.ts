@@ -31,11 +31,21 @@ export interface StoredTurn {
   actions?: string[]
 }
 
+/** A message written with no network, still waiting for it. Its attachments travel light, like the history's. */
+export interface StoredQueued {
+  userId: string
+  replyId: string
+  prompt: string
+  parts: Part[]
+}
+
 export interface ConversationRow {
   /** `main`, or `proyecto:<id de la carpeta>`. */
   id: string
   turns: StoredTurn[]
   history: ChatMessage[]
+  /** What was written without connection and has not left yet. */
+  queue?: StoredQueued[]
   /** Compact memory of older turns, written by the model when the history is trimmed. */
   summary?: string
   updatedAt: number
@@ -59,7 +69,14 @@ export const conversationStore = {
   load: (id: string): Promise<ConversationRow | undefined> => db.conversation.get(id),
 
   async save(id: string, row: Omit<ConversationRow, 'id' | 'updatedAt'>): Promise<void> {
-    await db.conversation.put({ id, turns: row.turns.slice(-MAX_TURNS_KEPT), history: lightHistory(row.history), summary: row.summary, updatedAt: Date.now() })
+    await db.conversation.put({
+      id,
+      turns: row.turns.slice(-MAX_TURNS_KEPT),
+      history: lightHistory(row.history),
+      summary: row.summary,
+      queue: row.queue?.length ? row.queue.map((q) => ({ ...q, parts: q.parts.map(lightPart) })) : undefined,
+      updatedAt: Date.now(),
+    })
   },
 
   clear: (id: string): Promise<void> => db.conversation.delete(id),

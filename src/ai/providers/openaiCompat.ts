@@ -89,7 +89,15 @@ function safeJson(text: string): Record<string, unknown> {
 export async function listModels(baseUrl: string, apiKey?: string, shared = false): Promise<string[]> {
   const headers: Record<string, string> = {}
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`
-  const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, { headers })
+  let res: Response
+  try {
+    res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, { headers })
+  } catch (err) {
+    // Unwrapped, the browser's own words reached the toast — «Failed to fetch», in English, inside an
+    // interface that speaks Spanish without jargon.
+    console.warn('[ia] no se pudo consultar la lista de modelos:', err)
+    throw new AiError('No hay conexión con el proveedor, o la URL base no es correcta.')
+  }
   if (!res.ok) throw shared ? sharedKeyBusy() : new AiError(res.status === 401 ? 'La llave no es válida.' : `El servidor respondió ${res.status}.`)
   const data = (await res.json()) as { data?: Array<{ id: string }>; models?: Array<{ name: string }> }
   const ids = data.data?.map((m) => m.id) ?? data.models?.map((m) => m.name) ?? []
@@ -152,7 +160,10 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
           yield { type: 'done', stopReason: 'aborted', usage: { inputTokens: 0, outputTokens: 0 }, assistant: { role: 'assistant', parts: [] } }
           return
         }
-        yield { type: 'error', error: new AiError(`No hay conexión con ${cfg.name}. ${err instanceof Error ? err.message : ''}`.trim(), true) }
+        // Wifi with no internet behind it — a captive portal, DNS down — leaves navigator.onLine true, so this
+        // is the line the person actually reads. Half Spanish and half machine English is no way to read it.
+        console.warn(`[ai] ${cfg.name} inalcanzable:`, err)
+        yield { type: 'error', error: new AiError(`No hay conexión con ${cfg.name}. Revisa tu red e inténtalo de nuevo.`, true) }
         return
       }
 
@@ -173,7 +184,9 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
               ? `El modelo "${req.model}" no existe en ${cfg.name}.`
               : res.status === 429
                 ? `${cfg.name} está limitando las solicitudes en este momento.`
-                : `${cfg.name} respondió ${res.status}. ${detail.slice(0, 200)}`
+                : res.status >= 500
+                  ? `${cfg.name} no está respondiendo ahora mismo. Inténtalo en un momento.`
+                  : `${cfg.name} no aceptó la petición (${res.status}).`
         yield { type: 'error', error: new AiError(msg, transient, { status: res.status, retryAfterMs }) }
         return
       }

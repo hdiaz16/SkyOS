@@ -77,6 +77,8 @@ export async function pickSpanishVoice(): Promise<SpeechSynthesisVoice | null> {
 }
 
 let audio: HTMLAudioElement | null = null
+/** How the promise of whatever is playing ends when someone silences it: pause fires neither ended nor error. */
+let terminarAudio: (() => void) | null = null
 /**
  * A voice made by a model takes seconds to arrive, and during those seconds there is nothing to pause: the
  * silence button had nothing to act on and the words came out anyway. Every attempt carries this token; asking
@@ -165,8 +167,13 @@ function reproducir(blob: Blob, vigente: () => boolean): Promise<boolean> {
     const acabar = (ok: boolean) => {
       URL.revokeObjectURL(url)
       if (audio === a) audio = null
+      if (terminarAudio === fin) terminarAudio = null
       resolve(ok)
     }
+    // Pausing an audio fires neither ended nor error, so the speak() of the previous turn never settled: its
+    // button sat on «Silenciar» for ever without a sound, and pressing it cut off the one actually playing.
+    const fin = () => acabar(false)
+    terminarAudio = fin
     a.onended = () => acabar(true)
     a.onerror = () => acabar(false)
     a.play().catch(() => acabar(false))
@@ -253,6 +260,8 @@ export function stopSpeaking(): void {
     audio.pause()
     audio = null
   }
+  terminarAudio?.()
+  terminarAudio = null
   if (speechAvailable()) speechSynthesis.cancel()
 }
 

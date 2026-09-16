@@ -48,9 +48,15 @@ export function watchProjectThread(): () => void {
     timer = window.setTimeout(() => void settle(), SETTLE_MS)
   }
   const stop = useWindows.subscribe(later)
+  // Opening another project's folder while Sky is answering left the header —and everything typed afterwards—
+  // in the previous conversation until some window happened to move. Finishing is as good a moment as that.
+  const stopSession = useSession.subscribe((s, prev) => {
+    if (prev.running && !s.running) later()
+  })
   later()
   return () => {
     window.clearTimeout(timer)
+    stopSession()
     stop()
   }
 }

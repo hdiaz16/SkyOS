@@ -192,6 +192,18 @@ function TurnView({ turn }: { turn: Turn }) {
           ))}
         </ul>
       )}
+      {/* After a reload the tool results are gone, but what was done was written down. Without this, Sky moving
+          three files came back as if it had only talked. Undoing lives in the journal, not here. */}
+      {turn.toolEvents.length === 0 && !!turn.actions?.length && (
+        <ul className="mb-2 flex flex-col gap-1">
+          {turn.actions.map((label, i) => (
+            <li key={i} className="flex items-center gap-1.5 text-[12px] text-ink-3">
+              <Check className="h-3 w-3 shrink-0 text-accent" />
+              <span className="min-w-0 truncate">{label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {thinking && <p className="animate-pulse text-ink-3">Pensando…</p>}
       {turn.statusMessage && <p className="mb-1 text-[12px] italic text-ink-3">{turn.statusMessage}</p>}
       {turn.text && <Markdown text={turn.text} />}
@@ -213,14 +225,27 @@ function TurnView({ turn }: { turn: Turn }) {
 
 function Listen({ text }: { text: string }) {
   const [speaking, setSpeaking] = useState(false)
+  /** Whether the voice being heard is this one's, so leaving does not silence somebody else's. */
+  const mine = useRef(false)
+  // Closing the conversation used to leave Sky reading out a message that was no longer on screen, with no
+  // button anywhere to quiet it.
+  useEffect(
+    () => () => {
+      if (mine.current) stopSpeaking()
+    },
+    [],
+  )
   const toggle = async () => {
     if (speaking) {
       stopSpeaking()
+      mine.current = false
       setSpeaking(false)
       return
     }
+    mine.current = true
     setSpeaking(true)
     await speak(text)
+    mine.current = false
     setSpeaking(false)
   }
   return (

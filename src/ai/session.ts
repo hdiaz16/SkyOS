@@ -4,8 +4,10 @@ import { runAgent, type ToolEvent } from './agent'
 import type { Tier } from './router'
 import type { Attachment, ChatMessage, Usage } from './types'
 import { conversationStore, MAIN_THREAD, type StoredTurn } from './conversation'
+import { onLeaving } from '../lib/leaving'
 import { trimHistory } from './history'
 import { useNetwork, whenOnline } from '../system/network'
+import { stopSpeaking } from './speech'
 
 export interface Turn {
   id: string
@@ -23,6 +25,8 @@ export interface Turn {
   model?: string
   tier?: Tier | null
   usage?: Usage
+  /** What Sky did in this turn, as read back from storage: the tool results themselves are not kept. */
+  actions?: string[]
 }
 
 /** Something the user picked to send with the next message: a capture, an image, a PDF. */
@@ -99,16 +103,32 @@ function toStored(t: Turn): StoredTurn | null {
 
 let persistTimer: number | undefined
 /** Writes the conversation to the user's database shortly after it changes. */
-function rowOf(state: Pick<SessionState, 'turns' | 'history' | 'summary'>) {
-  return { turns: state.turns.map(toStored).filter((t): t is StoredTurn => !!t), history: state.history, summary: state.summary ?? undefined }
+function rowOf(state: Pick<SessionState, 'turns' | 'history' | 'summary' | 'queue'>) {
+  return {
+    turns: state.turns.map(toStored).filter((t): t is StoredTurn => !!t),
+    history: state.history,
+    summary: state.summary ?? undefined,
+    queue: state.queue,
+  }
 }
 
-function persist(state: Pick<SessionState, 'turns' | 'history' | 'summary' | 'thread'>): void {
+function persist(state: Pick<SessionState, 'turns' | 'history' | 'summary' | 'thread' | 'queue'>): void {
   window.clearTimeout(persistTimer)
   const thread = state.thread
   persistTimer = window.setTimeout(() => {
     void conversationStore.save(thread, rowOf(state))
   }, 300)
+}
+
+/**
+ * The last write before the tab goes away. Nothing was saved while a turn was in flight: a question asked
+ * thirty seconds ago, with Sky halfway through the answer, disappeared on a reload as if it had never been
+ * said. What was being written is stored as what it managed to say.
+ */
+function persistNow(state: SessionState): void {
+  window.clearTimeout(persistTimer)
+  const turns = state.turns.map((t) => (t.status === 'streaming' ? { ...t, status: 'stopped' as const } : t))
+  void conversationStore.save(state.thread, rowOf({ ...state, turns }))
 }
 
 type Get = () => SessionState
@@ -185,7 +205,20 @@ export const useSession = create<SessionState>((set, get) => ({
     set({
       thread,
       threadName: name,
-      turns: row ? row.turns.map((t) => ({ id: t.id, role: t.role, text: t.text, status: t.status, error: t.error, model: t.model, tier: t.tier, usage: t.usage, toolEvents: [] })) : [],
+      turns: row
+        ? row.turns.map((t) => ({
+            id: t.id,
+            role: t.role,
+            text: t.text,
+            status: t.status,
+            error: t.error,
+            model: t.model,
+            tier: t.tier,
+            usage: t.usage,
+            actions: t.actions,
+            toolEvents: [],
+          }))
+        : [],
       history: row?.history ?? [],
       summary: row?.summary ?? null,
       pending: [],
@@ -194,11 +227,32 @@ export const useSession = create<SessionState>((set, get) => ({
 
   load: async () => {
     if (get().loaded) return
+    onLeaving(() => persistNow(get()))
     try {
       const row = await conversationStore.load(get().thread)
       if (row) {
-        const turns: Turn[] = row.turns.map((t) => ({ id: t.id, role: t.role, text: t.text, status: t.status, error: t.error, model: t.model, tier: t.tier, usage: t.usage, toolEvents: [] }))
-        set({ turns, history: row.history, summary: row.summary ?? null })
+        const turns: Turn[] = row.turns.map((t) => ({
+          id: t.id,
+          role: t.role,
+          text: t.text,
+          status: t.status,
+          error: t.error,
+          model: t.model,
+          tier: t.tier,
+          usage: t.usage,
+          actions: t.actions,
+          toolEvents: [],
+        }))
+        // A message written without connection has to still be there after a reload, and still leave when the
+        // network is back: it promised as much. Its two turns are rebuilt from the queue, which is what was
+        // saved — they were never history.
+        const queue = (row.queue ?? []) as QueuedSend[]
+        for (const q of queue) {
+          turns.push({ id: q.userId, role: 'user', text: q.prompt, attachments: q.parts, toolEvents: [], status: 'done' })
+          turns.push({ id: q.replyId, role: 'assistant', text: 'Sin conexión por ahora. Lo envío en cuanto vuelva la red.', toolEvents: [], status: 'queued' })
+        }
+        set({ turns, history: row.history, summary: row.summary ?? null, queue })
+        if (queue.length) void whenOnline().then(() => get().flushQueue())
       }
     } catch {
       // A conversation that cannot be read starts fresh; the files and settings are untouched.
@@ -237,6 +291,7 @@ export const useSession = create<SessionState>((set, get) => ({
       const replyId = nanoid(6)
       const waiting: Turn = { id: replyId, role: 'assistant', text: 'En cuanto termine con lo anterior.', toolEvents: [], status: 'queued' }
       set((s) => ({ open: true, pending: [], turns: [...s.turns, userTurn, waiting], queue: [...s.queue, { userId: userTurn.id, replyId, prompt, parts }] }))
+      persist(get())
       return
     }
     const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, attachments: parts, toolEvents: [], status: 'done' }
@@ -246,6 +301,8 @@ export const useSession = create<SessionState>((set, get) => ({
     if (!useNetwork.getState().online) {
       const waiting: Turn = { id: replyId, role: 'assistant', text: 'Sin conexión por ahora. Lo envío en cuanto vuelva la red.', toolEvents: [], status: 'queued' }
       set((s) => ({ open: true, pending: [], turns: [...s.turns, userTurn, waiting], queue: [...s.queue, { userId: userTurn.id, replyId, prompt, parts }] }))
+      // The promise — «lo envío en cuanto vuelva la red» — has to survive a reload, so it is written down.
+      persist(get())
       void whenOnline().then(() => get().flushQueue())
       return
     }
@@ -254,6 +311,8 @@ export const useSession = create<SessionState>((set, get) => ({
     const startedAt = Date.now()
     const reply: Turn = { id: replyId, role: 'assistant', text: '', toolEvents: [], status: 'streaming' }
     set((s) => ({ open: true, running: true, controller, pending: [], turns: [...s.turns, userTurn, reply] }))
+    // Written down before the answer starts: what was asked is not lost by reloading in the middle of it.
+    persist(get())
 
     // Buffer text deltas and flush per animation frame to keep the UI smooth on fast streams.
     let pendingText = ''
@@ -341,6 +400,8 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   clear: () => {
+    // Clearing the conversation while Sky reads one of its answers aloud left the voice talking alone.
+    stopSpeaking()
     // Only the thread on screen: emptying the project you are in must not touch the everyday conversation.
     const thread = get().thread
     get().controller?.abort()

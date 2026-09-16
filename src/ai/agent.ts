@@ -263,6 +263,10 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
 
     if (!assistant || stopReason === 'aborted') {
       stopReason = 'aborted'
+      // What it managed to say belongs in the history too. Without it the thread ended on a question with no
+      // answer: «sigue» had nothing to continue, and the next turn tended to answer the stopped one again.
+      if (assistant) messages.push(assistant)
+      else if (text.trim()) messages.push({ role: 'assistant', parts: [{ type: 'text', text }] })
       break
     }
     messages.push(assistant)
