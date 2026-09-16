@@ -3,6 +3,9 @@
 Revisión archivo por archivo de SkyOS hecha en septiembre de 2026, antes de abrir la puerta a más gente.
 Cada hallazgo describe un caso concreto que alguien puede vivir usando el escritorio, no un olor de código.
 
+Si llegas nuevo a este trabajo, empieza por [`CONTINUAR.md`](CONTINUAR.md): el relevo completo con el
+método, lo que falta y las reglas de producto.
+
 ## Los archivos
 
 - **`hallazgos.json`** — la auditoría completa: 53 de severidad alta, 105 media y 28 baja, con el archivo, la
