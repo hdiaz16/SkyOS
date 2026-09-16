@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 're
 import { motion } from 'motion/react'
 import { fileKind, type FsNode } from '../kernel/types'
 import { dispatch } from '../kernel/commands'
-import { useUi } from '../state/ui'
+import { useUi, DESKTOP_SURFACE } from '../state/ui'
 import { useBlobUrl } from '../lib/hooks'
 import { nodeMenu } from '../lib/menus'
 import { cn, stripExt } from '../lib/utils'
@@ -10,16 +10,23 @@ import { KindIcon } from './KindIcon'
 
 export const NODE_DRAG_TYPE = 'application/x-mesa-nodes'
 
+/** What a click means for the selection: this one only, add or remove it, or everything up to it. */
+export type PickMode = 'single' | 'toggle' | 'range'
+
 interface Props {
   node: FsNode
   /** Called instead of the default open behaviour for folders (e.g. navigate inside a Files window). */
   onOpenFolder?: (id: string) => void
   /** Animate position changes when siblings appear or disappear. Keep off inside movable windows. */
   animateLayout?: boolean
+  /** The grid this icon belongs to; the selection never spans two. */
+  surface?: string
+  /** The grid decides what a click does, because it is the one that knows the visible order. */
+  onPick?: (id: string, mode: PickMode) => void
 }
 
-export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
-  const selected = useUi((s) => s.selection.includes(node.id))
+export function NodeIcon({ node, onOpenFolder, animateLayout = false, surface = DESKTOP_SURFACE, onPick }: Props) {
+  const selected = useUi((s) => s.selectionSurface === surface && s.selection.includes(node.id))
   const renaming = useUi((s) => s.renamingId === node.id)
   const kind = fileKind(node)
   const isFolder = kind === 'folder'
@@ -34,9 +41,13 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
   const onMouseDown = (e: MouseEvent) => {
     e.stopPropagation()
     if (e.button !== 0) return
+    const mode: PickMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single'
+    // A plain click on something already selected keeps the group, so a multiple selection can be dragged.
+    if (mode === 'single' && selected) return
+    if (onPick) return onPick(node.id, mode)
     const ui = useUi.getState()
-    if (e.ctrlKey || e.metaKey) ui.toggleSelect(node.id)
-    else if (!selected) ui.select([node.id])
+    if (mode === 'toggle') ui.toggleSelect(node.id, surface)
+    else ui.select([node.id], surface)
   }
 
   const onContextMenu = (e: MouseEvent) => {
@@ -44,7 +55,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
     e.stopPropagation()
     const ui = useUi.getState()
     const ids = selected && ui.selection.length > 1 ? ui.selection : [node.id]
-    if (!selected) ui.select([node.id])
+    if (!selected) ui.select([node.id], surface)
     const at = { x: e.clientX, y: e.clientY }
     void nodeMenu(node, ids, at).then((items) => ui.openMenu(at.x, at.y, items))
   }
@@ -102,6 +113,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false }: Props) {
       onContextMenu={onContextMenu}
       title={node.tags?.length ? `${node.name}\n${node.tags.map((t) => `#${t}`).join(' ')}` : node.name}
       data-node={node.id}
+      {...(isFolder ? { 'data-drop-folder': '' } : {})}
       className={cn(
         'group flex w-[104px] cursor-default flex-col items-center gap-1.5 rounded-xl px-2 pb-2 pt-2.5 text-center outline-none transition-colors',
         selected ? 'bg-accent-soft' : 'hover:bg-surface-2',

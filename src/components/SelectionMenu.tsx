@@ -2,6 +2,7 @@ import { useEffect, useState, type RefObject } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Languages, Lightbulb, Sparkles, Table2 } from 'lucide-react'
 import { useSession } from '../ai/session'
+import { useToasts } from '../kernel/commands'
 import { isAiConfigured, useAiSettings } from '../ai/settings'
 
 const MIN_CHARS = 6
@@ -86,10 +87,18 @@ export function SelectionMenu({ frameRef, source }: { frameRef: RefObject<HTMLDi
   const ask = (intent: Intent) => {
     if (!picked) return
     const text = picked.text.slice(0, MAX_CHARS)
+    // A long selection used to leave silently cut, and Sky summarised the first third with the confidence of
+    // having read all of it. The cut is said inside the message, so the answer cannot pretend otherwise, and
+    // out loud, so the person knows what travelled.
+    const cut = picked.text.length > MAX_CHARS
+    const note = cut ? `\n\n(De la selección solo caben aquí los primeros ${MAX_CHARS} caracteres de ${picked.text.length}; no la viste entera.)` : ''
+    if (cut) {
+      useToasts.getState().push({ message: `La selección no cabe entera: le mando los primeros ${MAX_CHARS} caracteres.`, kind: 'info' })
+    }
     setPicked(null)
     window.getSelection()?.removeAllRanges()
     useSession.getState().setOpen(true)
-    void useSession.getState().send(`${lead(intent, source)}\n\n"""\n${text}\n"""`)
+    void useSession.getState().send(`${lead(intent, source)}\n\n"""\n${text}\n"""${note}`)
   }
 
   return (

@@ -4,9 +4,13 @@ import type { Stale } from '../../system/auth'
 import { Backdrop } from '../Backdrop'
 
 /**
- * This tab has stopped because the session changed somewhere else. It is not an error and nothing was lost:
- * the desktop was taken down on purpose, so that one person's files, conversation and connections never keep
- * working under another person's name. Reloading picks up whoever is signed in now.
+ * This tab has stopped because the session changed somewhere else — another account was opened, or this one
+ * signed out. Nothing was lost: what was on screen belongs to the previous session and it is saved; reloading
+ * continues with whoever is signed in now.
+ *
+ * What it says matters as much as what it does. Explaining the stop as "so as not to mix two people's
+ * information" reads as an accident that nearly happened, and to whoever is alone at their computer it reads
+ * as something worse. What happened is simply that the session changed.
  */
 export function SessionEnded({ reason }: { reason: Stale }) {
   return (
@@ -21,8 +25,7 @@ export function SessionEnded({ reason }: { reason: Stale }) {
         <div className="max-w-[420px]">
           <p className="text-[17px] text-ink">{reason === 'switched' ? 'Entraste con otra cuenta en otra pestaña' : 'Cerraste sesión en otra pestaña'}</p>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
-            Esta pestaña se detuvo para no mezclar la información de dos personas. Lo que estabas haciendo quedó guardado; vuelve a cargar para continuar con la
-            sesión actual.
+            Aquí seguía abierta la sesión anterior. Todo lo que hiciste quedó guardado: recarga y sigues donde estabas, con la cuenta que tienes abierta ahora.
           </p>
         </div>
         <button

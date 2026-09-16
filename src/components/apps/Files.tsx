@@ -29,9 +29,14 @@ export function FilesApp({ win }: { win: Win }) {
   )
   const fresh = view && view.folderId === folderId ? view : undefined
   const path = fresh?.path
+  /** This window's own selection surface: one selection, and it belongs to wherever it was made. */
+  const surface = `win:${win.id}`
+  // A window used to report a selection that was not its own: with «Fotos» open, clicking «Recibo.pdf» on the
+  // desktop made the Fotos status bar name a file that is not in Fotos.
+  const mine = useUi((s) => s.selectionSurface === surface)
   const selection = useUi((s) => s.selection)
-  const selectedCount = selection.length
-  const selectedNode = useLiveQuery(async () => (selection.length === 1 ? await fs.get(selection[0]) : undefined), [selection])
+  const selectedCount = mine ? selection.length : 0
+  const selectedNode = useLiveQuery(async () => (selectedCount === 1 ? await fs.get(selection[0]) : undefined), [selection, selectedCount])
   const [dragOver, setDragOver] = useState(false)
 
   const navigate = (id: string) => {
@@ -64,12 +69,18 @@ export function FilesApp({ win }: { win: Win }) {
     void folderMenu(folderId, at).then((items) => useUi.getState().openMenu(at.x, at.y, items))
   }
 
+  /** Same as on the desk: the dotted frame steps aside when a folder icon is the one asking for the drop. */
+  const onDragOverCapture = (e: DragEvent) => {
+    const types = e.dataTransfer.types
+    if (!types.includes('Files') && !types.includes(NODE_DRAG_TYPE)) return
+    setDragOver(!(e.target as HTMLElement).closest?.('[data-drop-folder]'))
+  }
+
   const onDragOver = (e: DragEvent) => {
     const types = e.dataTransfer.types
     if (!types.includes('Files') && !types.includes(NODE_DRAG_TYPE)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = types.includes('Files') ? 'copy' : 'move'
-    setDragOver(true)
   }
 
   const onDrop = async (e: DragEvent) => {
@@ -93,14 +104,17 @@ export function FilesApp({ win }: { win: Win }) {
           <ChevronLeft className="h-4 w-4" />
         </ToolButton>
 
+        {/* Everything used to shrink at the same rate, so a deep path read «Escri… › Prop… › Acm… › Entr…»
+            with the current folder —the one that matters— as illegible as the rest. The ends hold their size
+            and the middle gives way; the full name is always in the tooltip. */}
         <nav className="flex min-w-0 flex-1 items-center gap-0.5 px-1 text-[13px]">
-          <Crumb active={folderId === ROOT_ID} onClick={() => navigate(ROOT_ID)}>
+          <Crumb active={folderId === ROOT_ID} onClick={() => navigate(ROOT_ID)} className="shrink-0">
             Escritorio
           </Crumb>
           {(path ?? []).map((n, i, arr) => (
-            <span key={n.id} className="flex min-w-0 items-center gap-0.5">
+            <span key={n.id} className={cn('flex min-w-0 items-center gap-0.5', i === arr.length - 1 && 'shrink-0')}>
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-              <Crumb active={i === arr.length - 1} onClick={() => navigate(n.id)}>
+              <Crumb active={i === arr.length - 1} onClick={() => navigate(n.id)} className={i === arr.length - 1 ? 'max-w-[220px] shrink-0' : undefined}>
                 {n.name}
               </Crumb>
             </span>
@@ -133,6 +147,7 @@ export function FilesApp({ win }: { win: Win }) {
         className={cn('scrollbar-thin relative min-h-0 flex-1 overflow-y-auto p-3 transition-colors', dragOver && 'bg-accent-soft')}
         onMouseDown={onBodyMouseDown}
         onContextMenu={onContextMenu}
+        onDragOverCapture={onDragOverCapture}
         onDragOver={onDragOver}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false)
@@ -145,7 +160,9 @@ export function FilesApp({ win }: { win: Win }) {
             <p className="text-[12px] text-ink-3">Arrastra archivos aquí o usa clic derecho.</p>
           </div>
         ) : (
-          <IconGrid nodes={nodes ?? []} onOpenFolder={navigate} className="min-h-full" />
+          // Keyed by folder: without it the icons on their way out stayed in the grid while they faded, so the
+          // two items of the new folder appeared pushed behind the ten of the old one and then jumped.
+          <IconGrid key={folderId} nodes={nodes ?? []} onOpenFolder={navigate} surface={surface} className="min-h-full" />
         )}
         {dragOver && (
           <div className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent/60">
@@ -238,14 +255,16 @@ function ProjectStrip({ folderId }: { folderId: string }) {
   )
 }
 
-function Crumb({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function Crumb({ active, onClick, children, className }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={typeof children === 'string' ? children : undefined}
       className={cn(
         'truncate rounded-md px-1.5 py-0.5 transition',
         active ? 'font-medium text-ink' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
+        className,
       )}
     >
       {children}
