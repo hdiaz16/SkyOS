@@ -7,15 +7,15 @@ Cada hallazgo describe un caso concreto que alguien puede vivir usando el escrit
 
 - **`hallazgos.json`** — la auditoría completa: 53 de severidad alta, 105 media y 28 baja, con el archivo, la
   línea, el problema (con su caso concreto) y el arreglo propuesto.
-- **`pendientes-media.md`** — las 51 de severidad media que todavía no se atacan, agrupadas por archivo y en
-  orden de cuántas tiene cada uno. Se regenera desde el JSON.
+- **`pendientes-media.md`** — lo que queda de severidad media, agrupado por archivo. Hoy está vacío; se
+  regenera desde el JSON.
 
 ## Dónde vamos
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
 | Alta | 53 | 42 | 11 |
-| Media | 105 | 54 | 51 |
+| Media | 105 | 105 | 0 |
 | Baja | 28 | 0 | 28 |
 
 Las 11 altas que quedan: la hoja de cálculo pierde formatos y fechas al guardar (6), la matriz densa que sale
