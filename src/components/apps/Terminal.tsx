@@ -32,13 +32,26 @@ export function TerminalApp() {
 
   const submit = () => {
     if (!draft.trim()) return
+    // run() turns around in silence while something is in flight. Clearing the box first meant watching your
+    // own sentence disappear with nothing in its place: no line, no warning, no queue.
+    if (running) {
+      useTerminal.getState().note('Hay algo en marcha. Ctrl+C lo detiene, y entonces te leo.')
+      return
+    }
     void run(draft)
     setDraft('')
     setCursor(-1)
   }
 
   return (
-    <div className="flex h-full flex-col bg-surface-solid/60 font-mono text-[12.5px] leading-5" onClick={() => inputRef.current?.focus()}>
+    <div
+      className="flex h-full flex-col bg-surface-solid/60 font-mono text-[12.5px] leading-5"
+      // Clicking anywhere types, except when the click was the end of a drag over the output: focusing there
+      // dropped the selection before it could be copied, and took the "preguntar a Sky sobre esto" menu with it.
+      onClick={() => {
+        if (window.getSelection()?.isCollapsed !== false) inputRef.current?.focus()
+      }}
+    >
       <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 select-text overflow-y-auto px-4 py-3">
         {lines.map((l) => (
           <div key={l.id} className={cn('whitespace-pre-wrap break-words', LINE_CLASS[l.kind], l.kind === 'input' && 'mt-2 first:mt-0')}>

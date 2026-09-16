@@ -17,6 +17,8 @@ interface TerminalState {
   running: boolean
   controller: AbortController | null
   run: (input: string) => Promise<void>
+  /** A line the terminal writes by itself, without asking the model anything. */
+  note: (text: string) => void
   stop: () => void
   clear: () => void
 }
@@ -63,7 +65,9 @@ export const useTerminal = create<TerminalState>((set, get) => ({
     add('input', text)
 
     if (text === 'clear') {
-      set({ lines: [WELCOME] })
+      // Wiping the screen and keeping the conversation left the model answering «¿de qué hablábamos?» with
+      // what was there before, and made an empty-looking terminal keep paying for that invisible history.
+      get().clear()
       return
     }
     if (text === 'help') {
@@ -77,8 +81,27 @@ export const useTerminal = create<TerminalState>((set, get) => ({
     // Text streams into the current output line; a tool call closes it so later text starts a new one.
     let outputId: string | null = null
     let streamed = false
+    /** The one line that says what the wait is about. It is rewritten, not repeated, and goes when text starts. */
+    let statusId: string | null = null
+    const status = (message: string) => {
+      if (!statusId) {
+        statusId = nanoid(6)
+        const id = statusId
+        set((s) => ({ lines: [...s.lines, { id, kind: 'system', text: message }] }))
+        return
+      }
+      const id = statusId
+      set((s) => ({ lines: s.lines.map((l) => (l.id === id ? { ...l, text: message } : l)) }))
+    }
+    const clearStatus = () => {
+      if (!statusId) return
+      const id = statusId
+      statusId = null
+      set((s) => ({ lines: s.lines.filter((l) => l.id !== id) }))
+    }
     const append = (delta: string) => {
       streamed = true
+      clearStatus()
       if (!outputId) {
         outputId = nanoid(6)
         const id = outputId
@@ -99,17 +122,25 @@ export const useTerminal = create<TerminalState>((set, get) => ({
           if (e.type === 'text') append(e.delta)
           else if (e.type === 'tool_start') {
             outputId = null
+            clearStatus()
             add('tool', `$ ${e.call.name} ${compact(e.call.input, 120)}`)
           } else if (e.type === 'tool_end') add(e.result.isError ? 'error' : 'tool', `  → ${e.result.label ?? compact(e.result.content)}`)
+          // The only sign of life during a long wait — «Sky está esperando su turno…», «Cambiando a Anthropic…».
+          // Without it a twenty-second wait on the shared key looked exactly like a terminal that had hung.
+          else if (e.type === 'status') status(e.message)
         },
       })
+      clearStatus()
       if (!streamed) add('system', result.stopReason === 'aborted' ? '(detenido)' : '(sin salida)')
       set({ running: false, controller: null, history: result.messages.slice(-MAX_HISTORY) })
     } catch (err) {
+      clearStatus()
       add('error', err instanceof Error ? err.message : 'Error')
       set({ running: false, controller: null })
     }
   },
+
+  note: (text) => set((s) => ({ lines: [...s.lines.slice(-400), { id: nanoid(6), kind: 'system', text }] })),
 
   stop: () => get().controller?.abort(),
 

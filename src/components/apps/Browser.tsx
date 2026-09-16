@@ -5,7 +5,7 @@ import { useWindows, type Win } from '../../state/windows'
 import { keyPointsForUrl, useTasks } from '../../ai/tasks'
 import { getProvider } from '../../ai/providers'
 import { isAiConfigured, useAiSettings } from '../../ai/settings'
-import { dispatch, useToasts } from '../../kernel/commands'
+import { dispatch } from '../../kernel/commands'
 import { ROOT_ID, type FsNode } from '../../kernel/types'
 import { GOOGLE_HOME, titleForUrl, toNavigableUrl } from '../../lib/web'
 import { cn } from '../../lib/utils'
@@ -38,12 +38,22 @@ export function BrowserApp({ win }: { win: Win }) {
     setLoading(true)
   }
 
+  // Only Anthropic reads a page on the server side. With Groq —what SkyOS starts on— the button looked ready
+  // and always ended in the same toast; now it says so before being pressed.
+  const canRead = !!getProvider()?.capabilities.serverWebFetch
+
   const keyPoints = () => {
-    if (!getProvider()?.capabilities.serverWebFetch) {
-      useToasts.getState().push({ message: 'Los puntos clave requieren Claude (Anthropic) como proveedor: es quien puede leer la página.', kind: 'info' })
-      return
-    }
+    if (!canRead) return
+    // Pressing it again used to launch a second task and leave the first one running, spending quota nobody
+    // was watching. The one in flight is what comes back.
+    if (taskId) return
     setTaskId(keyPointsForUrl(target))
+  }
+
+  /** Closing the panel stops the work. It used to keep running, and then chimed to offer what was dismissed. */
+  const closeKeyPoints = () => {
+    if (taskId) useTasks.getState().remove(taskId)
+    setTaskId(null)
   }
 
   return (
@@ -81,7 +91,12 @@ export function BrowserApp({ win }: { win: Win }) {
         </form>
 
         {aiReady && (
-          <ToolButton label="Puntos clave con Sky" onClick={keyPoints} active={!!taskId}>
+          <ToolButton
+            label={canRead ? 'Puntos clave con Sky' : 'Los puntos clave necesitan Claude (Anthropic): es el proveedor que puede leer la página'}
+            onClick={keyPoints}
+            active={!!taskId}
+            disabled={!canRead}
+          >
             <ListChecks className="h-4 w-4" />
           </ToolButton>
         )}
@@ -108,12 +123,22 @@ export function BrowserApp({ win }: { win: Win }) {
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
           referrerPolicy="no-referrer"
         />
-        <AnimatePresence>{taskId && <KeyPointsPanel key={taskId} taskId={taskId} onClose={() => setTaskId(null)} />}</AnimatePresence>
+        <AnimatePresence>{taskId && <KeyPointsPanel key={taskId} taskId={taskId} onClose={closeKeyPoints} />}</AnimatePresence>
       </div>
 
-      <div className="flex h-7 shrink-0 items-center justify-between gap-4 border-t border-line px-3 text-[11px] text-ink-3">
+      {/* X, YouTube, Instagram and anything with frame-ancestors refuse to be framed, and Chrome fires `load`
+          all the same: the loading bar vanished and its English error page stayed inside SkyOS. The way out
+          used to be a sentence hidden below 1024 px; now it is a button, always there, right under the page. */}
+      <div className="flex h-7 shrink-0 items-center justify-between gap-3 border-t border-line px-3 text-[11px] text-ink-3">
         <span className="truncate">{target}</span>
-        <span className="hidden shrink-0 lg:inline">Si un sitio no carga aquí, ábrelo en una pestaña nueva</span>
+        <button
+          type="button"
+          onClick={() => window.open(target, '_blank', 'noopener')}
+          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-accent transition hover:bg-accent-soft"
+        >
+          <ExternalLink className="h-3 w-3" />
+          ¿No se ve nada? Ábrelo aquí fuera
+        </button>
       </div>
     </div>
   )
