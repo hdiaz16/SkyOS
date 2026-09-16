@@ -29,7 +29,13 @@ export function applyTheme(theme: Theme): void {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const dark = theme === 'dark' || (theme === 'system' && prefersDark)
   document.documentElement.classList.toggle('dark', dark)
+  // The colour that is actually on screen, not the preference. With «Sistema» the setting stays 'system' while
+  // the palette flips underneath, and whatever paints itself from that palette — diagrams, HTML blocks — was
+  // left with dark text on a dark background until it was edited or its window reopened.
+  useSettings.setState({ dark })
 }
+
+const isDark = (theme: Theme): boolean => theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
 /** Writes a theme for an account that is not signed in yet (onboarding). */
 export function persistThemeFor(userId: string, theme: Theme): void {
@@ -42,6 +48,8 @@ export function persistThemeFor(userId: string, theme: Theme): void {
 
 interface SettingsState {
   theme: Theme
+  /** Whether the palette on screen is the dark one, whatever the preference says. */
+  dark: boolean
   setTheme: (theme: Theme) => void
   cycleTheme: () => void
   /** Earcons: the soft sounds of windows, tasks and the bar. */
@@ -51,6 +59,7 @@ interface SettingsState {
 
 export const useSettings = create<SettingsState>((set, get) => ({
   theme: readTheme(),
+  dark: isDark(readTheme()),
   setTheme: (theme) => {
     try {
       localStorage.setItem(KEY, theme)

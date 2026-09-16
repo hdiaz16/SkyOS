@@ -71,6 +71,11 @@ export const fs = {
     return rows.filter((n) => !inside.has(n.parentId)).sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0))
   },
 
+  /** Everything in the trash, tops and contents alike: a folder there is one line and may be three hundred files. */
+  async trashCount(): Promise<number> {
+    return db.nodes.filter((n) => n.trashedAt !== null).count()
+  },
+
   /** Ancestors from the top-level folder down to the node itself. */
   async path(id: string): Promise<FsNode[]> {
     const chain: FsNode[] = []

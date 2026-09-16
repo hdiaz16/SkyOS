@@ -188,6 +188,12 @@ export function WindowFrame({ win, active, children }: Props) {
       <div ref={contentRef} className={cn('relative min-h-0 flex-1 overflow-hidden', interacting && 'pointer-events-none')}>
         {children}
         {win.app !== 'editor' && <SelectionMenu frameRef={contentRef} source={win.title} />}
+        {/* A click inside an <iframe> never reaches this document, so clicking the page of a browser window
+            that sits behind another one did not bring it forward: you had to aim at its title bar. While the
+            window is not the active one, this pane takes the first click, focuses, and gets out of the way. */}
+        {!active && (win.app === 'browser' || win.app === 'app' || win.app === 'canvas') && (
+          <div className="absolute inset-0 z-10" onPointerDown={() => useWindows.getState().focus(win.id)} aria-hidden />
+        )}
       </div>
 
       <div className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize" onPointerDown={startResize} aria-hidden />

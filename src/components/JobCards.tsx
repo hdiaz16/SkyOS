@@ -24,13 +24,15 @@ function Card({ card }: { card: JobCard }) {
   const dismiss = useJobs((s) => s.dismissCard)
   const [hold, setHold] = useState(false)
 
+  const error = card.kind === 'error'
+
+  // What went wrong waits for the ✕. The only trace of interrupted work used to vanish nine seconds after
+  // boot — exactly while the desktop is still coming up — and it is written down nowhere else.
   useEffect(() => {
-    if (hold) return
+    if (hold || error) return
     const timer = window.setTimeout(() => dismiss(card.id), AUTO_DISMISS_MS)
     return () => window.clearTimeout(timer)
-  }, [hold, card.id, dismiss])
-
-  const error = card.kind === 'error'
+  }, [hold, error, card.id, dismiss])
   return (
     <motion.div
       layout
@@ -40,6 +42,9 @@ function Card({ card }: { card: JobCard }) {
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       onMouseEnter={() => setHold(true)}
       onMouseLeave={() => setHold(false)}
+      // Keyboard focus holds the card too: reading it with Tab used to be a race against the timer.
+      onFocusCapture={() => setHold(true)}
+      onBlurCapture={() => setHold(false)}
       role="status"
       className="glass pointer-events-auto flex items-start gap-3 rounded-2xl p-3 shadow-win"
     >

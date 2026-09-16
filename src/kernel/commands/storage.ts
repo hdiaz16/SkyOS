@@ -10,7 +10,10 @@ registerCommand<Record<string, never>, string>({
   id: 'storage.sync',
   risk: 'external',
   title: 'Sincronizar con la nube',
-  description: 'Sube y baja lo que cambió entre el escritorio y la nube elegida (Google Drive, Dropbox u OneDrive). Corre en segundo plano; devuelve el resumen. Si no hay nube configurada, dilo y abre Ajustes › Almacenamiento con ui.openSettings.',
+  // Consult storage.syncStatus first: this one is 'external', so the gate asks with the language of what
+  // cannot be undone, and it used to ask that before discovering there was no cloud to sync with at all.
+  description:
+    'Sube y baja lo que cambió entre el escritorio y la nube elegida (Google Drive, Dropbox u OneDrive). Corre en segundo plano; devuelve el resumen. Consulta storage.syncStatus antes y llámalo solo si enabled es true.',
   params: {},
   keywords: SYNC_WORDS,
   async run() {

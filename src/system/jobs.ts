@@ -63,7 +63,21 @@ const MAX_CARDS = 4
  * would be the worst outcome, so the ones that were running are written down, and on the next boot they come
  * back as what they are — interrupted — instead of disappearing as if they had finished.
  */
+/**
+ * Per tab, not per account. With two tabs of the same person open —ordinary in a web desktop— a new tab used
+ * to read the list of the other one, announce «se interrumpió al cerrar la pestaña» about work that was
+ * running right then, and wipe the record in the process. sessionStorage belongs to one tab and dies with it,
+ * which is exactly the lifetime of this work.
+ */
 const RUNNING_KEY = `mesa:trabajos${sessionSuffix()}`
+
+const runningStore = (): Storage | null => {
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
 
 interface Interrupted {
   title: string
@@ -72,14 +86,16 @@ interface Interrupted {
 }
 
 function remember(jobs: Record<string, Job>): void {
+  const store = runningStore()
+  if (!store) return
   try {
     const running = Object.values(jobs)
       .filter((j) => j.status === 'running')
       .map<Interrupted>((j) => ({ title: j.title, detail: j.detail, startedAt: j.startedAt }))
-    if (running.length) localStorage.setItem(RUNNING_KEY, JSON.stringify(running))
-    else localStorage.removeItem(RUNNING_KEY)
+    if (running.length) store.setItem(RUNNING_KEY, JSON.stringify(running))
+    else store.removeItem(RUNNING_KEY)
   } catch {
-    // Without localStorage the desktop simply forgets, which is where it started.
+    // Without storage the desktop simply forgets, which is where it started.
   }
 }
 
@@ -89,8 +105,12 @@ function remember(jobs: Record<string, Job>): void {
  */
 export function recoverJobs(): void {
   let pending: Interrupted[] = []
+  const store = runningStore()
+  if (!store) return
   try {
-    const raw = localStorage.getItem(RUNNING_KEY)
+    const raw = store.getItem(RUNNING_KEY)
+    store.removeItem(RUNNING_KEY)
+    // Anything left in the old shared place belongs to no tab in particular; clear it once and forget it.
     localStorage.removeItem(RUNNING_KEY)
     if (raw) pending = JSON.parse(raw) as Interrupted[]
   } catch {

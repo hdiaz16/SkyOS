@@ -34,7 +34,14 @@ function userDir(): Promise<FileSystemDirectoryHandle> {
     let dir = await navigator.storage.getDirectory()
     for (const segment of STORAGE_DIR.split('/').filter(Boolean)) dir = await dir.getDirectoryHandle(segment, { create: true })
     return dir
-  })()
+  })().catch((err: unknown) => {
+    // A rejected promise used to stay cached for the rest of the session: one failure — private mode, storage
+    // blocked, permission revoked — and from then on every file looked empty and every save threw, with no way
+    // back but reloading. Forgetting it lets the next attempt actually try again.
+    dirPromise = null
+    console.warn('[archivos] no pude abrir el almacén del navegador:', err)
+    throw err
+  })
   return dirPromise
 }
 

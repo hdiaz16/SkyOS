@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Activity, CheckCircle2, CloudOff, ExternalLink, Headphones, Loader2, Undo2, XCircle } from 'lucide-react'
+import { Activity, CheckCircle2, CloudOff, ExternalLink, Headphones, Loader2, Square, Undo2, XCircle } from 'lucide-react'
 import { useJobs, finishedJobs, runningJobs } from '../system/jobs'
 import { useNetwork } from '../system/network'
 import { useAmbient } from '../system/ambient'
 import { connectedApps, useMcp } from '../mcp/manager'
 import { catalogFor } from '../mcp/catalog'
 import { useSession } from '../ai/session'
+import { useTasks } from '../ai/tasks'
 import { dispatch, standingOf, undoEntry, useJournal, type JournalEntry } from '../kernel/commands'
 import { clearJournal } from '../kernel/journal'
 import { TIER_LABELS } from '../ai/router'
@@ -137,29 +138,36 @@ export function StatusPill() {
                 <p className="px-1 text-ink-3">Nada corriendo.</p>
               ) : (
                 <>
-                  {/* A job in flight is not just a line of text: this opens its window, which is where Detener lives.
-                      Until now the synthesis you asked for "en segundo plano" could not be watched or stopped. */}
-                  {running.map((j) =>
-                    j.open ? (
-                      <button key={j.id} type="button" onClick={() => j.open?.()} className="w-full rounded-md px-1 py-0.5 text-left transition hover:bg-surface-2">
-                        <div className="flex items-center gap-1.5 text-ink">
-                          <Loader2 className="h-3 w-3 animate-spin text-accent" />
-                          <span className="truncate">{j.title}</span>
-                          {j.progress !== undefined && <span className="ml-auto tabular-nums text-ink-3">{Math.round(j.progress * 100)}%</span>}
-                        </div>
-                        {j.detail && <p className="truncate pl-[18px] text-ink-3">{j.detail}</p>}
-                      </button>
-                    ) : (
-                      <div key={j.id} className="px-1 py-0.5">
-                        <div className="flex items-center gap-1.5 text-ink">
-                          <Loader2 className="h-3 w-3 animate-spin text-accent" />
-                          <span className="truncate">{j.title}</span>
-                          {j.progress !== undefined && <span className="ml-auto tabular-nums text-ink-3">{Math.round(j.progress * 100)}%</span>}
-                        </div>
-                        {j.detail && <p className="truncate pl-[18px] text-ink-3">{j.detail}</p>}
+                  {/* A job in flight is not just a line of text: it can be opened —its window is where the work
+                      shows— and stopped right here. A background synthesis of twenty files used to run to the
+                      end no matter what, because the only Detener lived in a window that was never opened. */}
+                  {running.map((j) => (
+                    <div key={j.id} className="rounded-md px-1 py-0.5 transition hover:bg-surface-2">
+                      <div className="flex items-center gap-1.5 text-ink">
+                        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
+                        {j.open ? (
+                          <button type="button" onClick={() => j.open?.()} className="min-w-0 flex-1 truncate text-left">
+                            {j.title}
+                          </button>
+                        ) : (
+                          <span className="min-w-0 flex-1 truncate">{j.title}</span>
+                        )}
+                        {j.progress !== undefined && <span className="shrink-0 tabular-nums text-ink-3">{Math.round(j.progress * 100)}%</span>}
+                        {j.kind === 'ai' && (
+                          <button
+                            type="button"
+                            title="Detener"
+                            aria-label={`Detener ${j.title}`}
+                            onClick={() => useTasks.getState().stop(j.id)}
+                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-3 transition hover:bg-surface hover:text-ink"
+                          >
+                            <Square className="h-2.5 w-2.5 fill-current" />
+                          </button>
+                        )}
                       </div>
-                    ),
-                  )}
+                      {j.detail && <p className="truncate pl-[18px] text-ink-3">{j.detail}</p>}
+                    </div>
+                  ))}
                   {finishedJobs(jobs)
                     .slice(0, 4)
                     .map((j) => (

@@ -37,7 +37,7 @@ const CSP = [
  * widgets and canvas blocks.
  */
 export function HtmlSandbox({ html, title, className }: { html: string; title: string; className?: string }) {
-  const theme = useSettings((s) => s.theme)
+  const dark = useSettings((s) => s.dark)
 
   const srcDoc = useMemo(() => {
     const base = `<meta http-equiv="Content-Security-Policy" content="${CSP}"><style>${themeCss()}</style>`
@@ -45,9 +45,10 @@ export function HtmlSandbox({ html, title, className }: { html: string; title: s
       return /<head[\s>]/i.test(html) ? html.replace(/<head([^>]*)>/i, `<head$1>${base}`) : html.replace(/<html([^>]*)>/i, `<html$1><head>${base}</head>`)
     }
     return `<!doctype html><html><head><meta charset="utf-8">${base}</head><body>${html}</body></html>`
-    // The theme value is read through the DOM, so re-run when it changes.
+    // The palette is read through the DOM, so re-run when the colour on screen changes — including when the
+    // system flips to dark while the setting stays on «Sistema».
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html, theme])
+  }, [html, dark])
 
   if (!html.trim()) return <p className="p-3 text-[12px] text-ink-3">Sin contenido.</p>
 

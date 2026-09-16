@@ -13,9 +13,12 @@ export function ResultApp({ win }: { win: Win }) {
   const [applied, setApplied] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  /** Whether the reader is still at the end. Going up to reread used to be impossible: every fragment, up to
+   *  sixty times a second, pulled a long result back down. */
+  const stick = useRef(true)
   useEffect(() => {
     const el = scrollRef.current
-    if (el && task?.status === 'running') el.scrollTop = el.scrollHeight
+    if (el && stick.current && task?.status === 'running') el.scrollTop = el.scrollHeight
   }, [task?.text, task?.status])
 
   if (!task) return <div className="flex h-full items-center justify-center text-[13px] text-ink-3">Este resultado ya no está disponible.</div>
@@ -46,7 +49,14 @@ export function ResultApp({ win }: { win: Win }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 select-text overflow-y-auto px-6 py-5 text-[14px] leading-relaxed text-ink">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget
+          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+        }}
+        className="scrollbar-thin min-h-0 flex-1 select-text overflow-y-auto px-6 py-5 text-[14px] leading-relaxed text-ink"
+      >
         {task.text ? (
           task.kind === 'transform' ? <pre className="whitespace-pre-wrap font-sans">{task.text}</pre> : <Markdown text={task.text} />
         ) : running ? (

@@ -19,7 +19,10 @@ function useArmed(): [string | null, (id: string | null) => void] {
 }
 
 export function TrashApp() {
-  const items = useLiveQuery(() => fs.listTrash(), []) ?? []
+  // Without the `?? []` the difference between «still looking» and «there is nothing» comes back: opening the
+  // trash always showed «La papelera está vacía» for an instant before the list appeared.
+  const items = useLiveQuery(() => fs.listTrash(), [])
+  const total = useLiveQuery(() => fs.trashCount(), [])
   const [armed, setArmed] = useArmed()
 
   const emptyTrash = () => {
@@ -44,32 +47,37 @@ export function TrashApp() {
     <div className="flex h-full flex-col">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-line px-4">
         <span className="text-[13px] text-ink-2">
-          {items.length} {items.length === 1 ? 'elemento' : 'elementos'}
+          {!items ? '…' : `${items.length} ${items.length === 1 ? 'elemento' : 'elementos'}`}
+          {/* A folder in the trash is one line and may hold three hundred files; emptying takes them all. */}
+          {!!items && !!total && total > items.length && <span className="text-ink-3"> · {total} en total con lo que hay dentro</span>}
         </span>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            disabled={!items.length}
-            onClick={() => void dispatch('fs.restore', { ids: items.map((n) => n.id) })}
+            disabled={!items?.length}
+            onClick={() => void dispatch('fs.restore', { ids: (items ?? []).map((n) => n.id) })}
             className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-ink-2 transition hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
           >
             Restaurar todo
           </button>
           <button
             type="button"
-            disabled={!items.length}
+            disabled={!items?.length}
             onClick={emptyTrash}
             className={cn(
               'rounded-lg px-2.5 py-1 text-[12px] font-medium transition disabled:opacity-30 disabled:hover:bg-transparent',
               armed === 'empty' ? 'bg-danger text-white hover:brightness-110' : 'text-danger hover:bg-danger/10',
             )}
           >
-            {armed === 'empty' ? '¿Seguro? Vaciar' : 'Vaciar papelera'}
+            {/* The only thing on this desk that leaves no way back, so the armed step says exactly that. */}
+            {armed === 'empty' ? 'Se borra para siempre · Vaciar' : 'Vaciar papelera'}
           </button>
         </div>
       </div>
 
-      {items.length === 0 ? (
+      {!items ? (
+        <div className="flex-1" />
+      ) : items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-ink-3">
           <Trash2 className="h-8 w-8" strokeWidth={1.25} />
           <p className="text-[13px]">La papelera está vacía</p>

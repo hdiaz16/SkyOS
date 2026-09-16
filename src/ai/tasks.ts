@@ -277,9 +277,16 @@ function describeInput(lead: string, files: FsNode[], g: Gathered): string {
 /** Reads a folder's documents and asks for a report, without opening any of them. */
 export async function summarizeFolder(folderId: string, opts: TaskRunOptions = {}): Promise<string> {
   const folder = folderId === ROOT_ID ? null : await fs.get(folderId)
+  if (folderId !== ROOT_ID) {
+    if (!folder) throw new Error('Esa carpeta ya no existe')
+    if (folder.kind !== 'folder') throw new Error('Eso es un archivo, no una carpeta')
+  }
   const folderName = folder?.name ?? 'Escritorio'
   const files: FsNode[] = []
   await collectFiles(folderId, 2, files)
+  // The other two tasks already say so. This one used to spend a call telling the model «0 archivos», and got
+  // back a summary of nothing.
+  if (!files.length) throw new Error(`No hay nada que leer en ${folder ? `«${folderName}»` : 'el escritorio'}`)
   const g = await gather(files)
 
   return startTask({

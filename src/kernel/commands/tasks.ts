@@ -13,7 +13,8 @@ const TASK_WORDS = [
   'cuando termines', 'cuando acabes', 'tarea', 'tareas', 'trabajando', 'progreso', 'qué haces', 'que haces', 'leyendo',
 ]
 
-const BACKGROUND_REPLY = 'En marcha en segundo plano; una tarjeta avisará cuando el resultado esté listo.'
+/** What can honestly be promised: it runs, it warns when done, and it can be stopped from the status pill. */
+const BACKGROUND_REPLY = 'En marcha en segundo plano; una tarjeta avisará cuando el resultado esté listo. Se puede detener desde la píldora de estado, arriba a la derecha.'
 
 registerCommand<{ ids: string[] }, string>({
   id: 'tasks.synthesize',

@@ -38,13 +38,12 @@ function palette(dark: boolean): Record<string, string> {
 
 /** Renders Mermaid code as an inline SVG, themed like the desktop. Errors show as one quiet line. */
 export function Mermaid({ code, className }: { code: string; className?: string }) {
-  const theme = useSettings((s) => s.theme)
+  const dark = useSettings((s) => s.dark)
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    const dark = document.documentElement.classList.contains('dark')
     const id = `sky-mermaid-${++seq}`
     loadMermaid()
       .then((m) => {
@@ -58,20 +57,27 @@ export function Mermaid({ code, className }: { code: string; className?: string 
       })
       .catch((e: unknown) => {
         if (!alive) return
+        // Mermaid's own words are for whoever writes Mermaid: «No diagram type detected matching given
+        // configuration for text: hola». The line says what happened; the detail waits in the tooltip.
         setError(e instanceof Error ? e.message.split('\n')[0] : 'No pude dibujar el diagrama')
       })
     return () => {
       alive = false
     }
-    // The dark class is read through the DOM; re-render when the theme setting changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, theme])
+  }, [code, dark])
 
+  // An empty block is not a mistake, it is a block waiting to be written.
+  if (!code.trim()) {
+    return <div className={cn('py-4 text-[12px] text-ink-3', className)}>Escribe un diagrama de Mermaid aquí.</div>
+  }
   if (error) {
     return (
-      <div className={cn('flex items-start gap-1.5 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-[12px] text-danger', className)}>
+      <div
+        title={error}
+        className={cn('flex items-start gap-1.5 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-[12px] text-danger', className)}
+      >
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 break-words">{error}</span>
+        <span className="min-w-0 break-words">No entendí el diagrama; revisa la sintaxis de Mermaid.</span>
       </div>
     )
   }

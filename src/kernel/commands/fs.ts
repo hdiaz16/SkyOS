@@ -123,16 +123,18 @@ registerCommand<{ ids: string[] }, void>({
     ids: { type: 'array', items: { type: 'string', description: 'Id' }, description: 'Ids a enviar a la papelera.', required: true },
   },
   async run({ ids }) {
-    if (!ids.length) return { result: undefined }
-    const first = await fs.get(ids[0])
-    await fs.trash(ids)
+    // Nothing was checked here, so deleting the same thing twice —two Archivos windows on the same folder—
+    // announced «"Elemento" enviado a la papelera» and offered to undo something that never happened. And a
+    // model that forgot the ids got a TypeError back, in English, as the result of its tool call.
+    const wanted = Array.isArray(ids) ? ids : []
+    const found = (await Promise.all(wanted.map((id) => fs.get(id)))).filter((n): n is FsNode => !!n && n.trashedAt === null)
+    if (!found.length) throw new Error('Eso ya no está aquí')
+    const real = found.map((n) => n.id)
+    await fs.trash(real)
     const wm = useWindows.getState()
-    for (const id of ids) wm.closeForNode(id)
-    const label =
-      ids.length === 1
-        ? `"${first?.name ?? 'Elemento'}" enviado a la papelera`
-        : `${ids.length} elementos enviados a la papelera`
-    return { result: undefined, label, undo: { commandId: 'fs.restore', params: { ids } } }
+    for (const id of real) wm.closeForNode(id)
+    const label = real.length === 1 ? `"${found[0].name}" enviado a la papelera` : `${real.length} elementos enviados a la papelera`
+    return { result: undefined, label, undo: { commandId: 'fs.restore', params: { ids: real } } }
   },
 })
 
