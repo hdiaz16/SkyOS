@@ -76,7 +76,14 @@ export function WeatherWidget({ widget }: { widget: Widget }) {
         const weather = await fetchWeather(coords.lat, coords.lon)
         if (alive) setState({ status: 'ok', weather, label: label || 'Tu ubicación' })
       } catch (err) {
-        if (alive) setState({ status: 'error', message: err instanceof Error ? err.message : 'Error al cargar el clima' })
+        // Without network the browser rejects with its own TypeError, and «Failed to fetch» ended up printed
+        // in the middle of a widget that speaks Spanish. The currency widget already knew this.
+        if (alive) {
+          setState({
+            status: 'error',
+            message: err instanceof TypeError ? 'Sin conexión para consultar el clima' : err instanceof Error ? err.message : 'Error al cargar el clima',
+          })
+        }
       }
     }
     void load()

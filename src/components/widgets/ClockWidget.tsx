@@ -1,7 +1,13 @@
 import type { ClockZone, Widget } from '../../kernel/widgets'
 import { useClock } from '../../lib/hooks'
 
+/**
+ * The time somewhere else. A row whose timeZone never arrived — the model writing `tz` instead of `timeZone`,
+ * or the zones as plain strings — used to reach Intl as undefined, which quietly means "here": the row said
+ * «Tokio 22:14» showing the reader's own clock, with nothing to suggest anything was wrong.
+ */
 function timeIn(zone: string, now: Date): { time: string; dayDelta: number; valid: boolean } {
+  if (typeof zone !== 'string' || !zone.trim()) return { time: '--:--', dayDelta: 0, valid: false }
   try {
     const time = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: zone })
     const there = new Date(now.toLocaleString('en-US', { timeZone: zone }))

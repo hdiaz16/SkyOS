@@ -8,8 +8,12 @@ type State = { status: 'loading' } | { status: 'ok'; rate: Rate } | { status: 'e
 const selectClass = 'h-7 rounded-md bg-surface-2 px-1.5 text-[12px] font-medium text-ink outline-none focus:ring-1 focus:ring-accent/40'
 
 export function CurrencyWidget({ widget }: { widget: Widget }) {
-  const from = typeof widget.config.from === 'string' ? widget.config.from : 'USD'
-  const to = typeof widget.config.to === 'string' ? widget.config.to : 'MXN'
+  const from = typeof widget.config.from === 'string' ? widget.config.from.toUpperCase() : 'USD'
+  const to = typeof widget.config.to === 'string' ? widget.config.to.toUpperCase() : 'MXN'
+  // A code outside the twelve in the catalogue — COP, say, which Sky will happily write — left the select
+  // blank, the foot naming nothing and the body saying only that the rate could not be fetched: a widget
+  // broken without a word about why.
+  const unknown = [from, to].filter((c) => !(c in CURRENCIES))
   const amount = typeof widget.config.amount === 'number' ? widget.config.amount : 1
   const [state, setState] = useState<State>({ status: 'loading' })
   const [draft, setDraft] = useState(String(amount))
@@ -41,7 +45,8 @@ export function CurrencyWidget({ widget }: { widget: Widget }) {
     else setDraft(String(amount))
   }
 
-  const codes = Object.keys(CURRENCIES)
+  // Whatever is selected is always in the list, known or not, so it can at least be seen and changed.
+  const codes = [...new Set([...Object.keys(CURRENCIES), from, to])]
   const converted = state.status === 'ok' ? amount * state.rate.rate : null
 
   return (
@@ -91,6 +96,10 @@ export function CurrencyWidget({ widget }: { widget: Widget }) {
               1 {from} = {state.rate.rate.toFixed(state.rate.rate >= 100 ? 2 : 4)} {to}
             </p>
           </>
+        ) : unknown.length ? (
+          <p className="text-[12px] text-danger">
+            No conozco {unknown.join(' ni ')}. Elige una moneda de la lista.
+          </p>
         ) : state.status === 'error' ? (
           <p className="text-[12px] text-danger">{state.message}</p>
         ) : (
@@ -99,7 +108,7 @@ export function CurrencyWidget({ widget }: { widget: Widget }) {
       </div>
 
       <p className="truncate text-[10px] text-ink-3">
-        {CURRENCIES[from]} → {CURRENCIES[to]}
+        {CURRENCIES[from] ?? from} → {CURRENCIES[to] ?? to}
         {state.status === 'ok' && ` · BCE ${state.rate.date}`}
       </p>
     </div>

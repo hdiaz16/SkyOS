@@ -1,8 +1,9 @@
-import { useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { X } from 'lucide-react'
 import { widgets as widgetService, type Widget } from '../../kernel/widgets'
 import { dispatch } from '../../kernel/commands'
+import { useUi } from '../../state/ui'
 import { cn } from '../../lib/utils'
 
 interface Props {
@@ -17,6 +18,20 @@ type Geometry = Pick<Widget, 'x' | 'y' | 'w' | 'h'>
 
 const same = (a: Geometry, b: Geometry) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
 
+/** Title bar height: whatever else happens, this much of the widget stays where it can be grabbed. */
+const GRAB = 36
+
+/**
+ * Inside the screen it wakes up on. Only the lower bounds were ever checked, so a smaller screen than last
+ * time — or a widget Sky placed at x: 2000 — left it outside the visible area for good: you cannot drag what
+ * you cannot see.
+ */
+function inside(g: Geometry): Geometry {
+  const maxX = Math.max(0, window.innerWidth - GRAB * 2)
+  const maxY = Math.max(44, window.innerHeight - GRAB)
+  return { ...g, x: Math.min(Math.max(0, g.x), maxX), y: Math.min(Math.max(44, g.y), maxY) }
+}
+
 /** Draggable, resizable tile that hosts a widget on the desktop. Geometry persists on release. */
 export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   const stored: Geometry = { x: widget.x, y: widget.y, w: widget.w, h: widget.h }
@@ -25,6 +40,28 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   const [interacting, setInteracting] = useState(false)
   const live = useRef<Geometry>(stored)
   const geo = dragGeo && !same(dragGeo, stored) ? dragGeo : stored
+
+  // On arrival, and whenever the window changes size, anything left outside is brought back within reach —
+  // the same courtesy the desk already does for windows.
+  useEffect(() => {
+    const fit = () => {
+      const placed = inside(stored)
+      if (placed.x !== stored.x || placed.y !== stored.y) void widgetService.place(widget.id, { x: placed.x, y: placed.y })
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widget.id, stored.x, stored.y])
+
+  /** Right-click on a widget used to open the browser's own menu — Recargar, Inspeccionar — inside SkyOS. */
+  const onContextMenu = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    useUi.getState().openMenu(e.clientX, e.clientY, [
+      { label: 'Quitar widget', danger: true, onSelect: () => void dispatch('widgets.remove', { id: widget.id }) },
+    ])
+  }
 
   const track =
     (apply: (dx: number, dy: number, start: Geometry) => Geometry, persist: (g: Geometry) => Partial<Geometry>) => (e: PointerEvent) => {
@@ -43,6 +80,8 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         setInteracting(false)
+        live.current = inside(live.current)
+        setDragGeo(live.current)
         void widgetService.place(widget.id, persist(live.current))
       }
       window.addEventListener('pointermove', move)
@@ -69,7 +108,7 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
         'glass group pointer-events-auto absolute flex flex-col overflow-hidden rounded-2xl shadow-soft transition-shadow hover:shadow-win',
         interacting && 'select-none shadow-win',
       )}
-      onContextMenu={(e) => e.stopPropagation()}
+      onContextMenu={onContextMenu}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="cursor-hand flex h-9 shrink-0 select-none items-center gap-2 px-3" onPointerDown={startDrag}>
