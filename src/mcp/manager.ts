@@ -210,8 +210,9 @@ export const mcp = {
 
   catalog: CATALOG,
 
-  /** Connects an app. Interactive: opens the provider's consent page when the server asks for it. */
-  async connect(id: string, extraScopes: string[] = []): Promise<McpServerRecord> {
+  /** Connects an app. Interactive: opens the provider's consent page when the server asks for it. The
+   *  non-interactive variant —used when coming back from that same page— refuses to open it again. */
+  async connect(id: string, extraScopes: string[] = [], { interactive = true }: { interactive?: boolean } = {}): Promise<McpServerRecord> {
     let record = await ensureRecord(id)
     setBusy(id, 'Contactando al servidor…')
     try {
@@ -221,6 +222,12 @@ export const mcp = {
         return await finishConnect(record, tools, ttlMs)
       } catch (err) {
         if (!(err instanceof McpError) || (err.code !== 'auth_required' && err.code !== 'forbidden')) throw err
+        // Right after a consent page is not the moment to open another one: a server that keeps rejecting the
+        // token it just issued used to put the desktop in a redirect loop nobody inside could leave.
+        if (!interactive) {
+          await markAttention(record, 'No aceptó el permiso recién concedido. Vuelve a conectar la app.').catch(() => undefined)
+          throw new McpError('auth_required', `${record.name} sigue pidiendo autorización aunque acabas de concedérsela. Vuelve a probar desde Apps conectadas.`)
+        }
         setBusy(id, 'Esperando tu permiso…')
         const challenge = parseChallenge(err.challenge)
         const prm = await discoverProtectedResource(record.url, challenge).catch(() => null)
@@ -446,7 +453,9 @@ async function resumeRedirect(): Promise<void> {
       auth: { issuer: pending.issuer, resource: pending.resource, scopes: pending.scopes, tokens },
       account: accountFromIdToken(tokens.idToken) ?? record.account,
     })
-    const done = await mcp.connect(record.id)
+    // Not interactive: the consent page just had its turn, and if the server rejects the token it issued the
+    // answer is a card saying so — not another trip out of the desktop.
+    const done = await mcp.connect(record.id, [], { interactive: false })
     useToasts.getState().push({ message: `${done.name} conectado · ${done.tools?.length ?? 0} herramientas`, kind: 'info' })
   } catch (err) {
     useToasts.getState().push({ message: err instanceof Error ? err.message : `No se pudo conectar ${record.name}`, kind: 'error' })
