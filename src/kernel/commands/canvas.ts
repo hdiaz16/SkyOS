@@ -115,6 +115,48 @@ registerCommand<{ id: string; remove?: string[]; put?: CanvasBlock[] }, void>({
   },
 })
 
+/**
+ * The open editor's own save. The board used to write with fs.writeText behind the bus's back, so no manual
+ * edit ever reached the journal — and Ctrl+Z after removing a block by hand walked back to the last entry that
+ * did exist, Sky's creation, and threw the whole canvas in the trash. Here the editor hands over the board as
+ * it stands; the command is the one that reads what is on disk, writes the new state, and returns the inverse
+ * of exactly what differed.
+ */
+registerCommand<{ id: string; blocks: CanvasBlock[] }, void>({
+  id: 'canvas.save',
+  risk: 'write',
+  title: 'Guardar lienzo',
+  description: 'Guarda el tablero tal como lo dejó quien lo estaba editando.',
+  ai: false,
+  params: {
+    id: { type: 'string', description: 'Id del archivo .canvas.', required: true },
+    blocks: { type: 'array', description: 'Los bloques del tablero, completos y en su lugar.' },
+  },
+  async run({ id, blocks }) {
+    if (!Array.isArray(blocks) || blocks.some((b) => !b?.id || !b.kind || typeof b.content !== 'string')) throw new Error('Esos bloques no forman un tablero')
+    const { node, doc: before } = await readCanvas(id)
+    const after = new Map(blocks.map((b) => [b.id, b]))
+    const sameBlock = (a: CanvasBlock, b: CanvasBlock) =>
+      a.content === b.content && a.title === b.title && a.kind === b.kind && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
+    const addedIds = blocks.filter((b) => !before.blocks.some((x) => x.id === b.id)).map((b) => b.id)
+    const changed = before.blocks.filter((b) => after.has(b.id) && !sameBlock(b, after.get(b.id)!))
+    const gone = before.blocks.filter((b) => !after.has(b.id))
+    await write(id, { version: 1, blocks })
+    // Nothing differed — the editor saying so is not an action anyone needs to see or take back.
+    if (!addedIds.length && !changed.length && !gone.length) return { result: undefined }
+    const say = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`)
+    const parts: string[] = []
+    if (addedIds.length) parts.push(say(addedIds.length, 'bloque añadido', 'bloques añadidos'))
+    if (changed.length) parts.push(say(changed.length, 'bloque editado', 'bloques editados'))
+    if (gone.length) parts.push(say(gone.length, 'bloque quitado', 'bloques quitados'))
+    return {
+      result: undefined,
+      label: `${parts.join(', ')} en "${node.name}"`,
+      undo: { commandId: 'canvas.apply', params: { id, remove: addedIds, put: [...changed, ...gone] } },
+    }
+  },
+})
+
 registerCommand<{ id: string; blockId: string; content?: string; title?: string; kind?: BlockKind }, void>({
   id: 'canvas.updateBlock',
   risk: 'write',

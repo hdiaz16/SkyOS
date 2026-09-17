@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { Check, Code2, GitBranch, Pencil, Plus, Sparkles, StickyNote, Trash2, type LucideIcon } from 'lucide-react'
 import { fs } from '../../kernel/fs'
-import { useToasts } from '../../kernel/commands'
+import { dispatch, useToasts } from '../../kernel/commands'
 import { FileMissing, Opening } from './FileState'
 import { useFileNode } from '../../lib/hooks'
-import { appendBlocks, BLOCK_LABELS, canvasExtent, parseCanvas, serializeCanvas, type BlockKind, type CanvasBlock, type CanvasDoc } from '../../kernel/canvas'
+import { appendBlocks, BLOCK_LABELS, canvasExtent, parseCanvas, type BlockKind, type CanvasBlock, type CanvasDoc } from '../../kernel/canvas'
 import type { Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
 import { useSession } from '../../ai/session'
@@ -87,7 +87,10 @@ export function CanvasApp({ win }: { win: Win }) {
   useEffect(
     () => () => {
       window.clearTimeout(timer.current)
-      if (dirty.current && pending.current) void fs.writeText(nodeId, serializeCanvas(pending.current)).catch(() => undefined)
+      if (dirty.current && pending.current) {
+        // Through the bus like every other save, so the last edits are in the journal and undoable too.
+        void dispatch('canvas.save', { id: nodeId, blocks: pending.current.blocks }, { source: 'system' }).catch(() => undefined)
+      }
     },
     [nodeId],
   )
@@ -102,22 +105,25 @@ export function CanvasApp({ win }: { win: Win }) {
         // Saving replaces the whole document, and someone else may have written during the half second this was
         // dirty — Sky adding a block to the board you are moving things on. That block used to disappear while
         // the assistant announced it. What arrived is merged back in by id; what was removed here stays removed.
-        let toWrite = next
+        let blocks = next.blocks.filter((b) => !removed.current.has(b.id))
         const current = await fs.get(nodeId)
         if (current && current.updatedAt !== loadedVersion.current) {
           const text = await fs.readText(nodeId).catch(() => null)
           if (text !== null) {
-            const mine = new Set(next.blocks.map((b) => b.id))
+            const mine = new Set(blocks.map((b) => b.id))
             const extra = parseCanvas(text).blocks.filter((b) => !mine.has(b.id) && !removed.current.has(b.id))
             if (extra.length) {
-              toWrite = { ...next, blocks: [...next.blocks, ...extra] }
+              blocks = [...blocks, ...extra]
               arrived.current = extra[0].id
-              pending.current = toWrite
-              setDoc(toWrite)
+              pending.current = { version: 1, blocks }
+              setDoc({ version: 1, blocks })
             }
           }
         }
-        await fs.writeText(nodeId, serializeCanvas(toWrite))
+        // Not fs.writeText: the save goes through the bus, which leaves a journal entry with the inverse of
+        // exactly what differed. Writing behind the bus's back is how Ctrl+Z ended up trashing a canvas the
+        // person was only tidying.
+        await dispatch('canvas.save', { id: nodeId, blocks }, { source: 'system' })
       } catch {
         // Saying nothing here is how a canvas quietly stops saving; the person has to know to copy it out.
         useToasts.getState().push({ message: 'No pude guardar el lienzo. Copia lo que necesites antes de cerrarlo.', kind: 'error' })
@@ -127,6 +133,9 @@ export function CanvasApp({ win }: { win: Win }) {
       if (fresh) loadedVersion.current = fresh.updatedAt
       dirty.current = false
       pending.current = null
+      // The removals this save carried are on disk now; keeping them in the set is how a block brought back by
+      // an undo in between got dropped again by the next save, without anyone touching it.
+      removed.current.clear()
     }, SAVE_DELAY_MS)
   }
 
@@ -134,9 +143,26 @@ export function CanvasApp({ win }: { win: Win }) {
     if (doc) commit({ ...doc, blocks: doc.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) })
   }
   const removeBlock = (id: string) => {
-    if (doc) commit({ ...doc, blocks: doc.blocks.filter((b) => b.id !== id) })
+    // Removed here and now for the eye; the write itself goes through the command, which journals it with its
+    // inverse. Removing by hand used to be the one canvas edit with no undo, so Ctrl+Z afterwards reached for
+    // the last entry that did have one — Sky's creation — and threw the whole canvas in the trash.
+    setDoc((d) => (d ? { ...d, blocks: d.blocks.filter((b) => b.id !== id) } : d))
     removed.current.add(id)
     if (editing === id) setEditing(null)
+    void dispatch('canvas.removeBlock', { id: nodeId, blockId: id })
+      .then(() => {
+        // No dirty window open means nothing else will carry this removal: the set is only a guard for the
+        // merge inside a pending save, and a stale guard would drop the block again on the next one — including
+        // one put back by an undo.
+        if (!dirty.current) removed.current.delete(id)
+      })
+      .catch(() => {
+        // The block was already gone from the file, or the file would not open: back to what is on disk.
+        void fs
+          .readText(nodeId)
+          .then((t) => setDoc(parseCanvas(t)))
+          .catch(() => undefined)
+      })
   }
   const addBlock = (kind: BlockKind) => {
     if (!doc) return
@@ -152,7 +178,9 @@ export function CanvasApp({ win }: { win: Win }) {
     useUi.getState().focusComposer()
   }
   const onBoardMouseDown = (e: MouseEvent) => {
-    if ((e.target as HTMLElement).hasAttribute('data-board')) setEditing(null)
+    // The scroller counts as board too: past the board's edge, a click still means "put this away".
+    const el = e.target as HTMLElement
+    if (el.hasAttribute('data-board') || el.hasAttribute('data-scroller')) setEditing(null)
   }
 
   if (status === 'trashed' || status === 'gone') return <FileMissing winId={win.id} nodeId={nodeId} status={status} name={win.title} />
@@ -165,8 +193,10 @@ export function CanvasApp({ win }: { win: Win }) {
     )
   }
   if (!doc) return <Opening what="Abriendo el lienzo…" />
-  const extent = canvasExtent(doc.blocks)
   const count = doc.blocks.length
+  // An empty board has no extent: the 1200 px minimum canvasExtent is room for blocks that do not exist, and
+  // it gave an empty canvas a sideways scrollbar with nothing to reach.
+  const extent = count ? canvasExtent(doc.blocks) : { w: 0, h: 0 }
 
   return (
     <div className="flex h-full flex-col">
@@ -183,30 +213,37 @@ export function CanvasApp({ win }: { win: Win }) {
         )}
       </div>
 
-      <div className="scrollbar-thin canvas-grid relative min-h-0 flex-1 overflow-auto" onMouseDown={onBoardMouseDown}>
-        <div data-board className="relative" style={{ width: extent.w, height: extent.h }}>
-          {doc.blocks.map((b) => (
-            <Block
-              key={b.id}
-              block={b}
-              editing={editing === b.id}
-              onEdit={() => setEditing(b.id)}
-              onDone={() => setEditing(null)}
-              onChange={(patch) => patchBlock(b.id, patch)}
-              onRemove={() => removeBlock(b.id)}
-              onAsk={aiReady ? () => askSky(b) : undefined}
-            />
-          ))}
-          {!count && (
-            <div data-board className="absolute left-1/2 top-40 w-[440px] -translate-x-1/2 text-center text-[13px] leading-relaxed text-ink-3">
+      {/* The scroll goes in an inner layer so the empty state can sit over what is visible: it used to live
+          inside the board, whose minimum width is 1200 px, and on a narrower window it came up off-centre
+          with a sideways scrollbar for a board that has nothing on it. */}
+      <div className="relative min-h-0 flex-1">
+        <div data-scroller className="scrollbar-thin canvas-grid absolute inset-0 overflow-auto" onMouseDown={onBoardMouseDown}>
+          <div data-board className="relative" style={{ width: extent.w, height: extent.h }}>
+            {doc.blocks.map((b) => (
+              <Block
+                key={b.id}
+                block={b}
+                editing={editing === b.id}
+                onEdit={() => setEditing(b.id)}
+                onDone={() => setEditing(null)}
+                onChange={(patch) => patchBlock(b.id, patch)}
+                onRemove={() => removeBlock(b.id)}
+                onAsk={aiReady ? () => askSky(b) : undefined}
+              />
+            ))}
+          </div>
+        </div>
+        {!count && (
+          <div className="pointer-events-none absolute inset-0 flex items-start justify-center px-6 pt-24 text-center text-[13px] leading-relaxed text-ink-3">
+            <div className="max-w-[440px]">
               <p className="font-medium text-ink-2">Un lienzo en blanco</p>
               <p className="mt-1">
                 Añade una nota, un diagrama o un bloque HTML desde arriba, o pídeselo a Sky: «arma el plan del proyecto con un diagrama de fases y una tabla de
                 costos».
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
