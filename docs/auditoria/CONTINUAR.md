@@ -128,6 +128,8 @@ Después del relevo, la tanda que sigue:
 - `49897cb` el navegador dice la verdad cuando la página navega sola (alta 18) — **verificación en el
   navegador pendiente**: abrir el Navegador, navegar dentro de la página y ver la barra atenuada y el pie
   honesto; luego Recargar y confirmar que vuelve a la dirección conocida.
+- `99d9150` los archivos con huella se cuentan, no se recuerdan (alta 23) — **verificación pendiente**: con
+  archivos ya indexados, abrir Ajustes › Inteligencia y ver que el número no dice 0.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
