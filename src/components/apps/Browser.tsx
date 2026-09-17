@@ -18,15 +18,37 @@ export function BrowserApp({ win }: { win: Win }) {
   const [loading, setLoading] = useState(true)
   const [nonce, setNonce] = useState(0)
   const [taskId, setTaskId] = useState<string | null>(null)
+  /** The page inside the frame navigated on its own — a link, a search, a redirect — and cross-origin walls
+   *  mean nobody out here can ask it where it went. From that moment the address on record is the last one
+   *  this bar or Sky opened, not the one being read, and everything that acts on it has to say so. */
+  const [drifted, setDrifted] = useState(false)
+  const loads = useRef(0)
   const lastTarget = useRef(target)
   const aiReady = isAiConfigured(useAiSettings())
 
-  // Keep the address bar in sync when another command changes the URL of this window.
+  /** Point the frame at the address on record: a fresh load, so the load count starts over and whatever the
+   *  page did on its own is left behind. */
+  const retarget = () => {
+    loads.current = 0
+    setDrifted(false)
+    setNonce((n) => n + 1)
+    setLoading(true)
+  }
+
+  const onFrameLoad = () => {
+    loads.current += 1
+    // The first load is the address we set; every next one is the page taking itself somewhere else.
+    if (loads.current > 1) setDrifted(true)
+    setLoading(false)
+  }
+
+  // Keep the address bar in sync when another command changes the URL of this window — Sky navigating counts
+  // as a fresh load of a new address, not as the page wandering off on its own.
   useEffect(() => {
     if (target === lastTarget.current) return
     lastTarget.current = target
     setAddress(target)
-    setLoading(true)
+    retarget()
   }, [target])
 
   const navigate = (raw: string) => {
@@ -34,8 +56,9 @@ export function BrowserApp({ win }: { win: Win }) {
     const wm = useWindows.getState()
     wm.setProps(win.id, { url })
     wm.setTitle(win.id, titleForUrl(url))
-    setNonce((n) => n + 1)
-    setLoading(true)
+    // Going to the address it is already on does not change `target`, so the effect above would not fire —
+    // and pressing Enter on a URL means "reload this", not "do nothing".
+    if (url === target) retarget()
   }
 
   // Only Anthropic reads a page on the server side. With Groq —what SkyOS starts on— the button looked ready
@@ -62,13 +85,7 @@ export function BrowserApp({ win }: { win: Win }) {
         <ToolButton label="Inicio (Google)" onClick={() => navigate('')}>
           <House className="h-4 w-4" />
         </ToolButton>
-        <ToolButton
-          label="Recargar"
-          onClick={() => {
-            setNonce((n) => n + 1)
-            setLoading(true)
-          }}
-        >
+        <ToolButton label="Recargar" onClick={retarget}>
           <RotateCw className={cn('h-4 w-4', loading && 'animate-spin')} />
         </ToolButton>
 
@@ -86,13 +103,23 @@ export function BrowserApp({ win }: { win: Win }) {
             onKeyDown={(e) => e.stopPropagation()}
             spellCheck={false}
             placeholder="Busca en Google o escribe una dirección"
-            className="h-8 w-full rounded-lg bg-surface-2 px-3 text-[13px] text-ink outline-none transition focus:ring-1 focus:ring-accent/50"
+            title={drifted ? 'La página navegó por su cuenta desde aquí; esta es la última dirección que se abrió, no la que se está viendo' : undefined}
+            className={cn(
+              'h-8 w-full rounded-lg bg-surface-2 px-3 text-[13px] text-ink outline-none transition focus:ring-1 focus:ring-accent/50',
+              drifted && 'italic text-ink-3',
+            )}
           />
         </form>
 
         {aiReady && (
           <ToolButton
-            label={canRead ? 'Puntos clave con Sky' : 'Los puntos clave necesitan Claude (Anthropic): es el proveedor que puede leer la página'}
+            label={
+              !canRead
+                ? 'Los puntos clave necesitan Claude (Anthropic): es el proveedor que puede leer la página'
+                : drifted
+                  ? 'Puntos clave de la última dirección abierta — la página navegó por su cuenta y esa no es la que se ve'
+                  : 'Puntos clave con Sky'
+            }
             onClick={keyPoints}
             active={!!taskId}
             disabled={!canRead}
@@ -100,7 +127,10 @@ export function BrowserApp({ win }: { win: Win }) {
             <ListChecks className="h-4 w-4" />
           </ToolButton>
         )}
-        <ToolButton label="Abrir en pestaña nueva" onClick={() => window.open(target, '_blank', 'noopener')}>
+        <ToolButton
+          label={drifted ? 'Abrir la última dirección abierta en pestaña nueva — la página navegó por su cuenta' : 'Abrir en pestaña nueva'}
+          onClick={() => window.open(target, '_blank', 'noopener')}
+        >
           <ExternalLink className="h-4 w-4" />
         </ToolButton>
 
@@ -116,7 +146,7 @@ export function BrowserApp({ win }: { win: Win }) {
           key={nonce}
           src={target}
           title={win.title}
-          onLoad={() => setLoading(false)}
+          onLoad={onFrameLoad}
           className="min-h-0 min-w-0 flex-1 border-0 bg-white"
           // The page keeps what it needs to work — its own origin, scripts, forms, popups — but not the right
           // to navigate the desktop out from under the person, and not the clipboard.
@@ -130,7 +160,15 @@ export function BrowserApp({ win }: { win: Win }) {
           all the same: the loading bar vanished and its English error page stayed inside SkyOS. The way out
           used to be a sentence hidden below 1024 px; now it is a button, always there, right under the page. */}
       <div className="flex h-7 shrink-0 items-center justify-between gap-3 border-t border-line px-3 text-[11px] text-ink-3">
-        <span className="truncate">{target}</span>
+        <span className="truncate">
+          {drifted ? (
+            <>
+              La página navegó por su cuenta; última dirección abierta: <span className="text-ink-2">{target}</span>
+            </>
+          ) : (
+            target
+          )}
+        </span>
         <button
           type="button"
           onClick={() => window.open(target, '_blank', 'noopener')}
