@@ -17,13 +17,11 @@ método, lo que falta y las reglas de producto.
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
-| Alta | 53 | 43 | 10 |
+| Alta | 53 | 46 | 7 |
 | Media | 105 | 105 | 0 |
-| Baja | 28 | 1 | 27 |
+| Baja | 28 | 2 | 26 |
 
-Las 10 altas que quedan: la hoja de cálculo pierde formatos y fechas al guardar (6), la matriz densa que sale
-de `!ref` (8), las ediciones del lienzo que no pasan por el
-bus de comandos (17), la barra de direcciones que se desincroniza al navegar dentro (18), el contador de
+Las 7 altas que quedan: la barra de direcciones que se desincroniza al navegar dentro (18), el contador de
 archivos indexados en cero (23), el `resumeRedirect` de MCP que no es interactivo (26), el panel que promete
 arrastrar y soltar y no existe (32), la configuración de widget que no se valida por tipo (45), `parseCanvas`
 convirtiendo lo ilegible en vacío (46) y `transformFile` recortando en silencio (50).

@@ -21,15 +21,14 @@ un caso que alguien puede vivir usando el escritorio, no un olor de código. Viv
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
-| Alta | 53 | 45 | **8** |
+| Alta | 53 | 46 | **7** |
 | Media | 105 | 105 | 0 |
-| Baja | 28 | 1 | **27** |
+| Baja | 28 | 2 | **26** |
 
-### Las 8 altas que faltan
+### Las 7 altas que faltan
 
 | # | Dónde | Qué pasa |
 | --- | --- | --- |
-| 17 | `apps/Canvas.tsx:76` | Las ediciones del lienzo escriben con `fs.writeText` directo, sin pasar por el bus de comandos: no hay deshacer. |
 | 18 | `apps/Browser.tsx:46` | La barra de direcciones solo cambia cuando Sky navega: al navegar dentro de la página, el sistema sigue creyendo que estás en la anterior. |
 | 23 | `apps/Settings.tsx:569` | «N archivos con huella» lee un contador en memoria que arranca en cero: dice 0 sobre un índice lleno. |
 | 26 | `mcp/manager.ts:412` | `resumeRedirect` llama a `mcp.connect`, que puede volver a pedir autorización en un momento no interactivo. |
@@ -38,8 +37,8 @@ un caso que alguien puede vivir usando el escritorio, no un olor de código. Viv
 | 46 | `commands/canvas.ts:38` | `parseCanvas` convierte lo ilegible en un lienzo vacío, que luego se guarda encima del original. |
 | 50 | `ai/tasks.ts:378` | `transformFile` corta a 60 000 caracteres sin marcar el corte, y «Aplicar al archivo» escribe el resultado truncado. |
 
-Las 27 bajas están en `hallazgos.json` bajo la clave `baja`; la primera (el zoom del visor de PDF en sus
-extremos) ya está cerrada.
+Las 26 bajas están en `hallazgos.json` bajo la clave `baja`; las dos primeras (el zoom del visor de PDF en
+sus extremos, el mensaje del lienzo vacío) ya están cerradas.
 
 ## Cómo se trabaja
 
@@ -125,6 +124,7 @@ Después del relevo, la tanda que sigue:
 
 - `b8266c5` un PDF grande deja de montar todas sus páginas (alta 11, baja 39 del mismo archivo).
 - `af52eb8` guardar una hoja escribe sobre el libro, no lo reconstruye (altas 6 y 8).
+- `22e8308` el lienzo manual entra al bus: quitar y editar se pueden deshacer (alta 17, baja 132).
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
