@@ -125,6 +125,9 @@ Después del relevo, la tanda que sigue:
 - `b8266c5` un PDF grande deja de montar todas sus páginas (alta 11, baja 39 del mismo archivo).
 - `af52eb8` guardar una hoja escribe sobre el libro, no lo reconstruye (altas 6 y 8).
 - `22e8308` el lienzo manual entra al bus: quitar y editar se pueden deshacer (alta 17, baja 132).
+- `49897cb` el navegador dice la verdad cuando la página navega sola (alta 18) — **verificación en el
+  navegador pendiente**: abrir el Navegador, navegar dentro de la página y ver la barra atenuada y el pie
+  honesto; luego Recargar y confirmar que vuelve a la dirección conocida.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
