@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Workbook } from '@fortune-sheet/react'
 import type { Cell, CellMatrix, CellWithRowAndCol, Selection, Sheet } from '@fortune-sheet/core'
 import '@fortune-sheet/react/dist/index.css'
-import { read, utils, write, type BookType, type CellObject, type WorkSheet } from 'xlsx'
+import { read, utils, write, type BookType, type CellObject, type WorkBook, type WorkSheet } from 'xlsx'
 import { Languages, Lightbulb, Loader2, Save, Sparkles, Table2 } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { extOf } from '../../kernel/types'
@@ -91,39 +91,73 @@ function rangeLead(intent: RangeIntent, name: string, sheet: string, label: stri
 /** Excel column widths come in characters; FortuneSheet wants pixels. */
 const CHAR_PX = 7.5
 
-function fromSheetJs(ws: WorkSheet, name: string, order: number): Sheet {
-  const ref = ws['!ref'] ?? 'A1:A1'
-  const range = utils.decode_range(ref)
-  const celldata: CellWithRowAndCol[] = []
+/**
+ * The grid is sized by the cells that exist, never by the `!ref` the file declares: FortuneSheet materialises
+ * a dense matrix of row × column, nulls included, so one stray cell at row 200000 —or a generator writing
+ * A1:XFD1048576 into the dimension— froze the desk for seconds or killed the tab with no message at all. Past
+ * these caps the sheet loads cut, says so in the bar, and whatever fell outside is preserved when saving.
+ */
+const MAX_ROWS = 50_000
+const MAX_COLS = 1_024
+/** Ceiling on row × column as a whole, for files that are huge in both directions at once. */
+const DENSE_BUDGET = 2_000_000
+
+function fromSheetJs(ws: WorkSheet, name: string, order: number): { sheet: Sheet; trimmed: boolean } {
+  const cells: CellWithRowAndCol[] = []
+  let maxR = 0
+  let maxC = 0
   for (const addr of Object.keys(ws)) {
     if (addr.startsWith('!')) continue
     const cell = ws[addr] as CellObject
     if (cell.v === undefined && !cell.f) continue
     const { r, c } = utils.decode_cell(addr)
-    const value = cell.v instanceof Date ? cell.w ?? cell.v.toISOString() : cell.v
+    // Dates keep their serial number and their mask, which is how the file stores them. Reading them as text
+    // is what made a save leave them as text: aligned left, useless for sorting or subtracting.
     const v: Cell = {
-      v: value as string | number | boolean | undefined,
-      m: cell.w ?? (value === undefined ? '' : String(value)),
-      ct: { fa: typeof cell.z === 'string' ? cell.z : 'General', t: typeof value === 'number' ? 'n' : typeof value === 'boolean' ? 'b' : 'g' },
+      v: cell.v as string | number | boolean | undefined,
+      m: cell.w ?? (cell.v === undefined ? '' : String(cell.v)),
+      ct: { fa: typeof cell.z === 'string' ? cell.z : 'General', t: typeof cell.v === 'number' ? 'n' : typeof cell.v === 'boolean' ? 'b' : 'g' },
     }
     if (cell.f) v.f = `=${cell.f}`
-    celldata.push({ r, c, v })
+    cells.push({ r, c, v })
+    maxR = Math.max(maxR, r)
+    maxC = Math.max(maxC, c)
   }
+  let row = Math.min(Math.max(maxR + 1 + 10, MIN_ROWS), MAX_ROWS)
+  let column = Math.min(Math.max(maxC + 1 + 4, MIN_COLS), MAX_COLS)
+  if (row * column > DENSE_BUDGET) {
+    if (row >= column) row = Math.floor(DENSE_BUDGET / column)
+    else column = Math.floor(DENSE_BUDGET / row)
+  }
+  const trimmed = maxR + 1 > row || maxC + 1 > column
+  const celldata = trimmed ? cells.filter((d) => d.r < row && d.c < column) : cells
   const columnlen: Record<string, number> = {}
   ws['!cols']?.forEach((col, i) => {
     if (col?.wch) columnlen[String(i)] = Math.round(col.wch * CHAR_PX)
   })
+  // A merge the file already has was made on purpose: without it, merged headers came up split from the start.
+  const merge: Record<string, { r: number; c: number; rs: number; cs: number }> = {}
+  for (const range of ws['!merges'] ?? []) {
+    if (range.e.r >= row || range.e.c >= column) continue
+    merge[`${range.s.r}_${range.s.c}`] = { r: range.s.r, c: range.s.c, rs: range.e.r - range.s.r + 1, cs: range.e.c - range.s.c + 1 }
+  }
+  const config: Sheet['config'] = {}
+  if (Object.keys(columnlen).length) config.columnlen = columnlen
+  if (Object.keys(merge).length) config.merge = merge
   return {
-    id: `sheet-${order}`,
-    name,
-    order,
-    status: order === 0 ? 1 : 0,
-    celldata,
-    row: Math.max(range.e.r + 1 + 10, MIN_ROWS),
-    column: Math.max(range.e.c + 1 + 4, MIN_COLS),
-    config: Object.keys(columnlen).length ? { columnlen } : {},
-    // Without a starting selection the grid shows "A1:NaN" in its name box until the first click.
-    luckysheet_select_save: [{ row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 }],
+    sheet: {
+      id: `sheet-${order}`,
+      name,
+      order,
+      status: order === 0 ? 1 : 0,
+      celldata,
+      row,
+      column,
+      config,
+      // Without a starting selection the grid shows "A1:NaN" in its name box until the first click.
+      luckysheet_select_save: [{ row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 }],
+    },
+    trimmed,
   }
 }
 
@@ -152,29 +186,99 @@ const FORMATS: Record<string, { bookType: BookType; mime: string }> = {
 
 const formatFor = (name: string) => FORMATS[extOf(name)] ?? FORMATS.xlsx
 
-/** The live grid back into a workbook: values, formulas and the display strings SheetJS needs. */
-function toSheetJs(sheets: Sheet[], bookType: BookType): ArrayBuffer {
-  const wb = utils.book_new()
-  for (const sheet of [...sheets].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
-    const matrix = matrixOf(sheet)
-    const ws: WorkSheet = {}
-    let maxR = 0
-    let maxC = 0
-    matrix.forEach((row, r) => {
-      row?.forEach((cell, c) => {
-        if (!cell || (cell.v === undefined && !cell.f)) return
-        maxR = Math.max(maxR, r)
-        maxC = Math.max(maxC, c)
-        const raw = cell.v
-        const out: CellObject = typeof raw === 'number' ? { t: 'n', v: raw } : typeof raw === 'boolean' ? { t: 'b', v: raw } : { t: 's', v: raw === undefined ? '' : String(raw) }
-        if (cell.f) out.f = cell.f.replace(/^=/, '')
-        ws[utils.encode_cell({ r, c })] = out
-      })
+/** A grid cell back into a SheetJS cell: its value, its formula, and the mask it was shown with. */
+function cellObjectOf(cell: Cell): CellObject {
+  const raw = cell.v
+  const out: CellObject = typeof raw === 'number' ? { t: 'n', v: raw } : typeof raw === 'boolean' ? { t: 'b', v: raw } : { t: 's', v: raw === undefined || raw === null ? '' : String(raw) }
+  if (cell.f) out.f = cell.f.replace(/^=/, '')
+  // The mask is the difference between 0.15 and 15 %, and between a date and the bare number underneath it.
+  if (out.t === 'n' && typeof cell.ct?.fa === 'string' && cell.ct.fa !== 'General') out.z = cell.ct.fa
+  return out
+}
+
+/** Column widths and merges of the grid onto a worksheet. `keepRows`/`keepCols` carry file merges that start
+ *  outside the loaded window across a save: the grid never saw them, so it has no opinion about them. */
+function applyLayout(ws: WorkSheet, sheet: Sheet, keepRows: number, keepCols: number) {
+  const widths = sheet.config?.columnlen
+  if (widths) {
+    const cols = Array.isArray(ws['!cols']) ? [...ws['!cols']] : []
+    for (const [key, px] of Object.entries(widths)) cols[Number(key)] = { ...(cols[Number(key)] ?? {}), wch: Math.round(px / CHAR_PX) }
+    for (let i = 0; i < cols.length; i++) cols[i] ??= {}
+    ws['!cols'] = cols
+  }
+  const fromGrid = Object.values(sheet.config?.merge ?? {}).map((m) => ({ s: { r: m.r, c: m.c }, e: { r: m.r + m.rs - 1, c: m.c + m.cs - 1 } }))
+  const fromFile = keepRows ? (ws['!merges'] ?? []).filter((m) => m.s.r >= keepRows || m.s.c >= keepCols) : []
+  const merges = [...fromFile, ...fromGrid]
+  if (merges.length) ws['!merges'] = merges
+  else delete ws['!merges']
+}
+
+/** A sheet with no original to lean on: one born in the grid, or whose file was never kept. */
+function freshSheet(sheet: Sheet): WorkSheet {
+  const matrix = matrixOf(sheet)
+  const ws: WorkSheet = {}
+  let maxR = 0
+  let maxC = 0
+  matrix.forEach((row, r) => {
+    row?.forEach((cell, c) => {
+      if (!cell || ((cell.v === undefined || cell.v === null) && !cell.f)) return
+      maxR = Math.max(maxR, r)
+      maxC = Math.max(maxC, c)
+      ws[utils.encode_cell({ r, c })] = cellObjectOf(cell)
     })
-    ws['!ref'] = utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } })
-    const widths = sheet.config?.columnlen
-    if (widths) ws['!cols'] = Array.from({ length: maxC + 1 }, (_, i) => (widths[String(i)] ? { wch: Math.round(widths[String(i)] / CHAR_PX) } : {}))
-    utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31))
+  })
+  ws['!ref'] = utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } })
+  applyLayout(ws, sheet, 0, 0)
+  return ws
+}
+
+/**
+ * The grid written on top of the sheet it came from. Rebuilding the workbook from zero is what stripped every
+ * date into text, every percentage into 0.15 and the merged headers apart; here the original sheet is kept and
+ * only its cells are rewritten — and only within the window it was loaded into, because past it the grid would
+ * be deleting cells it never showed.
+ */
+function overlaySheet(base: WorkSheet, sheet: Sheet, win: { rows: number; cols: number } | undefined): WorkSheet {
+  const matrix = matrixOf(sheet)
+  const ws: WorkSheet = { ...base }
+  const rows = win?.rows ?? Number.POSITIVE_INFINITY
+  const cols = win?.cols ?? Number.POSITIVE_INFINITY
+  for (const addr of Object.keys(ws)) {
+    if (addr.startsWith('!')) continue
+    const { r, c } = utils.decode_cell(addr)
+    if (r < rows && c < cols) delete ws[addr]
+  }
+  matrix.forEach((row, r) => {
+    row?.forEach((cell, c) => {
+      if (!cell || ((cell.v === undefined || cell.v === null) && !cell.f)) return
+      ws[utils.encode_cell({ r, c })] = cellObjectOf(cell)
+    })
+  })
+  let maxR = 0
+  let maxC = 0
+  for (const addr of Object.keys(ws)) {
+    if (addr.startsWith('!')) continue
+    const { r, c } = utils.decode_cell(addr)
+    maxR = Math.max(maxR, r)
+    maxC = Math.max(maxC, c)
+  }
+  ws['!ref'] = utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } })
+  applyLayout(ws, sheet, win?.rows ?? 0, win?.cols ?? 0)
+  return ws
+}
+
+/**
+ * The grid back into its workbook, each sheet onto the one it came from: the `sheet-N` ids are the order the
+ * sheets were read in. Sheets renamed, reordered, added or deleted in the grid come out with their new place
+ * and name; everything the editor never touches —styles, margins, filters— rides along in the original.
+ */
+function toSheetJs(source: { wb: WorkBook; windows: Record<string, { rows: number; cols: number }> } | null, sheets: Sheet[], bookType: BookType): ArrayBuffer {
+  const wb = utils.book_new()
+  if (source?.wb.Props) wb.Props = source.wb.Props
+  for (const sheet of [...sheets].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
+    const idx = /^sheet-(\d+)$/.exec(sheet.id ?? '')?.[1]
+    const base = idx !== undefined ? source?.wb.Sheets[source.wb.SheetNames[Number(idx)]] : undefined
+    utils.book_append_sheet(wb, base ? overlaySheet(base, sheet, source?.windows[sheet.id ?? '']) : freshSheet(sheet), sheet.name.slice(0, 31))
   }
   return write(wb, { type: 'array', bookType }) as ArrayBuffer
 }
@@ -207,6 +311,9 @@ export default function SheetEditor({
   const dirtyRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const latest = useRef<Sheet[] | null>(null)
+  /** The workbook as it was read, with the window each sheet was loaded into: saving writes the grid on top of it. */
+  const source = useRef<{ wb: WorkBook; windows: Record<string, { rows: number; cols: number }> } | null>(null)
+  const [trimNote, setTrimNote] = useState<string | null>(null)
   // FortuneSheet reports a change while it lays the workbook out; only edits after that count as the person's.
   const settled = useRef(false)
   const [range, setRange] = useState<CellRange | null>(null)
@@ -327,12 +434,19 @@ export default function SheetEditor({
     blob
       .arrayBuffer()
       .then((buffer) => {
-        const wb = read(buffer, { type: 'array', cellDates: true, cellNF: true })
+        // Dates as serial numbers with their mask (no cellDates): a date read as text could not survive a save.
+        const wb = read(buffer, { type: 'array', cellNF: true })
         const parsed = wb.SheetNames.map((n, i) => fromSheetJs(wb.Sheets[n], n, i))
         if (alive) {
-          latest.current = parsed
+          const loaded = parsed.map((p) => p.sheet)
+          latest.current = loaded
+          source.current = { wb, windows: Object.fromEntries(parsed.map((p) => [p.sheet.id ?? '', { rows: p.sheet.row ?? 0, cols: p.sheet.column ?? 0 }])) }
+          const cut = parsed.filter((p) => p.trimmed)
+          // Being shown cut is a lasting condition of this sheet, not an event that passes: it stays in the bar.
+          const many = cut.length > 1
+          setTrimNote(cut.length ? `${cut.map((p) => `«${p.sheet.name}»`).join(', ')} se carga${many ? 'n' : ''} recortada${many ? 's' : ''}: lo que quedó fuera del editor se conserva al guardar.` : null)
           settled.current = false
-          setSheets(parsed)
+          setSheets(loaded)
           window.setTimeout(() => {
             settled.current = true
           }, 800)
@@ -349,7 +463,7 @@ export default function SheetEditor({
     () => () => {
       if (!dirtyRef.current || !latest.current) return
       const format = formatFor(name)
-      const buffer = toSheetJs(latest.current, format.bookType)
+      const buffer = toSheetJs(source.current, latest.current, format.bookType)
       void fs.writeBlob(nodeId, new Blob([buffer], { type: format.mime })).catch(() => undefined)
     },
     [nodeId, name],
@@ -363,7 +477,7 @@ export default function SheetEditor({
     await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())))
     try {
       const format = formatFor(name)
-      const buffer = toSheetJs(latest.current, format.bookType)
+      const buffer = toSheetJs(source.current, latest.current, format.bookType)
       const stamp = await fs.writeBlob(nodeId, new Blob([buffer], { type: format.mime }))
       onSaved?.(stamp)
       dirtyRef.current = false
@@ -403,6 +517,11 @@ export default function SheetEditor({
       <div className="flex items-center gap-2 border-b border-line bg-surface px-3 py-1.5 text-[12px]">
         <span className={cn('text-ink-3', dirty && 'text-ink-2')}>{dirty ? 'Cambios sin guardar' : 'Todo guardado'}</span>
         <span className="flex-1" />
+        {trimNote && (
+          <span className="max-w-[55%] truncate text-[11.5px] text-ink-3" title={trimNote}>
+            {trimNote}
+          </span>
+        )}
         <button
           type="button"
           disabled={!dirty || saving}
