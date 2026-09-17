@@ -21,17 +21,14 @@ un caso que alguien puede vivir usando el escritorio, no un olor de código. Viv
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
-| Alta | 53 | 42 | **11** |
+| Alta | 53 | 45 | **8** |
 | Media | 105 | 105 | 0 |
-| Baja | 28 | 0 | **28** |
+| Baja | 28 | 1 | **27** |
 
-### Las 11 altas que faltan
+### Las 8 altas que faltan
 
 | # | Dónde | Qué pasa |
 | --- | --- | --- |
-| 6 | `apps/SheetEditor.tsx:124` | Guardar una hoja reconstruye el libro desde cero: se pierden formatos, fechas y todo lo que no sea valor, fórmula y ancho de columna. |
-| 8 | `apps/SheetEditor.tsx:105` | `row`/`column` salen del `!ref` que declara el archivo; un `!ref` enorme materializa una matriz densa y congela la pestaña. |
-| 11 | `apps/PdfViewer.tsx:79` | Se monta una `<Page>` por cada página a la vez, con capa de texto y anotaciones: un PDF grande se come la memoria. |
 | 17 | `apps/Canvas.tsx:76` | Las ediciones del lienzo escriben con `fs.writeText` directo, sin pasar por el bus de comandos: no hay deshacer. |
 | 18 | `apps/Browser.tsx:46` | La barra de direcciones solo cambia cuando Sky navega: al navegar dentro de la página, el sistema sigue creyendo que estás en la anterior. |
 | 23 | `apps/Settings.tsx:569` | «N archivos con huella» lee un contador en memoria que arranca en cero: dice 0 sobre un índice lleno. |
@@ -41,7 +38,8 @@ un caso que alguien puede vivir usando el escritorio, no un olor de código. Viv
 | 46 | `commands/canvas.ts:38` | `parseCanvas` convierte lo ilegible en un lienzo vacío, que luego se guarda encima del original. |
 | 50 | `ai/tasks.ts:378` | `transformFile` corta a 60 000 caracteres sin marcar el corte, y «Aplicar al archivo» escribe el resultado truncado. |
 
-Las 28 bajas están en `hallazgos.json` bajo la clave `baja`; nadie las ha tocado.
+Las 27 bajas están en `hallazgos.json` bajo la clave `baja`; la primera (el zoom del visor de PDF en sus
+extremos) ya está cerrada.
 
 ## Cómo se trabaja
 
@@ -122,6 +120,11 @@ Los 105 hallazgos de severidad media, en seis commits temáticos. En una línea 
 - `6bf8579` lo que seleccionas es de donde lo seleccionaste (selección por superficie, Mayús+clic, arrastre).
 - `639a006` los widgets se quedan donde se alcanzan.
 - `067bdf7` lo que no se puede deshacer lo dice, y lo que se perdió no se borra solo.
+
+Después del relevo, la tanda que sigue:
+
+- `b8266c5` un PDF grande deja de montar todas sus páginas (alta 11, baja 39 del mismo archivo).
+- `af52eb8` guardar una hoja escribe sobre el libro, no lo reconstruye (altas 6 y 8).
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
