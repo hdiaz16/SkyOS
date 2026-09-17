@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { fs } from '../../kernel/fs'
+import { db } from '../../kernel/db'
 import { flows } from '../../kernel/flows'
 import { speak } from '../../ai/speech'
 import { dispatch, useToasts } from '../../kernel/commands'
@@ -684,10 +685,14 @@ function AiSection() {
 /** The on-device meaning model: one switch, one line of status. */
 function EmbeddingsRow() {
   const state = useEmbeddings()
+  // The real count, not the session's accumulator: `state.indexed` starts at zero on every load and only adds
+  // during indexing passes, so opening Ajustes over 200 fingerprinted files used to say «0 archivos con
+  // huella». This counts the rows that actually carry a vector, and moves while new ones arrive.
+  const indexed = useLiveQuery(async () => (await db.fileIndex.toArray()).filter((r) => r.embedding?.length).length, [])
   const status = !state.enabled
     ? 'Desactivada'
     : state.status === 'ready'
-      ? `Modelo listo · ${state.indexed} archivos con huella`
+      ? `Modelo listo · ${indexed ?? '…'} archivos con huella`
       : state.status === 'loading'
         ? `Descargando el modelo… ${Math.round(state.progress * 100)}%`
         : state.status === 'error'
