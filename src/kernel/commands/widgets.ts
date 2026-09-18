@@ -1,10 +1,11 @@
 import { registerCommand } from '../commands'
 import { WIDGET_META, WIDGET_TYPES, widgets, type Widget, type WidgetConfig, type WidgetType } from '../widgets'
+import { CURRENCIES } from '../../lib/currency'
 
 const TYPE_HELP = [
   'Tipos y su config:',
   'weather → { place } (nombre de ciudad; si se omite usa la ubicación del dispositivo).',
-  'currency → { from, to, amount } con códigos ISO como USD, MXN, EUR.',
+  `currency → { from, to, amount } con códigos soportados: ${Object.keys(CURRENCIES).join(', ')}.`,
   'recent → { limit } (cuántos archivos recientes mostrar).',
   'clock → { zones: [{ label, timeZone }] } con zonas IANA como "America/Bogota".',
   'todo → { items: [{ text, done }] }.',
@@ -12,6 +13,72 @@ const TYPE_HELP = [
   'timer → { seconds, label }.',
   'html → { html }: documento HTML completo y autocontenido (CSS y JS inline, sin recursos externos) mostrado en un marco aislado. Puede usar las variables CSS --ink, --ink-2, --ink-3, --accent, --accent-soft, --surface, --line. Úsalo solo cuando ningún tipo propio sirva (una gráfica, un contador específico, un tablero).',
 ].join(' ')
+
+const isString = (v: unknown): v is string => typeof v === 'string'
+const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+const validCurrency = (v: unknown): v is string => isString(v) && v.toUpperCase() in CURRENCIES
+
+function checkZone(z: unknown): boolean {
+  if (!z || typeof z !== 'object') return false
+  const { label, timeZone } = z as { label?: unknown; timeZone?: unknown }
+  if (!isString(label) || !isString(timeZone)) return false
+  try {
+    new Intl.DateTimeFormat('en', { timeZone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+const checkItem = (v: unknown): boolean => {
+  if (!v || typeof v !== 'object') return false
+  const i = v as { text?: unknown; done?: unknown; id?: unknown }
+  return isString(i.text) && typeof i.done === 'boolean' && (i.id === undefined || isString(i.id))
+}
+
+/** What each type accepts, and the form to say when it doesn't. */
+const CONFIG_KEYS: Record<WidgetType, Record<string, (v: unknown) => boolean>> = {
+  weather: { place: isString, lat: isNumber, lon: isNumber },
+  currency: { from: validCurrency, to: validCurrency, amount: (v) => isNumber(v) && v >= 0 },
+  recent: { limit: (v) => isNumber(v) && v > 0 },
+  clock: { zones: (v) => Array.isArray(v) && v.every(checkZone) },
+  todo: { items: (v) => Array.isArray(v) && v.every(checkItem) },
+  note: { text: isString },
+  timer: { seconds: (v) => isNumber(v) && v > 0, label: isString },
+  html: { html: isString },
+}
+
+const SHAPE: Record<WidgetType, string> = {
+  weather: '{ place, lat, lon }',
+  currency: '{ from, to, amount }',
+  recent: '{ limit }',
+  clock: '{ zones: [{ label, timeZone }] }',
+  todo: '{ items: [{ text, done }] }',
+  note: '{ text }',
+  timer: '{ seconds, label }',
+  html: '{ html }',
+}
+
+/**
+ * widgets.create took whatever config the model wrote and buried it under the defaults: «un temporizador de
+ * 10 minutos» arrived as { minutes: 10 }, the unknown key sat next to the 25:00 default and Sky confirmed a
+ * timer that was not the one asked for. Now each type says what it accepts and rejects the rest by name.
+ */
+function configProblem(type: WidgetType, config: WidgetConfig | undefined): string | null {
+  if (!config) return null
+  const allowed = CONFIG_KEYS[type]
+  for (const [key, value] of Object.entries(config)) {
+    const ok = allowed[key]
+    if (!ok) return `config de ${type} no admite «${key}»; espera ${SHAPE[type]}`
+    if (!ok(value)) {
+      if (type === 'currency' && (key === 'from' || key === 'to'))
+        return `Moneda no soportada: ${String(value)}. Códigos: ${Object.keys(CURRENCIES).join(', ')}`
+      return `config.${key} de ${type} no es válido; ${type} espera ${SHAPE[type]}`
+    }
+  }
+  return null
+}
+export { configProblem }
 
 function summarize(w: Widget) {
   const c = w.config
@@ -66,6 +133,8 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
   async run({ type, ...opts }) {
     if (!WIDGET_TYPES.includes(type)) throw new Error(`Tipo de widget desconocido: ${type}`)
     if (type === 'html' && typeof opts.config?.html !== 'string') throw new Error('Un widget html necesita config.html')
+    const problem = configProblem(type, opts.config)
+    if (problem) throw new Error(problem)
     const widget = await widgets.create(type, opts)
     return {
       result: widget,
@@ -89,6 +158,8 @@ registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
   async run({ id, title, config }) {
     const before = await widgets.get(id)
     if (!before) throw new Error('El widget ya no existe')
+    const problem = configProblem(before.type, config)
+    if (problem) throw new Error(problem)
     const after = await widgets.update(id, { title, config })
     return {
       result: after,
