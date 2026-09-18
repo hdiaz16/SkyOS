@@ -10,6 +10,7 @@ import { PromptDialog } from './components/PromptDialog'
 import { SnapOverlay } from './components/SnapOverlay'
 import { Toasts } from './components/Toasts'
 import { JobCards } from './components/JobCards'
+import { Permissions } from './components/system/Permissions'
 import { AiBackground } from './components/AiBackground'
 import { Departure } from './components/system/Departure'
 import { useSettings, applyTheme } from './state/settings'
@@ -140,6 +141,7 @@ export default function App() {
       <SnapOverlay />
       <Toasts />
       <JobCards />
+      <Permissions />
       <AiBackground />
       <Departure />
     </div>

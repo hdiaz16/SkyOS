@@ -159,6 +159,22 @@ export const useJobs = create<JobsState>((set, get) => ({
     }
     const quiet = opts.quiet ?? job.quiet
     if (!quiet) play(status === 'error' ? 'error' : 'done')
+    // What the notifications permission was asked for at entry: the tab in the background would otherwise
+    // miss the chime and the card both. Clicking brings the desktop back and opens what the job made.
+    if (!quiet && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try {
+        const note = new Notification(finished.title, {
+          body: status === 'error' ? finished.detail ?? 'Algo no salió bien' : finished.detail ?? 'Terminado',
+          tag: id,
+        })
+        note.onclick = () => {
+          window.focus()
+          finished.open?.()
+        }
+      } catch {
+        // Some platforms want a service worker for this; the card and the chime still exist.
+      }
+    }
     set((s) => ({
       jobs: { ...s.jobs, [id]: finished },
       cards: quiet

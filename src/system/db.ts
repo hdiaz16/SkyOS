@@ -22,6 +22,8 @@ export interface UserProfile {
   microphone?: Permission
   /** Whether Sky may speak out loud. */
   voice?: boolean
+  /** Whether the after-entry permission offer already happened; the browser owns the real permissions. */
+  permissionsOffered?: boolean
 }
 
 export interface UserRow {
