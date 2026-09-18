@@ -107,7 +107,9 @@ ejemplo: `git log --oneline -14`.
    menos a Hector**: el mailer por defecto de Supabase solo escribe al dueño del proyecto. El orden correcto es
    conectar Resend (o el SMTP que él elija), pegar la plantilla de `supabase/templates/magic-link.html`, y
    entonces sí las variables.
-2. **El paso corto de permisos** después de entrar (micrófono, ubicación, notificaciones) sigue sin existir.
+2. ~~El paso corto de permisos~~ — hecho en `d23625c` (micrófono, ubicación, notificaciones; **verificación
+   pendiente**: entrar con un perfil que no los haya ofrecido aún y ver la tarjeta a los cinco segundos, con
+   sus tres filas, lo ya concedido marcado y el cierre que no vuelve a molestar).
 3. **Las 28 bajas** de la auditoría.
 
 ## Lo que se hizo en esta tanda (septiembre de 2026)
@@ -151,6 +153,11 @@ Después del relevo, la tanda que sigue:
 - `bc2097d` transformar un archivo ya no borra lo que no cupo (alta 50) — **verificación pendiente**: con una
   nota de más de 60 000 caracteres, traducirla: el pie dice cuántos caracteres del final no se leyeron,
   «Aplicar al archivo» queda apagado con la explicación y «Guardar como copia» es el botón principal.
+- `d23625c` al entrar, el escritorio ofrece sus tres permisos de una vez (pendiente fuera de la auditoría) —
+  **verificación pendiente**: con un perfil que aún no los haya ofrecido, la tarjeta aparece unos cinco
+  segundos después de entrar; cada fila concede lo suyo, lo ya concedido no se ofrece, lo rechazado dice
+  dónde se cambia, y al cerrarla no vuelve a aparecer. Con la pestaña en segundo plano, un trabajo de fondo
+  que termina avisa por notificación y el clic devuelve el escritorio.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
