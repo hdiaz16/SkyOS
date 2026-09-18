@@ -1,7 +1,10 @@
 import { useAiSettings } from './settings'
+import { useVoiceSettings } from './voiceSettings'
 
 /**
  * Sky's voice, best first:
+ * - With an ElevenLabs key stored, the voice and model the person chose: neural voices made to sound like
+ *   someone talking, not someone reading.
  * - With a Gemini key stored, a model made for speech that takes direction: it is told how to say the line,
  *   not only what to say, which is the difference between reading and talking.
  * - With an OpenAI key, gpt-4o-mini-tts and the "nova" voice.
@@ -215,6 +218,64 @@ async function speakWithOpenAI(text: string, apiKey: string, signal: AbortSignal
   return reproducir(await res.blob(), () => !signal.aborted)
 }
 
+const ELEVEN = 'https://api.elevenlabs.io/api/v1'
+
+export interface ElevenVoice {
+  voice_id: string
+  name: string
+  category?: string
+}
+
+export interface ElevenModel {
+  model_id: string
+  name: string
+}
+
+/** The voices this key can use, the account's own first: the list belongs to the key's owner, like the key. */
+export async function listElevenVoices(apiKey: string): Promise<ElevenVoice[]> {
+  const res = await fetch(`${ELEVEN}/voices`, { headers: { 'xi-api-key': apiKey } })
+  if (!res.ok) throw new Error(res.status === 401 ? 'La llave de ElevenLabs no es válida.' : `ElevenLabs respondió ${res.status}.`)
+  const data = (await res.json()) as { voices?: ElevenVoice[] }
+  return data.voices ?? []
+}
+
+/** The models that can speak, asked to ElevenLabs itself so whatever they ship next arrives without an edit here. */
+export async function listElevenModels(apiKey: string): Promise<ElevenModel[]> {
+  const res = await fetch(`${ELEVEN}/models`, { headers: { 'xi-api-key': apiKey } })
+  if (!res.ok) return []
+  const data = (await res.json()) as Array<{ model_id: string; name: string; can_do_text_to_speech?: boolean }>
+  return data.filter((m) => m.can_do_text_to_speech).map(({ model_id, name }) => ({ model_id, name }))
+}
+
+/** Voices cached per key, so picking a default does not ask again on every line. */
+let voiceCache: { key: string; voices: ElevenVoice[] } | null = null
+
+/** The voice to speak with: the chosen one, or the account's first when nobody has chosen yet. */
+async function resolveElevenVoice(apiKey: string, voiceId: string): Promise<string> {
+  if (voiceId) return voiceId
+  if (voiceCache?.key !== apiKey) voiceCache = { key: apiKey, voices: await listElevenVoices(apiKey) }
+  return voiceCache.voices[0]?.voice_id ?? ''
+}
+
+async function speakWithElevenLabs(text: string, apiKey: string, voiceId: string, modelId: string, signal: AbortSignal): Promise<boolean> {
+  const voice = await resolveElevenVoice(apiKey, voiceId)
+  if (!voice) return false
+  const res = await fetch(`${ELEVEN}/text-to-speech/${voice}?output_format=mp3_44100_128`, {
+    method: 'POST',
+    signal,
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: text.slice(0, 4000),
+      ...(modelId ? { model_id: modelId } : {}),
+      // Stability halfway so it does not drone; similarity and speaker boost high so it stays the same person
+      // line after line; a touch of style so questions sound like questions.
+      voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.15, use_speaker_boost: true },
+    }),
+  })
+  if (!res.ok) return false
+  return reproducir(await res.blob(), () => !signal.aborted)
+}
+
 /** Speaks the text. Resolves true when it finished, false when nothing could speak or the browser refused. */
 export async function speak(text: string): Promise<boolean> {
   // Nobody wants to hear a URL spelled out letter by letter, and markdown marks are for the eye.
@@ -231,7 +292,16 @@ export async function speak(text: string): Promise<boolean> {
   enVuelo = controller
   const vigente = () => mio === turno
   const { keys } = useAiSettings.getState()
+  const { elevenKey, elevenVoiceId, elevenModel } = useVoiceSettings.getState()
   // Best available wins, and every one of them falls through to the next without saying a word about it.
+  if (elevenKey) {
+    try {
+      if (await speakWithElevenLabs(clean, elevenKey, elevenVoiceId, elevenModel, controller.signal)) return true
+    } catch {
+      /* siguiente */
+    }
+    if (!vigente()) return false
+  }
   if (keys.gemini) {
     try {
       if (await speakWithGemini(clean, keys.gemini, controller.signal)) return true

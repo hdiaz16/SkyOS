@@ -26,7 +26,8 @@ import {
 import { fs } from '../../kernel/fs'
 import { db } from '../../kernel/db'
 import { flows } from '../../kernel/flows'
-import { speak } from '../../ai/speech'
+import { speak, listElevenVoices, listElevenModels, type ElevenVoice, type ElevenModel } from '../../ai/speech'
+import { useVoiceSettings } from '../../ai/voiceSettings'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { useSettings, type Theme } from '../../state/settings'
 import {
@@ -201,8 +202,38 @@ function AppearanceSection() {
 function VoiceRow() {
   const keys = useAiSettings((s) => s.keys)
   const setKey = useAiSettings((s) => s.setKey)
+  const voice = useVoiceSettings()
   const [probando, setProbando] = useState(false)
-  const natural = !!(keys.gemini || keys.openai)
+  const [voices, setVoices] = useState<ElevenVoice[] | null>(null)
+  const [models, setModels] = useState<ElevenModel[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const natural = !!(voice.elevenKey || keys.gemini || keys.openai)
+
+  // The voices and models belong to the key's account: they arrive when the key does, and the first voice
+  // becomes the chosen one so there is always something selected to hear.
+  useEffect(() => {
+    setVoices(null)
+    setModels(null)
+    setError(null)
+    if (!voice.elevenKey) return
+    let alive = true
+    void (async () => {
+      try {
+        const [vs, ms] = await Promise.all([listElevenVoices(voice.elevenKey), listElevenModels(voice.elevenKey)])
+        if (!alive) return
+        setVoices(vs)
+        setModels(ms)
+        if (vs.length && !voice.elevenVoiceId) voice.setElevenVoice(vs[0].voice_id)
+        if (ms.length && !voice.elevenModel) voice.setElevenModel(ms[0].model_id)
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : 'No pude leer tus voces de ElevenLabs.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.elevenKey])
 
   const probar = async () => {
     setProbando(true)
@@ -216,9 +247,11 @@ function VoiceRow() {
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-ink">La voz de Sky</p>
           <p className="text-[12px] leading-relaxed text-ink-3">
-            {natural
-              ? 'Ahora mismo habla con una voz hecha para hablar: respira entre frases y se le puede pedir el tono.'
-              : 'Ahora mismo usa la voz del navegador. Cumple, pero se le oye la máquina. Con una llave de Gemini habla de verdad, y su nivel gratis alcanza de sobra.'}
+            {voice.elevenKey
+              ? 'Habla con la voz que elegiste de ElevenLabs: neuronal, hecha para sonar a persona.'
+              : natural
+                ? 'Ahora mismo habla con una voz hecha para hablar: respira entre frases y se le puede pedir el tono.'
+                : 'Ahora mismo usa la voz del navegador. Cumple, pero se le oye la máquina. Con una llave de ElevenLabs o de Gemini habla de verdad.'}
           </p>
         </div>
         <button
@@ -231,6 +264,76 @@ function VoiceRow() {
           {probando ? 'Hablando…' : 'Escúchala'}
         </button>
       </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="password"
+          value={voice.elevenKey}
+          onChange={(e) => voice.setElevenKey(e.target.value)}
+          placeholder="Llave de ElevenLabs (la voz más natural)"
+          aria-label="Llave de ElevenLabs"
+          spellCheck={false}
+          autoComplete="off"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface-solid px-3 text-[13px] text-ink outline-none transition focus:border-accent"
+        />
+        <a
+          href="https://elevenlabs.io/app/settings/api-keys"
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 text-[12px] font-medium text-accent transition hover:underline"
+        >
+          Conseguir una
+        </a>
+      </div>
+      {error && <p className="text-[12px] text-danger">{error}</p>}
+      {voice.elevenKey && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11.5px] text-ink-3">Voz</span>
+            <select
+              aria-label="Voz de ElevenLabs"
+              value={voice.elevenVoiceId}
+              onChange={(e) => voice.setElevenVoice(e.target.value)}
+              className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 text-[13px] text-ink outline-none focus:border-accent"
+            >
+              {voices === null ? (
+                <option value="">{error ? 'Sin voces' : 'Leyendo tus voces…'}</option>
+              ) : voices.length === 0 ? (
+                <option value="">Esta cuenta no tiene voces</option>
+              ) : (
+                voices.map((v) => (
+                  <option key={v.voice_id} value={v.voice_id}>
+                    {v.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11.5px] text-ink-3">Modelo</span>
+            <select
+              aria-label="Modelo de ElevenLabs"
+              value={voice.elevenModel}
+              onChange={(e) => voice.setElevenModel(e.target.value)}
+              className="h-9 w-full rounded-lg border border-line bg-surface-solid px-2.5 text-[13px] text-ink outline-none focus:border-accent"
+            >
+              {models === null ? (
+                <option value="">{error ? 'Sin modelos' : 'Leyendo los modelos…'}</option>
+              ) : models.length === 0 ? (
+                <option value="">El de la cuenta</option>
+              ) : (
+                models.map((m) => (
+                  <option key={m.model_id} value={m.model_id}>
+                    {m.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+        </div>
+      )}
+      <p className="text-[11.5px] leading-relaxed text-ink-3">Las llaves viven solo en tu cuenta, en este navegador; nadie más las ve ni las oye.</p>
+
       {!natural && (
         <div className="flex items-center gap-2">
           <input
