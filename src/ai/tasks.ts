@@ -26,6 +26,8 @@ export interface TaskContext {
   /** Suggested file name when saving. */
   saveAs?: string
   url?: string
+  /** Characters at the end of the source that never reached the model. Applying the result would drop them. */
+  truncated?: number
 }
 
 export interface Task {
@@ -394,18 +396,25 @@ export const TRANSFORM_PRESETS: TransformPreset[] = [
 ]
 
 /** Runs an instruction over a text file and shows the result as a preview the user can apply. */
+export const MAX_TRANSFORM_CHARS = 60000
+
 export async function transformFile(nodeId: string, instruction: string, label?: string): Promise<string> {
   const node = await fs.get(nodeId)
   if (!node) throw new Error('El archivo ya no existe')
   const text = await fs.readText(nodeId)
   if (!text.trim()) throw new Error('El archivo está vacío')
+  // The cut used to be silent: the model rewrote the first 60 000 characters and «Aplicar al archivo» wrote
+  // them over the whole file, losing the rest with no one saying so. Now the cut says itself, and the result
+  // window knows it happened.
+  const unread = Math.max(0, text.length - MAX_TRANSFORM_CHARS)
+  const body = unread ? `${text.slice(0, MAX_TRANSFORM_CHARS)}\n…[recortado: se leyeron ${MAX_TRANSFORM_CHARS} de ${text.length} caracteres]` : text
 
   return startTask({
     kind: 'transform',
     title: `${label ?? 'Transformar'} · ${node.name}`,
-    prompt: `Instrucción: ${instruction}\n\nArchivo "${node.name}":\n\n${text.slice(0, 60000)}`,
+    prompt: `Instrucción: ${instruction}\n\nArchivo "${node.name}":\n\n${body}`,
     extraSystem:
       'Tarea: transformar el contenido de un archivo según la instrucción. Devuelve únicamente el texto resultante, listo para guardarse en el archivo: sin explicaciones, sin comillas envolventes ni bloques de código, salvo que el resultado sea código o JSON.',
-    context: { nodeId, folderId: node.parentId, saveAs: node.name },
+    context: { nodeId, folderId: node.parentId, saveAs: node.name, ...(unread ? { truncated: unread } : {}) },
   })
 }

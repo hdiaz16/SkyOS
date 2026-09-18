@@ -27,6 +27,9 @@ export function ResultApp({ win }: { win: Win }) {
   // Stopping a long answer left its text on screen and every button dead: what was already written could not
   // be copied, saved or applied. Anything that is not still running and has words counts.
   const canAct = !running && task.text.trim().length > 0
+  // The source file did not fit: the model only ever saw its first part, and applying the result would write
+  // that part over the whole file. The person gets told, and the button that would do it stays off.
+  const truncated = task.kind === 'transform' && typeof task.context.truncated === 'number' ? task.context.truncated : 0
 
   const copy = async () => {
     await navigator.clipboard.writeText(task.text)
@@ -82,6 +85,7 @@ export function ResultApp({ win }: { win: Win }) {
             <>
               <Check className="h-3.5 w-3.5 text-accent" />
               Listo
+              {truncated > 0 && <span>· {truncated.toLocaleString('es-MX')} caracteres del final no se leyeron</span>}
             </>
           ) : null}
         </span>
@@ -97,10 +101,16 @@ export function ResultApp({ win }: { win: Win }) {
               </ActionButton>
               {task.kind === 'transform' && task.context.nodeId ? (
                 <>
-                  <ActionButton onClick={() => void saveAsNote()} disabled={!canAct} icon={<Save className="h-3.5 w-3.5" />}>
+                  <ActionButton onClick={() => void saveAsNote()} disabled={!canAct} primary={!!truncated} icon={<Save className="h-3.5 w-3.5" />}>
                     Guardar como copia
                   </ActionButton>
-                  <ActionButton onClick={() => void applyToFile()} disabled={!canAct || applied} primary icon={<Check className="h-3.5 w-3.5" />}>
+                  <ActionButton
+                    onClick={() => void applyToFile()}
+                    disabled={!canAct || applied || !!truncated}
+                    title={truncated ? `El archivo no cupo entero: aplicarlo borraría los ${truncated.toLocaleString('es-MX')} caracteres que Sky no leyó. Guárdalo como copia.` : undefined}
+                    primary={!truncated}
+                    icon={<Check className="h-3.5 w-3.5" />}
+                  >
                     {applied ? 'Aplicado' : 'Aplicar al archivo'}
                   </ActionButton>
                 </>
@@ -127,12 +137,14 @@ function ActionButton({
   disabled,
   primary,
   icon,
+  title,
   children,
 }: {
   onClick: () => void
   disabled?: boolean
   primary?: boolean
   icon: React.ReactNode
+  title?: string
   children: React.ReactNode
 }) {
   return (
@@ -140,6 +152,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={cn(
         'flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition disabled:opacity-40',
         primary ? 'bg-accent text-white shadow-soft hover:brightness-110' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
