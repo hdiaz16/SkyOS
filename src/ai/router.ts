@@ -1,4 +1,4 @@
-import { AUTO_MODEL, presetFor, type AiSettingsState } from './settings'
+import { AUTO_MODEL, effectiveTiers, presetFor, type AiSettingsState } from './settings'
 import type { Attachment } from './types'
 
 /**
@@ -44,9 +44,10 @@ export interface Route {
 /** The concrete model to call for this request under the current settings. */
 export function resolveModel(state: AiSettingsState, input: RouteInput, forceTier?: Tier): Route {
   const preset = presetFor(state.provider)
-  if (state.model !== AUTO_MODEL || !preset.tiers) return { model: state.model, tier: null, auto: false }
+  const tiers = effectiveTiers(state, preset)
+  if (state.model !== AUTO_MODEL || !tiers) return { model: state.model, tier: null, auto: false }
   const tier = forceTier ?? estimateTier(input)
-  return { model: preset.tiers[tier], tier, auto: true }
+  return { model: tiers[tier], tier, auto: true }
 }
 
 /** Short human label for a model id, e.g. "Claude Haiku 4.5" or the raw id when unknown. */

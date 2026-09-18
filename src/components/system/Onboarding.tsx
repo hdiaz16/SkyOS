@@ -7,8 +7,9 @@ import { users } from '../../system/users'
 import { useAuth } from '../../system/auth'
 import { startSession } from '../../system/session'
 import { persistThemeFor } from '../../state/settings'
-import { AUTO_MODEL, persistAiSettingsFor, presetFor, type ProviderId } from '../../ai/settings'
+import { AUTO_MODEL, baseUrlFor, inferTiers, persistAiSettingsFor, presetFor, useAiSettings, type ProviderId } from '../../ai/settings'
 import { createOpenAICompatProvider } from '../../ai/providers/openaiCompat'
+import { listModels } from '../../ai/providers/openaiCompat'
 import { createAnthropicProvider } from '../../ai/providers/anthropic'
 import { approximateLocation } from '../../lib/weather'
 import { cn } from '../../lib/utils'
@@ -24,7 +25,7 @@ type Step = 'hello' | 'name' | 'ai' | 'setup'
  */
 const ORDER: Step[] = hasSharedGroqKey ? ['hello', 'name', 'setup'] : ['hello', 'name', 'ai', 'setup']
 
-const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'openrouter', 'ollama']
+const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'glm', 'openrouter', 'ollama']
 
 /** One question at a time, a breathing presence, and the sense that this space is being made for you. */
 export function Onboarding() {
@@ -71,10 +72,17 @@ export function Onboarding() {
           ? createAnthropicProvider(apiKey.trim())
           : createOpenAICompatProvider({ id: provider, name: preset.name, baseUrl: preset.baseUrl ?? '', apiKey: apiKey.trim() || undefined, vision: preset.vision })
       const model = preset.tiers?.fast ?? preset.models[0]?.id ?? ''
-      if (!model) throw new Error('Elige el modelo después en Ajustes')
+      // Live-tier providers (GLM) publish their models at their API: ask for the list and take the cheap end
+      // of what comes back, which is where everyday requests start anyway.
+      const chosen =
+        model ||
+        (preset.autoTiers
+          ? await listModels(baseUrlFor(useAiSettings.getState(), provider), apiKey.trim() || undefined).then((ids) => inferTiers(ids)?.fast ?? ids[0] ?? '')
+          : '')
+      if (!chosen) throw new Error('No pude leer los modelos de este proveedor; revisa la llave')
       let out = ''
       for await (const ev of p.chat({
-        model,
+        model: chosen,
         system: 'Responde únicamente con la palabra OK.',
         messages: [{ role: 'user', parts: [{ type: 'text', text: 'Prueba de conexión' }] }],
         maxTokens: 400,
@@ -104,7 +112,7 @@ export function Onboarding() {
     const preset = presetFor(chosen)
     persistAiSettingsFor(user.id, {
       provider: chosen,
-      model: preset.tiers ? AUTO_MODEL : preset.models[0]?.id ?? '',
+      model: preset.tiers || preset.autoTiers ? AUTO_MODEL : preset.models[0]?.id ?? '',
       keys: ownKey && apiKey.trim() ? { [chosen]: apiKey.trim() } : {},
     })
     return user

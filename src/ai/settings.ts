@@ -3,7 +3,7 @@ import { sessionSuffix } from '../system/session'
 import { DEFAULT_GROQ_KEY, hasAiProxy, hasSharedGroqKey, sharedGroqBaseUrl } from '../config'
 import type { Effort, ModelInfo } from './types'
 
-export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'gemini' | 'openrouter' | 'ollama' | 'custom' | 'mock'
+export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'gemini' | 'glm' | 'openrouter' | 'ollama' | 'custom' | 'mock'
 
 /** Model of each speed tier, used by the automatic router and by background chores. */
 export interface ModelTiers {
@@ -24,6 +24,8 @@ export interface ProviderPreset {
   models: ModelInfo[]
   /** Present when the provider offers models of clearly different speed, enabling "auto". */
   tiers?: ModelTiers
+  /** Tiers are not written here: they are read from the provider's own model list each time it changes. */
+  autoTiers?: boolean
   modelHint: string
   /** Whether image input works for this provider's typical models. */
   vision: boolean
@@ -95,6 +97,20 @@ export const PROVIDERS: ProviderPreset[] = [
     vision: true,
   },
   {
+    id: 'glm',
+    name: 'GLM (Z.ai)',
+    tagline: 'Los modelos GLM de Z.ai con tu propia llave: buen criterio para código y trabajo largo. La lista de modelos llega viva del proveedor.',
+    needsKey: true,
+    keyUrl: 'https://z.ai/manage-apikey/apikey',
+    baseUrl: 'https://api.z.ai/api/paas/v4',
+    // No models are written here: what Z.ai serves today is asked to Z.ai itself, so new generations
+    // (and retirements) arrive without anyone editing this file.
+    models: [],
+    autoTiers: true,
+    modelHint: 'p. ej. glm-4.6',
+    vision: false,
+  },
+  {
     id: 'openrouter',
     name: 'OpenRouter',
     tagline: 'Cientos de modelos con una sola llave.',
@@ -139,6 +155,42 @@ export const PROVIDERS: ProviderPreset[] = [
 
 export const presetFor = (id: ProviderId): ProviderPreset => PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0]
 
+/** Ids that cannot take a chat: they make embeddings, guardrails, video or narration, not conversation. */
+const NOT_CHAT = /embed|rerank|guard|video|realtime|audio|tts|stt|asr|image|moderation|(^|[-_.\d])v(ision)?(\d|$)/i
+/** The names providers give their small, cheap models: Air, Mini, Flash, Turbo and friends. */
+const CHEAP = /(^|[-_.])(air|airx|mini|flash|flashx|lite|small|nano|turbo|haste|swift)($|[-_.\d])/i
+
+/** The version inside a model id, so generations can be compared: glm-4.6 → 4.6. Zero when there is none. */
+const versionOf = (id: string): number => {
+  const nums = [...id.matchAll(/\d+(?:\.\d+)*/g)].map((m) => parseFloat(m[0]))
+  return nums.length ? Math.max(...nums) : 0
+}
+
+/**
+ * Tiers read from the names the provider itself lists, so nothing is written down to go stale: the cheap
+ * markers name the fast tier, the highest version without them is the deep one, and the next of the same
+ * standing balances. Requests start cheap and escalate by intent (router.ts); this only says which id each
+ * step is today. When nothing is listed, there are no tiers and the person picks by hand.
+ */
+export function inferTiers(ids: string[]): ModelTiers | null {
+  const usable = ids.filter((id) => !NOT_CHAT.test(id))
+  if (!usable.length) return null
+  const byVersion = [...usable].sort((a, b) => versionOf(b) - versionOf(a))
+  const cheap = byVersion.find((id) => CHEAP.test(id))
+  const full = byVersion.filter((id) => !CHEAP.test(id))
+  const deep = full[0] ?? byVersion[0]
+  const balanced = full[1] ?? deep
+  const fast = cheap ?? balanced
+  return { fast, balanced, deep }
+}
+
+/** The tiers a request routes with: the provider's own when it has them, else the ones inferred from its live list. */
+export function effectiveTiers(state: AiSettingsState = useAiSettings.getState(), preset: ProviderPreset = presetFor(state.provider)): ModelTiers | undefined {
+  if (preset.tiers) return preset.tiers
+  if (!preset.autoTiers) return undefined
+  return inferTiers(state.discovered[preset.id] ?? []) ?? undefined
+}
+
 /**
  * Models that read the depth setting: the Claude ones that declare it (providers/anthropic.ts, CAPS) and the
  * gpt-oss family, which turns it into reasoning_effort (providers/openaiCompat.ts). Haiku and the rest ignore it.
@@ -152,7 +204,8 @@ const READS_EFFORT = /^claude-(opus|sonnet|fable)|gpt-oss/
  */
 export function usesEffort(state: AiSettingsState = useAiSettings.getState()): boolean {
   const preset = presetFor(state.provider)
-  const models = state.model === AUTO_MODEL && preset.tiers ? [preset.tiers.fast, preset.tiers.balanced, preset.tiers.deep] : [state.model]
+  const tiers = effectiveTiers(state, preset)
+  const models = state.model === AUTO_MODEL && tiers ? [tiers.fast, tiers.balanced, tiers.deep] : [state.model]
   return models.some((m) => READS_EFFORT.test(m))
 }
 
@@ -245,7 +298,7 @@ export function persistAiSettingsFor(userId: string, data: Partial<Persisted>): 
 
 /** Sensible model when switching provider: auto for tiered providers, else the first known model. */
 export function defaultModelFor(preset: ProviderPreset): string {
-  return preset.tiers ? AUTO_MODEL : preset.models[0]?.id ?? ''
+  return preset.tiers || preset.autoTiers ? AUTO_MODEL : preset.models[0]?.id ?? ''
 }
 
 export const useAiSettings = create<AiSettingsState>((set, get) => ({
@@ -283,16 +336,14 @@ export const useAiSettings = create<AiSettingsState>((set, get) => ({
 
 /** A quicker, cheaper model for background chores (indexing, classification) when the provider offers one. */
 export function fastModelFor(state: AiSettingsState = useAiSettings.getState()): string | undefined {
-  const preset = presetFor(state.provider)
-  if (preset.tiers) return preset.tiers.fast
-  return undefined
+  return effectiveTiers(state)?.fast
 }
 
 /** True when the selected provider has what it needs to make a request. */
 export function isAiConfigured(state: AiSettingsState = useAiSettings.getState()): boolean {
   const preset = presetFor(state.provider)
   if (!state.model.trim()) return false
-  if (state.model === AUTO_MODEL && !preset.tiers) return false
+  if (state.model === AUTO_MODEL && !effectiveTiers(state)) return false
   // Riding on the deployment's relay needs no key in the browser at all.
   if (preset.needsKey && !resolveKey(state) && !usesRelay(state)) return false
   if (state.provider === 'custom' && !state.baseUrls.custom) return false

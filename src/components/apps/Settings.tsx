@@ -32,6 +32,7 @@ import { useSettings, type Theme } from '../../state/settings'
 import {
   AUTO_MODEL,
   baseUrlFor,
+  effectiveTiers,
   isAiConfigured,
   presetFor,
   PROVIDERS,
@@ -42,7 +43,7 @@ import {
   usesSharedKey,
   type ProviderId,
 } from '../../ai/settings'
-import { getProvider } from '../../ai/providers'
+import { ensureDiscovered, getProvider } from '../../ai/providers'
 import { listModels } from '../../ai/providers/openaiCompat'
 import { TIER_LABELS } from '../../ai/router'
 import { AiError, type Effort } from '../../ai/types'
@@ -469,13 +470,24 @@ function AiSection() {
   const extraModels = discovered.filter((id) => !knownIds.has(id))
   // Sky's included key is resolved at request time and never shown; the field only ever holds the person's own.
   const shared = usesSharedKey(ai)
+  const tiers = effectiveTiers(ai, preset)
+
+  // Live-tier providers (GLM) get their model list the moment there is a key to ask with, so «Automático»
+  // has something real to route with instead of waiting for the person to find the button.
+  useEffect(() => {
+    if (!preset.autoTiers || discovered.length) return
+    if (preset.needsKey && !resolveKey(ai) && !usesRelay(ai)) return
+    void ensureDiscovered(ai)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai.provider, ai.keys[ai.provider], discovered.length])
 
   const runTest = async () => {
     setTest({ state: 'running' })
     try {
       const provider = getProvider(ai)
       if (!provider) throw new AiError('Falta completar la configuración.')
-      const model = ai.model === AUTO_MODEL ? preset.tiers?.fast ?? '' : ai.model
+      const model = ai.model === AUTO_MODEL ? tiers?.fast ?? discovered[0] ?? '' : ai.model
+      if (!model) throw new AiError('No hay ningún modelo todavía: consulta los disponibles o escribe uno.')
       let out = ''
       for await (const ev of provider.chat({
         model,
@@ -595,13 +607,15 @@ function AiSection() {
       <Field
         label="Modelo"
         hint={
-          ai.model === AUTO_MODEL && preset.tiers
-            ? `Automático: ${TIER_LABELS.fast} → ${labelOf(preset, preset.tiers.fast)}; ${TIER_LABELS.deep} → ${labelOf(preset, preset.tiers.deep)}. Sky elige según la dificultad de cada petición.`
-            : undefined
+          ai.model === AUTO_MODEL && tiers
+            ? `Automático: ${TIER_LABELS.fast} → ${labelOf(preset, tiers.fast)}; ${TIER_LABELS.deep} → ${labelOf(preset, tiers.deep)}. Sky empieza con lo más económico y sube según la dificultad de cada petición.`
+            : preset.autoTiers && !discovered.length
+              ? 'Los modelos de este proveedor se leen directo de su API: pega la llave y la lista llega sola.'
+              : undefined
         }
       >
         <div className="flex flex-col gap-1.5">
-          {preset.tiers && (
+          {tiers && (
             <ModelOption selected={ai.model === AUTO_MODEL} onClick={() => ai.setModel(AUTO_MODEL)} label="Automático" hint="según la tarea" recommended />
           )}
           {preset.models.map((m) => (

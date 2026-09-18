@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
-import { getProvider } from './providers'
-import { AUTO_MODEL, isAiConfigured, presetFor, PROVIDERS, useAiSettings, type AiSettingsState, type ProviderId } from './settings'
+import { getProvider, ensureDiscovered } from './providers'
+import { AUTO_MODEL, effectiveTiers, isAiConfigured, presetFor, PROVIDERS, useAiSettings, type AiSettingsState, type ProviderId } from './settings'
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
 import { sanitizeHistory } from './history'
@@ -78,7 +78,12 @@ const MAX_WAIT_MS = 20_000
 /** Sibling models of the same provider, each with its own rate-limit quota, most capable first, none tried yet. */
 function nextModel(settings: AiSettingsState, current: string, tried: Set<string>, needsTools: boolean): string | undefined {
   const preset = presetFor(settings.provider)
-  const order = [preset.tiers?.deep, preset.tiers?.balanced, preset.tiers?.fast, ...preset.models.map((m) => m.id)].filter((id): id is string => !!id)
+  const tiers = effectiveTiers(settings, preset)
+  // With live-discovered models there is no per-model metadata, so the ordered chain is the tiers followed by
+  // everything else the provider lists; ids written in the preset keep their own order and their tool notes.
+  const order = [tiers?.deep, tiers?.balanced, tiers?.fast, ...preset.models.map((m) => m.id), ...(preset.autoTiers ? settings.discovered[preset.id] ?? [] : [])].filter(
+    (id): id is string => !!id,
+  )
   return order.find((id) => id !== current && !tried.has(id) && (!needsTools || preset.models.find((m) => m.id === id)?.tools !== false))
 }
 
@@ -119,7 +124,7 @@ function slimHistory(m: ChatMessage): ChatMessage {
 function alternateProvider(current: AiSettingsState, exclude: Set<ProviderId>): AiSettingsState | undefined {
   for (const preset of PROVIDERS) {
     if (exclude.has(preset.id) || preset.devOnly || !preset.needsKey || !current.keys[preset.id]) continue
-    const model = preset.tiers ? AUTO_MODEL : (current.discovered[preset.id]?.[0] ?? preset.models[0]?.id ?? '')
+    const model = preset.tiers || preset.autoTiers ? AUTO_MODEL : (current.discovered[preset.id]?.[0] ?? preset.models[0]?.id ?? '')
     const candidate: AiSettingsState = { ...current, provider: preset.id, model }
     if (isAiConfigured(candidate) && getProvider(candidate)) return candidate
   }
@@ -128,8 +133,13 @@ function alternateProvider(current: AiSettingsState, exclude: Set<ProviderId>): 
 
 export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   const settings = useAiSettings.getState()
+  // GLM-style providers read their tiers off their own live model list; it has to be in hand before routing.
+  await ensureDiscovered(settings)
   let provider = getProvider(settings)
   if (!provider) throw new AiError('Configura un proveedor de IA en Ajustes para empezar.')
+  if (settings.model === AUTO_MODEL && !effectiveTiers(settings)) {
+    throw new AiError(`No pude leer la lista de modelos de ${presetFor(settings.provider).name}. Revisa tu llave o pulsa «Consultar modelos disponibles» en Ajustes.`)
+  }
   // The provider actually answering; it changes if the first one cannot keep up and another is configured.
   let active = settings
   const triedProviders = new Set<ProviderId>([settings.provider])
