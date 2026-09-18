@@ -63,14 +63,19 @@ function isBlock(b: unknown): b is CanvasBlock {
   return typeof o.id === 'string' && isBlockKind(o.kind) && typeof o.content === 'string' && [o.x, o.y, o.w, o.h].every((n) => typeof n === 'number')
 }
 
-/** Reads a canvas file; anything malformed becomes an empty board rather than an error. */
-export function parseCanvas(text: string): CanvasDoc {
+/**
+ * Reads a canvas file. Empty text is a board being born; anything else that is not our own shape — a sync
+ * that truncated it halfway, a .txt renamed to .canvas — is unreadable. Handing out an empty board for it is
+ * how it got written over with nothing but the new block.
+ */
+export function parseCanvas(text: string): CanvasDoc | null {
+  if (!text.trim()) return emptyCanvas()
   try {
-    const raw = JSON.parse(text) as Partial<CanvasDoc>
-    const blocks = Array.isArray(raw.blocks) ? raw.blocks.filter(isBlock) : []
-    return { version: 1, blocks }
+    const raw = JSON.parse(text) as Partial<CanvasDoc> | null
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.blocks)) return null
+    return { version: 1, blocks: raw.blocks.filter(isBlock) }
   } catch {
-    return emptyCanvas()
+    return null
   }
 }
 
@@ -103,10 +108,12 @@ export function appendBlocks(doc: CanvasDoc, items: NewBlock[]): { doc: CanvasDo
   return { doc: { version: 1, blocks }, ids }
 }
 
-/** The words in a canvas, for search and for Sky: block titles and contents in order. */
+/** The words in a canvas, for search and for Sky: block titles and contents in order. An unreadable file has none to vouch for. */
 export function canvasText(text: string): string {
-  return parseCanvas(text)
-    .blocks.map((b) => {
+  const doc = parseCanvas(text)
+  if (!doc) return ''
+  return doc.blocks
+    .map((b) => {
       const head = b.title ? `## ${b.title}\n` : ''
       const body = b.kind === 'mermaid' ? ['```mermaid', b.content, '```'].join('\n') : b.content
       return head + body

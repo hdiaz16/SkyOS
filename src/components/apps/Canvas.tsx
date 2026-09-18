@@ -55,8 +55,13 @@ export function CanvasApp({ win }: { win: Win }) {
     void fs.readText(nodeId).then(
       (t) => {
         if (!alive) return
-        loadedVersion.current = node.updatedAt
+        // Reading a file that is not a board as an empty one is how its content got saved over with nothing.
         const next = parseCanvas(t)
+        if (!next) {
+          setUnreadable(true)
+          return
+        }
+        loadedVersion.current = node.updatedAt
         // A board is wider than its window: Sky said «1 bloque añadido» and the visible part did not change,
         // because the new block had landed at x=952 or on a second row. The first one gets scrolled to.
         setDoc((before) => {
@@ -109,9 +114,12 @@ export function CanvasApp({ win }: { win: Win }) {
         const current = await fs.get(nodeId)
         if (current && current.updatedAt !== loadedVersion.current) {
           const text = await fs.readText(nodeId).catch(() => null)
-          if (text !== null) {
+          // Unreadable on disk means there is nothing sound to merge; the save below will hit the same wall
+          // and say so, rather than write a fresh board over what could not be read.
+          const onDisk = text !== null ? parseCanvas(text) : null
+          if (onDisk) {
             const mine = new Set(blocks.map((b) => b.id))
-            const extra = parseCanvas(text).blocks.filter((b) => !mine.has(b.id) && !removed.current.has(b.id))
+            const extra = onDisk.blocks.filter((b) => !mine.has(b.id) && !removed.current.has(b.id))
             if (extra.length) {
               blocks = [...blocks, ...extra]
               arrived.current = extra[0].id
@@ -160,7 +168,11 @@ export function CanvasApp({ win }: { win: Win }) {
         // The block was already gone from the file, or the file would not open: back to what is on disk.
         void fs
           .readText(nodeId)
-          .then((t) => setDoc(parseCanvas(t)))
+          .then((t) => {
+            const back = parseCanvas(t)
+            if (back) setDoc(back)
+            else setUnreadable(true)
+          })
           .catch(() => undefined)
       })
   }

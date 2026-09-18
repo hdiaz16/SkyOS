@@ -36,7 +36,11 @@ const validBlocks = (blocks: unknown): NewBlock[] =>
 async function readCanvas(id: string): Promise<{ node: FsNode; doc: CanvasDoc }> {
   const node = await fs.get(id)
   if (!node || node.kind !== 'file' || extOf(node.name) !== CANVAS_EXT) throw new Error('Ese archivo no es un lienzo (.canvas)')
-  return { node, doc: parseCanvas(await fs.readText(id)) }
+  const doc = parseCanvas(await fs.readText(id))
+  // An unreadable file used to come out as an empty board, and «añade un diagrama aquí» wrote one block over
+  // everything that was there. It says what happened instead, and nothing gets written on top.
+  if (!doc) throw new Error(`No pude leer "${node.name}": no contiene un tablero válido (puede estar dañado o no ser un lienzo de verdad). No se escribe nada encima; revísalo antes de seguir.`)
+  return { node, doc }
 }
 
 const write = (id: string, doc: CanvasDoc) => fs.writeText(id, serializeCanvas(doc))
@@ -107,7 +111,9 @@ registerCommand<{ id: string; remove?: string[]; put?: CanvasBlock[] }, void>({
   async run({ id, remove, put }) {
     const gone = new Set(remove ?? [])
     const back = new Map((put ?? []).map((b) => [b.id, b]))
-    const current = parseCanvas(await fs.readText(id))
+    // Through readCanvas on purpose: an undo that lands on a broken file must fail out loud, not hand back
+    // an empty board that gets written over what it was supposed to restore.
+    const { doc: current } = await readCanvas(id)
     const blocks = current.blocks.filter((b) => !gone.has(b.id)).map((b) => back.get(b.id) ?? b)
     for (const b of back.values()) if (!blocks.some((x) => x.id === b.id)) blocks.push(b)
     await write(id, { version: 1, blocks })
