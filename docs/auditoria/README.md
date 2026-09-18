@@ -17,14 +17,13 @@ método, lo que falta y las reglas de producto.
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
-| Alta | 53 | 46 | 7 |
+| Alta | 53 | 53 (arregladas; 7 esperan verificación en el navegador) | 0 |
 | Media | 105 | 105 | 0 |
 | Baja | 28 | 2 | 26 |
 
-Las 7 altas que quedan: la barra de direcciones que se desincroniza al navegar dentro (18), el contador de
-archivos indexados en cero (23), el `resumeRedirect` de MCP que no es interactivo (26), el panel que promete
-arrastrar y soltar y no existe (32), la configuración de widget que no se valida por tipo (45), `parseCanvas`
-convirtiendo lo ilegible en vacío (46) y `transformFile` recortando en silencio (50).
+Las 53 altas tienen su arreglo comprometido en git. Las últimas siete (18, 23, 26, 32, 45, 46, 50) se
+arreglaron en la tanda de septiembre y esperan su verificación en el navegador, con la receta de cada caso en
+[`CONTINUAR.md`](CONTINUAR.md). Quedan por trabajar las 26 bajas de `hallazgos.json`.
 
 ## Cómo se trabajan
 
