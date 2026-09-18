@@ -159,5 +159,15 @@ Después del relevo, la tanda que sigue:
   dónde se cambia, y al cerrarla no vuelve a aparecer. Con la pestaña en segundo plano, un trabajo de fondo
   que termina avisa por notificación y el clic devuelve el escritorio.
 
+Después del relevo, pedidos de Hector fuera de la auditoría:
+
+- `f72d872` GLM de Z.ai como proveedor, sin un solo modelo escrito aquí: la lista se le pide a su API al pegar
+  la llave y los escalones (económico → capaz) se leen de lo que devuelva ese día. **Verificación pendiente**:
+  pegar una llave de Z.ai en Ajustes › Inteligencia y ver la lista llegar sola, «Automático» con air/4.5/4.6,
+  y que una petición sencilla arranque en el barato y «resume esto» suba al alto.
+- `1f155cb` la voz de ElevenLabs, con la voz y el modelo que cada quien elija de los que su cuenta trae.
+  **Verificación pendiente**: pegar la llave en Ajustes › Apariencia › La voz de Sky, elegir voz y modelo,
+  «Escúchala»; y que la llave viva en la cuenta (entrar con otro perfil y no verla).
+
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
