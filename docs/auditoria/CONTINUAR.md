@@ -130,6 +130,10 @@ Después del relevo, la tanda que sigue:
   honesto; luego Recargar y confirmar que vuelve a la dirección conocida.
 - `99d9150` los archivos con huella se cuentan, no se recuerdan (alta 23) — **verificación pendiente**: con
   archivos ya indexados, abrir Ajustes › Inteligencia y ver que el número no dice 0.
+- `6b01030` volver de autorizar ya no puede abrir otra autorización (alta 26) — **verificación pendiente**:
+  con un servidor que siga devolviendo 401 a tools/list aun con el token recién concedido, la tarjeta pasa a
+  pedir atención y el toast dice reintentar desde Apps conectadas, sin sacar la pestaña al consentimiento
+  otra vez.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
