@@ -21,13 +21,16 @@ un caso que alguien puede vivir usando el escritorio, no un olor de código. Viv
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
-| Alta | 53 | 46 | **7** |
+| Alta | 53 | 46 | **7** (arregladas en el código, esperan verificación en el navegador) |
 | Media | 105 | 105 | 0 |
 | Baja | 28 | 2 | **26** |
 
 ### Las 7 altas que faltan
 
-| # | Dónde | Qué pasa |
+Todas tienen su arreglo comprometido en git; lo que falta es ver cada caso en el navegador. La tabla dice
+dónde vivía cada problema; la receta de verificación está en la lista de la tanda, más abajo.
+
+| # | Dónde | Qué pasaba |
 | --- | --- | --- |
 | 18 | `apps/Browser.tsx:46` | La barra de direcciones solo cambia cuando Sky navega: al navegar dentro de la página, el sistema sigue creyendo que estás en la anterior. |
 | 23 | `apps/Settings.tsx:569` | «N archivos con huella» lee un contador en memoria que arranca en cero: dice 0 sobre un índice lleno. |
@@ -134,6 +137,20 @@ Después del relevo, la tanda que sigue:
   con un servidor que siga devolviendo 401 a tools/list aun con el token recién concedido, la tarjeta pasa a
   pedir atención y el toast dice reintentar desde Apps conectadas, sin sacar la pestaña al consentimiento
   otra vez.
+- `6a4b8dd` soltar un archivo en el panel de Sky ya no se sale del escritorio (alta 32) — **verificación
+  pendiente**: con la conversación abierta, arrastrar un archivo del sistema sobre el panel: se marca como
+  zona de soltada, al soltar el archivo aterriza en el escritorio y queda esperando en la barra; la pestaña
+  no navega al archivo.
+- `6d17d10` un widget ya no puede nacer roto de una config mal escrita (alta 45) — **verificación pendiente**:
+  pedirle a Sky «ponme un temporizador de 10 minutos»: o llega con seconds 600, o Sky cuenta que lo rechazó
+  con la forma esperada; nunca un widget confirmando 10 minutos mientras marca 25:00. Ítem «dólar a pesos
+  argentinos»: rechazado con la lista de monedas, no un widget diciendo «Moneda no disponible».
+- `7f8e7ee` un lienzo que no se puede leer ya no se abre en blanco (alta 46) — **verificación pendiente**:
+  renombrar un .txt a .canvas y pedirle a Sky que añada un diagrama ahí: dice que no pudo leerlo y no escribe
+  nada encima; el archivo queda igual. El editor lo abre en su pantalla de «No pude leer este lienzo».
+- `bc2097d` transformar un archivo ya no borra lo que no cupo (alta 50) — **verificación pendiente**: con una
+  nota de más de 60 000 caracteres, traducirla: el pie dice cuántos caracteres del final no se leyeron,
+  «Aplicar al archivo» queda apagado con la explicación y «Guardar como copia» es el botón principal.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
