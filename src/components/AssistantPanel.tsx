@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { motion } from 'motion/react'
 import { AlertCircle, Check, ExternalLink, FolderGit2, Loader2, Sparkles, Square, Trash2, Undo2, Volume2, VolumeX, X, FileText } from 'lucide-react'
 import { speak, speechAvailable, stopSpeaking } from '../ai/speech'
 import { useSession, type Turn } from '../ai/session'
+import { attachNodesToSky } from '../ai/attachments'
 import { commandIdForTool } from '../ai/tools'
 import { modelLabel, TIER_LABELS, type Tier } from '../ai/router'
 import type { Usage } from '../ai/types'
 import { useAiSettings } from '../ai/settings'
 import type { ToolEvent } from '../ai/agent'
 import { getCommand, standingOf, undoEntry, undoRun, useJournal } from '../kernel/commands'
+import { ROOT_ID } from '../kernel/types'
 import { useWindows } from '../state/windows'
 import { useDialog } from '../state/dialog'
+import { importFiles } from '../lib/menus'
 import { cn } from '../lib/utils'
 import { Markdown } from './Markdown'
 
@@ -43,11 +46,31 @@ export function AssistantPanel() {
   const minimized = windows.filter((w) => w.minimized)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
+  const [dropping, setDropping] = useState(false)
 
   useEffect(() => {
     const el = scrollRef.current
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight
   }, [turns])
+
+  /**
+   * The empty panel said «arrastra un archivo», but nothing here caught the drop: the browser took it and the
+   * tab left SkyOS for the file. Now the file lands on the desk and waits in the bar, as promised.
+   */
+  const onDragOver = (e: DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDropping(true)
+  }
+
+  const onDrop = async (e: DragEvent) => {
+    if (![...e.dataTransfer.files].length) return
+    e.preventDefault()
+    setDropping(false)
+    const created = await importFiles(ROOT_ID, [...e.dataTransfer.files])
+    await attachNodesToSky(created.map((n) => n.id))
+  }
 
   /**
    * The bin said «Nueva conversación» and erased the row from the database for good: everything said about that
@@ -71,6 +94,11 @@ export function AssistantPanel() {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 8, transition: { duration: 0.12 } }}
       transition={{ type: 'spring', stiffness: 480, damping: 38 }}
+      onDragOver={onDragOver}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false)
+      }}
+      onDrop={onDrop}
       className="glass pointer-events-auto absolute inset-x-0 bottom-full mb-2 flex max-h-[62vh] flex-col overflow-hidden rounded-2xl shadow-win"
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
@@ -154,6 +182,17 @@ export function AssistantPanel() {
           ))}
         </div>
       )}
+
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-2 flex items-center justify-center rounded-xl border-2 border-dashed transition-opacity duration-150',
+          dropping ? 'border-accent/60 bg-accent-soft opacity-100' : 'opacity-0',
+        )}
+      >
+        <span className="glass rounded-full px-3 py-1.5 text-[12.5px] font-medium text-accent shadow-soft">
+          Suelta el archivo y dime qué hacer con él
+        </span>
+      </div>
     </motion.div>
   )
 }
