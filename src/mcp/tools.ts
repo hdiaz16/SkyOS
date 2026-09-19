@@ -5,6 +5,7 @@ import type { ToolExecution } from '../ai/tools'
 import type { JsonSchema, ToolSpec } from '../ai/types'
 import { mcp, useMcp } from './manager'
 import { McpError, type CallToolResult, type McpServerRecord, type McpTool, type ToolContent } from './types'
+import { catalogFor } from './catalog'
 
 /**
  * Connected apps as tools for the assistant. Names are prefixed with the server so two servers can both
@@ -97,6 +98,12 @@ export interface ToolContext {
   recent?: string
   /** Bytes of tool definitions the request may carry (see DEFAULT_MCP_BUDGET_BYTES). */
   budgetBytes?: number
+  /** Whole manual, or the commands the request is about (see ai/tools.ts). */
+  strategy?: 'full' | 'compact'
+  /** Internal tools a compact request may carry, search included. */
+  maxTools?: number
+  /** Commands the model asked for by name through the search tool; they ride on top of the routed ones. */
+  extraIds?: string[]
 }
 
 /** Lowercase, accent-free text for matching people's words loosely. */
@@ -104,23 +111,51 @@ export const normalize = (s: string) =>
   s
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
 
 /** True when the (normalized) text contains any of the words. */
 export function mentions(text: string, words: string[]): boolean {
   return words.some((w) => text.includes(normalize(w)))
 }
 
+function serverWords(server: McpServerRecord): string[] {
+  const catalog = server.catalogId ? catalogFor(server.catalogId) : undefined
+  return [server.id, server.name, ...(catalog?.keywords ?? [])].map(normalize).filter((word) => word.length > 2)
+}
+
+function mentionedServer(server: McpServerRecord, text: string): boolean {
+  const normalized = normalize(text)
+  return serverWords(server).some((word) => normalized.includes(word))
+}
+
 /**
- * The tools of every connected app, in one stable order. They used to be picked per request — ranked by
- * relevance to what the person just said — and a list that changes between turns changes the request
- * prefix, so the provider's prompt cache never got to hit. The byte budget stays: tools are compacted and
- * the list is filled in name order until it is spent, deterministically, so the prefix only ever grows at
- * the end.
+ * Chooses an app only when the current request names it (or names its vocabulary). A bare follow-up can
+ * continue with an app from the last turns. No incidental desktop text ever participates in this decision.
  */
+export function relevantServers(context?: ToolContext): McpServerRecord[] {
+  if (!context) return []
+  const servers = connectedServers().sort((a, b) => a.id.localeCompare(b.id))
+  const direct = servers.filter((server) => mentionedServer(server, context.prompt))
+  if (direct.length) {
+    const prompt = normalize(context.prompt)
+    const explicitlyNamed = direct.filter((server) => [normalize(server.id), normalize(server.name)].some((name) => prompt.includes(name)))
+    // A shared word such as "mensaje" must not pull Gmail and Slack together. Several apps are allowed
+    // only when the person named several of them (for example, "Gmail y GitHub").
+    return explicitlyNamed.length > 1 ? explicitlyNamed : direct.slice(0, 1)
+  }
+  const isFollowUp = /^(y |tambien |también |ahora |hazlo|hazla|abrelo|ábrelo|envialo|envíalo|continua|continúa)/i.test(context.prompt.trim())
+  if (!isFollowUp) return []
+  const continued = servers.filter((server) => mentionedServer(server, context.recent ?? '') || normalize(context.recent ?? '').includes(`mcp_${sanitize(server.id)}__`))
+  // Continuity is intentionally singular: unclear references should not flood the next request with apps.
+  return continued.slice(0, 1)
+}
+
+/** Stable schemas within one selected app; unrelated connected apps do not travel. */
 export function mcpToolSpecs(context?: ToolContext): ToolSpec[] {
   const specs: ToolSpec[] = []
+  const selected = new Set(relevantServers(context).map((server) => server.id))
   for (const [name, { server, tool }] of targets()) {
+    if (!selected.has(server.id)) continue
     const text = short(tool.description || tool.title || tool.name, MAX_DESCRIPTION)
     specs.push({ name, description: `[${server.name}] ${text}`, inputSchema: schemaOf(tool) })
   }

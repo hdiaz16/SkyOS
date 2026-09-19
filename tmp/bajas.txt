@@ -1,0 +1,112 @@
+===== D:\01_Proyectos\mesa\src\components\NodeIcon.tsx:123
+PROBLEMA: `renamingId` es global y el mismo nodo se pinta en dos lugares a la vez: Archivos arranca en ROOT (Files.tsx:19), es decir muestra el escritorio. Caso: abres Archivos, seleccionas un icono del escritorio y pulsas F2; aparecen dos campos de renombrar sobre el mismo elemento, uno en el escritorio y otro en la ventana, cada uno con su propio texto. Escribes en el que tiene foco y el otro se queda con el nombre viejo hasta que confirmas.
+ARREGLO: Marcar qué superficie inició el renombrado (guardar el id de la ventana junto a `renamingId`) y que solo esa pinte el campo.
+
+===== D:\01_Proyectos\mesa\src\components\NodeIcon.tsx:152
+PROBLEMA: El efecto que enfoca y preselecciona el nombre depende de `node`, y Dexie entrega objetos nuevos cada vez que la consulta de la carpeta se vuelve a emitir. Caso: estás renombrando un icono mientras un editor autoguarda otro archivo de esa misma carpeta (fs.writeText toca `db.nodes`) o Sky crea algo ahí; el efecto vuelve a correr, el cursor salta al inicio y deja seleccionado lo que llevabas escrito, así que la siguiente tecla lo borra.
+ARREGLO: Dejar el efecto con dependencia `[node.id]` (o `[]`) para que solo enfoque al montar.
+
+===== D:\01_Proyectos\mesa\src\components\NodeIcon.tsx:98
+PROBLEMA: `onDragLeave` apaga `dropHover` sin comprobar el `relatedTarget`, al revés de lo que sí hacen el escritorio y Archivos. Como dragleave burbujea desde los hijos, al mover el cursor despacio sobre una carpeta (del icono a la etiqueta y de vuelta) el anillo parpadea y el texto salta entre el nombre del archivo y «Soltar aquí».
+ARREGLO: Usar el mismo guardia que el contenedor: ignorar el dragleave cuando `e.currentTarget.contains(e.relatedTarget)`.
+
+===== D:\01_Proyectos\mesa\src\components\apps\Files.tsx:92
+PROBLEMA: El botón se llama «Atrás» y lleva flecha de retroceso, pero navega al padre (`parentId`), no al lugar anterior. Caso: estás en «Escritorio › Clientes › Acme», haces clic en la miga «Escritorio» y el botón queda gris, aunque acabas de venir de «Acme» y es justo cuando lo buscarías.
+ARREGLO: Renombrarlo a «Subir» con un icono de flecha hacia arriba, o llevar un historial por ventana y que «Atrás» sea de verdad el paso anterior.
+
+===== D:\01_Proyectos\mesa\src\components\SelectionMenu.tsx:76
+PROBLEMA: El mouseup se escucha solo dentro del frame de la ventana. Al seleccionar arrastrando hacia abajo y soltar fuera del borde —el gesto normal para abarcar varios párrafos— el evento nunca llega y el menú no aparece: la selección queda hecha pero sin acciones, y hay que rehacerla soltando dentro.
+ARREGLO: Escuchar el mouseup en document (o window) y seguir filtrando por frame.contains(sel.anchorNode), como ya se hace.
+
+===== D:\01_Proyectos\mesa\src\components\Markdown.tsx:47
+PROBLEMA: El componente code decide bloque vs. inline con className.startsWith('language-'), pero una valla sin lenguaje (``` a secas, muy común en las respuestas del modelo) no lleva className: ese código se pinta con el estilo de código en línea —fondo bg-surface-2, px-1, 12.5px— dentro del <pre>, que ya tiene su propio fondo. Se ve un recuadro dentro de otro, con padding y tamaño de letra distintos a los demás bloques.
+ARREGLO: Decidir por contexto (código dentro de <pre> siempre es bloque) en vez de por el prefijo language-: estilar el <pre> y dejar el <code> hijo sin fondo.
+
+===== D:\01_Proyectos\mesa\src\components\apps\SheetEditor.tsx:185
+PROBLEMA: El ancla del menu se mide una sola vez y no hay listener de scroll ni limpieza tras enviar. Caso concreto: seleccionar A1:C10, bajar 30 filas con la rueda -> el menu sigue flotando en el mismo pixel, ahora sobre celdas que no tienen nada que ver; y al pulsar «Resumir» el menu se queda abierto encima de la hoja. SelectionMenu.tsx:78 ya oculta el suyo al hacer scroll y limpia la seleccion al enviar.
+ARREGLO: Ocultar el menu al hacer scroll dentro de la cuadricula (como SelectionMenu) y poner `setRange(null)` al disparar la accion.
+
+===== src/components/apps/ImageViewer.tsx:34
+PROBLEMA: Mientras la imagen no ha cargado (o si nunca carga), `dims` es null y el pie se pinta como ' · 1,2 MB': queda un separador suelto al inicio, sin nada antes.
+ARREGLO: Construir el pie uniendo solo las partes presentes (por ejemplo [dims && `${w} × ${h}`, node && formatBytes(node.size)].filter(Boolean).join(' · ')).
+
+===== src/components/apps/OfficeViewer.tsx:27
+PROBLEMA: Si fs.readBlob se rechaza (ruta IndexedDB: cuota, base bloqueada), se muestra err.message tal cual en el centro de la ventana: texto técnico en inglés tipo 'QuotaExceededError: ...', que rompe la voz del producto y no le dice a la persona qué hacer.
+ARREGLO: Guardar el detalle en consola y mostrar siempre un texto propio en español ('No pude abrir este archivo ahora mismo. Vuelve a intentarlo.'), como ya se hace en el caso de blob ausente.
+
+===== src/components/apps/PdfViewer.tsx:39
+PROBLEMA: En los extremos de ZOOM_STEPS (50% y 300%) los botones − y + siguen viéndose activos y con hover, pero no hacen nada: parece que el visor se quedó colgado.
+ARREGLO: Deshabilitar cada botón cuando el zoom ya está en el primer o último paso.
+
+===== src/components/apps/Canvas.tsx:132
+PROBLEMA: El mensaje de lienzo vacío está dentro del tablero (ancho mínimo 1200 por canvasExtent), así que left-1/2 lo centra respecto a 1200 px y no respecto a lo que se ve: en la ventana por defecto (1000 px) aparece corrido unos 110 px a la derecha y con barra de scroll horizontal para un lienzo sin nada; si se angosta la ventana por debajo de ~840 px, el texto queda cortado.
+ARREGLO: Renderizar el estado vacío como capa del contenedor con scroll (absolute inset-0 + centrado flex) en lugar de posicionarlo dentro del tablero.
+
+===== src/components/Mermaid.tsx:13
+PROBLEMA: loading ??= guarda también la promesa rechazada: si el chunk de mermaid no carga una vez (sin red, un despliegue viejo en caché), todos los diagramas de la sesión quedan con el mismo error en inglés («Failed to fetch dynamically imported module…») y no se reintenta nunca, ni cerrando y abriendo el lienzo.
+ARREGLO: En el catch del import, poner loading = null antes de propagar el error para que el siguiente diagrama vuelva a intentarlo.
+
+===== D:\01_Proyectos\mesa\src\ai\terminal.ts:106
+PROBLEMA: "(detenido)" solo se imprime si no llegó a streamear nada. Si se pulsa Ctrl+C con la respuesta a medias, la salida se corta a mitad de frase y no queda ninguna marca de que la interrumpiste tú: parece que el modelo se quedó colgado.
+ARREGLO: Imprimir la línea de sistema '(detenido)' siempre que result.stopReason === 'aborted', haya habido texto o no.
+
+===== D:\01_Proyectos\mesa\src\components\apps\AppView.tsx:42
+PROBLEMA: "{record.tools?.length ?? 0} herramientas" no contempla el singular ni el vacío: una app con una sola herramienta dice "1 herramientas", y si el registro aún no tiene tools cacheadas dice "0 herramientas" mientras GenericView (linea 254) promete "esto es lo que puede hacer:" seguido de una rejilla vacía.
+ARREGLO: Pluralizar como ya se hace en otras partes (`1 herramienta`) y, cuando no haya herramientas todavía, decirlo en una línea en vez de prometer una lista que no llega.
+
+===== D:\01_Proyectos\mesa\src\components\apps\Trash.tsx:92
+PROBLEMA: Restaurar un elemento cuya carpeta original también está en la papelera (caso alcanzable: borras un archivo dentro de una carpeta y luego borras la carpeta; ambos aparecen en la lista) lo deja en el Escritorio, porque fs.restore cae a ROOT_ID cuando el padre está en la papelera. El toast dice '"X" restaurado' y la descripción del comando promete 'los devuelve a su carpeta original': el archivo no está donde el usuario lo va a buscar y nada se lo dice.
+ARREGLO: Que fs.restore devuelva cuáles cayeron en la raíz y que la etiqueta lo diga ('"X" restaurado en el Escritorio porque su carpeta ya no está').
+
+===== D:\01_Proyectos\mesa\src\components\apps\Result.tsx:39
+PROBLEMA: applyToFile solo comprueba que exista task.context.nodeId. Si mientras corría la transformación mandas el archivo a la papelera (la ventana de resultado no se cierra: wm.closeForNode mira props.nodeId y aquí solo hay taskId), fs.get sigue devolviendo el nodo con trashedAt puesto, la escritura tiene éxito y el botón pasa a 'Aplicado' — sobre un archivo que ya no está en ninguna carpeta visible.
+ARREGLO: Comprobar `trashedAt === null` antes de escribir y, si el archivo está en la papelera, mostrar un error corto ('Ese archivo está en la papelera') en vez de decir Aplicado.
+
+===== D:\01_Proyectos\mesa\src\components\apps\CloudSync.tsx:167
+PROBLEMA: Cuando la nube elegida deja de estar conectada (la sesión MCP de Drive caduca, o se desconecta OneDrive desde otra pestaña), active pasa a null: el interruptor de «Sincronización automática» se pinta apagado y deshabilitado aunque settings.enabled siga en true, y la línea de estado sigue mostrando «Última vez hace 5 min · Todo al día» porque lastRun tiene prioridad sobre el mensaje «Elige una nube conectada». La persona ve un interruptor muerto y un texto que sugiere que todo va bien.
+ARREGLO: Dar prioridad al aviso cuando !active («La nube elegida ya no está conectada; vuelve a conectarla») y dejar el «Última vez…» para cuando sí haya proveedor activo.
+
+===== D:\01_Proyectos\mesa\src\components\apps\CloudSync.tsx:22
+PROBLEMA: ago() solo llega a horas: una sincronización de hace tres días se lee «hace 72 h» y una de la semana pasada «hace 170 h». Además el texto se calcula solo al renderizar, así que si el panel queda abierto sigue diciendo «hace un momento» un buen rato.
+ARREGLO: Añadir el tramo de días (ayer / hace N días) y, si se quiere, recalcular con un intervalo mientras el panel esté montado.
+
+===== D:\01_Proyectos\mesa\src\lib\calc.ts:166
+PROBLEMA: `evaluateExpression` solo descarta NaN, no los infinitos. Al escribir «5/0» la barra responde «= ∞» con la pista «5/0 · Enter copia», y Enter copia literalmente el carácter «∞» al portapapeles. Una división entre cero se presenta como un resultado válido y copiable.
+ARREGLO: Devolver null cuando `!Number.isFinite(value)` en `evaluateExpression` (y en `convertUnits`), para que esos casos caigan en la búsqueda normal en vez de mostrar un resultado.
+
+===== D:\01_Proyectos\mesa\src\ai\agent.ts:279
+PROBLEMA: Entre iteraciones se hace `if (text) text += '\n\n'` sobre el acumulado, pero ese salto nunca se emite como delta, así que durante el streaming el texto de antes y el de después de una herramienta se ven pegados ("…listo.Ahora reviso la carpeta") y el párrafo se recompone de golpe al terminar, cuando la UI reemplaza el texto por result.text.
+ARREGLO: Emitir el separador como un evento de texto ({ type: 'text', delta: '\n\n' }) cuando se añade, para que lo que se lee en vivo sea lo mismo que queda al final.
+
+===== D:\01_Proyectos\mesa\src\components\widgets\CurrencyWidget.tsx:15
+PROBLEMA: El draft del monto se inicializa una sola vez y nunca se resincroniza con config.amount. Si le pides a Sky "pon el widget de divisas en 500 dólares", la conversión grande se recalcula con 500 pero la caja de texto sigue mostrando 1: el widget se contradice a sí mismo hasta que tocas el input.
+ARREGLO: Sincronizar el draft cuando cambie config.amount y no haya edición en curso, igual que hace NoteWidget con su texto.
+
+===== D:\01_Proyectos\mesa\src\components\widgets\NoteWidget.tsx:17
+PROBLEMA: El efecto de limpieza cancela el temporizador de 500 ms sin volcar lo pendiente: si escribes y recargas (o el widget se desmonta) dentro de ese medio segundo, lo último que escribiste se pierde en silencio y la nota reaparece con el texto viejo.
+ARREGLO: En la limpieza, si quedó un guardado pendiente, escribirlo antes de cancelar el temporizador.
+
+===== D:\01_Proyectos\mesa\src\kernel\commands\fs.ts:104
+PROBLEMA: El inverso de fs.move solo guarda el parentId anterior, no el nombre. Mueves 'notas.md' a una carpeta que ya tiene un 'notas.md': uniqueName lo renombra a 'notas 2.md' (fs.ts:171) y al presionar Ctrl+Z el archivo vuelve a su carpeta, pero llamandose 'notas 2.md'. Deshacer deja algo distinto de lo que habia. (En la misma linea: uniqueName no recibe excludeId, asi que si la lista de ids trae uno repetido el archivo se renombra solo.)
+ARREGLO: Guardar en previous el par { parentId, name } y restaurar tambien el nombre en fs.moveBack; pasar node.id como excludeId en el uniqueName del move.
+
+===== D:\01_Proyectos\mesa\src\kernel\commands\fs.ts:190
+PROBLEMA: 'Papelera vaciada (3)' es la unica frase del archivo con un numero suelto entre parentesis: se lee como una linea de log, no como la voz del producto, y ademas ese numero es lo unico que dice cuanto se perdio para siempre.
+ARREGLO: Redactarlo como el resto: '3 elementos eliminados para siempre' (o 'Papelera vaciada: 3 elementos').
+
+===== D:/01_Proyectos/mesa/src/kernel/commands/storage.ts:26
+PROBLEMA: storage.sync no devuelve label, así que no deja entrada en el diario. Es el único comando del kernel marcado 'external' y justo el que no aparece en «Lo que hice», mientras que las llamadas MCP sí se registran con external:true (src/mcp/tools.ts:271) y hasta minimizar una ventana deja rastro. Caso concreto: una pasada que sube 12 archivos y borra 3 en la nube no deja ninguna huella visible.
+ARREGLO: Devolver label con el resumen (`Sincronizado con Drive · 12 subidos · 3 borrados`) y external: true, para que la entrada salga marcada como «En la app».
+
+===== D:/01_Proyectos/mesa/src/kernel/commands/system.ts:290
+PROBLEMA: Cuando no hay nada que hacer, ui.cleanDesktop devuelve label «El escritorio ya estaba limpio» y ui.zen (línea 219) devuelve «No hay otras ventanas que apartar». Como execute journaliza toda salida con label, quedan registradas en «Lo que hice» como si fueran acciones, con el texto «Historial» al lado y sin nada que deshacer. Caso concreto: Ctrl+Mayús+Z con una sola ventana abierta deja una línea de actividad por algo que no ocurrió.
+ARREGLO: Devolver esos dos casos sin label (el aviso al modelo va en result) o empujar el toast directamente, para que el diario solo guarde lo que sí cambió algo.
+
+===== D:\01_Proyectos\mesa\src\components\Calendar.tsx:88
+PROBLEMA: Cada dia es un <span> con hover:bg-surface-2: al pasar el raton se ilumina como si fuera un boton, pero no hay onClick ni nada que elegir. La persona intenta hacer clic en un dia y no pasa absolutamente nada.
+ARREGLO: Quitar el hover de las celdas de dia y dejar el resaltado solo para hoy; el calendario es de lectura y debe verse asi.
+
+===== D:\01_Proyectos\mesa\src\components\WindowFrame.tsx:173
+PROBLEMA: Solo existe un tirador de redimensionado, de 16x16 px en la esquina inferior derecha, y encima cae sobre el rounded-2xl asi que parte de su area queda fuera del borde visible. No se puede estirar desde los otros bordes: una ventana ajustada a la mitad derecha no se puede ensanchar hacia la izquierda (arrastrar su esquina solo empuja el borde derecho fuera de pantalla), hay que moverla entera primero.
+ARREGLO: Agregar tiradores de arrastre en los cuatro bordes y las cuatro esquinas reutilizando el mismo track(), ajustando x/y ademas de w/h cuando se estira desde arriba o desde la izquierda.
+

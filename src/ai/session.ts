@@ -8,6 +8,9 @@ import { onLeaving } from '../lib/leaving'
 import { trimHistory } from './history'
 import { useNetwork, whenOnline } from '../system/network'
 import { stopSpeaking } from './speech'
+import { resolveLocalIntent } from './localIntents'
+import { useSettings } from '../state/settings'
+import { useWindows } from '../state/windows'
 
 export interface Turn {
   id: string
@@ -76,6 +79,8 @@ interface QueuedSend {
 }
 
 const MAX_HISTORY_MESSAGES = 24
+/** The stored value is 'light'; the person chose «claro». */
+const THEME_WORDS = { light: 'claro', dark: 'oscuro', system: 'el del sistema' } as const
 const MAX_PENDING = 12
 /** Messages kept verbatim once the older part has been folded into the summary. */
 const HISTORY_KEEP = 10
@@ -291,6 +296,33 @@ export const useSession = create<SessionState>((set, get) => ({
       const replyId = nanoid(6)
       const waiting: Turn = { id: replyId, role: 'assistant', text: 'En cuanto termine con lo anterior.', toolEvents: [], status: 'queued' }
       set((s) => ({ open: true, pending: [], turns: [...s.turns, userTurn, waiting], queue: [...s.queue, { userId: userTurn.id, replyId, prompt, parts }] }))
+      persist(get())
+      return
+    }
+    // A deterministic desktop fact should not wait for connectivity or pay a model round trip. It is still
+    // written as an ordinary pair of turns, so reload, continuity and the panel behave exactly as usual.
+    const local = parts.length
+      ? null
+      : resolveLocalIntent(prompt, { theme: THEME_WORDS[useSettings.getState().theme], windowCount: useWindows.getState().windows.length })
+    if (local) {
+      const userTurn: Turn = { id: nanoid(6), role: 'user', text: prompt, toolEvents: [], status: 'done' }
+      const reply: Turn = {
+        id: nanoid(6),
+        role: 'assistant',
+        text: local.text,
+        toolEvents: [],
+        status: 'done',
+        model: 'local',
+        tier: null,
+        usage: { inputTokens: 0, outputTokens: 0 },
+        latencyMs: 0,
+      }
+      const history: ChatMessage[] = [
+        ...get().history,
+        { role: 'user', parts: [{ type: 'text', text: prompt }] },
+        { role: 'assistant', parts: [{ type: 'text', text: local.text }] },
+      ]
+      set((s) => ({ open: true, pending: [], turns: [...s.turns, userTurn, reply], history: trimHistory(history, MAX_HISTORY_MESSAGES) }))
       persist(get())
       return
     }

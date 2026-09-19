@@ -57,12 +57,29 @@ function toBlocks(parts: Part[]): BetaBlockParam[] {
 }
 
 function toMessages(messages: ChatMessage[], model: string): BetaMessageParam[] {
-  return messages.map((m) => {
+  // A second cache breakpoint on the last user message of the history (the new request is the one after it).
+  // The system prompt and the tools were already cached; the conversation itself was not, and a long
+  // exchange re-sent every earlier turn at full price on every new one. The prefix only grows, so each turn
+  // hits what the previous one wrote. User messages carry text, files and tool results — all cacheable;
+  // assistant turns may end in a thinking block, which cannot carry the marker, so those are left alone.
+  let mark = -1
+  for (let i = messages.length - 2; i >= 0; i--) {
+    if (messages[i].role === 'user') {
+      mark = i
+      break
+    }
+  }
+  return messages.map((m, i) => {
     if (m.role === 'assistant' && m.raw?.provider === 'anthropic' && m.raw.model === model) {
       return { role: 'assistant', content: m.raw.content as BetaBlockParam[] }
     }
     const content = toBlocks(m.parts)
-    return { role: m.role, content: content.length ? content : [{ type: 'text', text: '…' }] }
+    const blocks = content.length ? content : [{ type: 'text' as const, text: '…' }]
+    if (i === mark) {
+      const last = blocks[blocks.length - 1] as BetaBlockParam & { cache_control?: { type: 'ephemeral' } }
+      blocks[blocks.length - 1] = { ...last, cache_control: { type: 'ephemeral' } } as BetaBlockParam
+    }
+    return { role: m.role, content: blocks }
   })
 }
 

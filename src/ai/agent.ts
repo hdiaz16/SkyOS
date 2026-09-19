@@ -4,7 +4,7 @@ import { AUTO_MODEL, effectiveTiers, isAiConfigured, presetFor, PROVIDERS, useAi
 import { resolveModel, type Tier } from './router'
 import { buildStateSnapshot, buildSystemPrompt } from './context'
 import { sanitizeHistory } from './history'
-import { allTools, executeTool, type ToolExecution } from './tools'
+import { allTools, executeTool, measureToolBudget, routeToolDomains, TOOL_CAP, toolStrategyFor, type ToolExecution, type ToolStrategy } from './tools'
 import { DEFAULT_MCP_BUDGET_BYTES, MIN_MCP_BUDGET_BYTES } from '../mcp/tools'
 import { AiError, type Attachment, type ChatMessage, type ServerTool, type StopReason, type ToolCallPart, type Usage } from './types'
 
@@ -60,6 +60,25 @@ export interface AgentResult {
   tier: Tier | null
   /** Tokens the whole run cost, summed over every model request. */
   usage: Usage
+  metrics: AgentMetrics
+}
+
+/** Byte-level anatomy of a run. Bytes are exact; token counts remain provider-reported estimates. */
+export interface AgentMetrics {
+  requestCount: number
+  iterationCount: number
+  preparationMs: number
+  toolTimeMs: number
+  systemBytes: number
+  stateBytes: number
+  historyBytes: number
+  toolBytes: number
+  internalToolBytes: number
+  mcpToolBytes: number
+  domains: string[]
+  /** Whole manual (cacheable prefix) or routed selection (small request); see ai/tools.ts. */
+  strategy: ToolStrategy
+  expanded: boolean
 }
 
 const MAX_ITERATIONS = 16
@@ -132,6 +151,7 @@ function alternateProvider(current: AiSettingsState, exclude: Set<ProviderId>): 
 }
 
 export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
+  const preparedAt = performance.now()
   const settings = useAiSettings.getState()
   // GLM-style providers read their tiers off their own live model list; it has to be in hand before routing.
   await ensureDiscovered(settings)
@@ -156,7 +176,17 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     .join(' ')
   // Free tiers cap tokens per minute; other providers can carry far more app tooling per request.
   let mcpBudget = settings.provider === 'groq' ? DEFAULT_MCP_BUDGET_BYTES : DEFAULT_MCP_BUDGET_BYTES * 5
-  const buildTools = () => (opts.tools && opts.tools.length === 0 ? [] : allTools(opts.tools, { prompt: opts.prompt, recent, budgetBytes: mcpBudget }))
+  // Commands the model brought in by name through the search tool, kept for the rest of the turn.
+  let discovered: string[] = []
+  const toolContext = () => ({
+    prompt: opts.prompt,
+    recent,
+    budgetBytes: mcpBudget,
+    strategy: toolStrategyFor(active.provider),
+    maxTools: active.provider === 'groq' ? TOOL_CAP.metered : TOOL_CAP.roomy,
+    extraIds: discovered,
+  })
+  const buildTools = () => (opts.tools && opts.tools.length === 0 ? [] : allTools(opts.tools, toolContext()))
   let tools = buildTools()
   let system = opts.systemOverride
   if (!system) {
@@ -170,20 +200,40 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   emit({ type: 'model', model: route.model, tier: route.tier })
 
   const userParts: ChatMessage['parts'] = []
-  if (!opts.withoutState) userParts.push({ type: 'text', text: await buildStateSnapshot() })
+  const state = opts.withoutState ? '' : await buildStateSnapshot()
+  if (state) userParts.push({ type: 'text', text: state })
   for (const a of opts.attachments ?? []) userParts.push(a)
   userParts.push({ type: 'text', text: opts.prompt })
 
   const messages: ChatMessage[] = [...sanitizeHistory((opts.history ?? []).map(slimHistory)), { role: 'user', parts: userParts }]
   const resultCap = () => (active.provider === 'groq' ? RESULT_CHARS.metered : RESULT_CHARS.roomy)
   const usage: Usage = { inputTokens: 0, outputTokens: 0 }
+  const firstBudget = measureToolBudget(tools, routeToolDomains(opts.prompt, recent), toolStrategyFor(active.provider))
+  const metrics: AgentMetrics = {
+    requestCount: 0,
+    iterationCount: 0,
+    preparationMs: performance.now() - preparedAt,
+    toolTimeMs: 0,
+    systemBytes: system.length,
+    stateBytes: state.length,
+    historyBytes: JSON.stringify(messages.slice(0, -1)).length,
+    toolBytes: firstBudget.bytes,
+    internalToolBytes: JSON.stringify(tools.filter((tool) => !tool.name.startsWith('mcp_'))).length,
+    mcpToolBytes: JSON.stringify(tools.filter((tool) => tool.name.startsWith('mcp_'))).length,
+    domains: firstBudget.domains,
+    strategy: firstBudget.strategy,
+    expanded: false,
+  }
   let model = route.model
   const tried = new Set<string>([route.model])
   const toolEvents: ToolEvent[] = []
   let text = ''
   let stopReason: StopReason = 'other'
+  let expanded = false
+  const callsSeen = new Set<string>()
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    metrics.iterationCount++
     let assistant: ChatMessage | null = null
     const calls: ToolCallPart[] = []
     let refusal: string | undefined
@@ -195,6 +245,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
       let streamed = false
       calls.length = 0
       try {
+        metrics.requestCount++
         for await (const ev of provider.chat({
           model,
           system,
@@ -225,6 +276,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
               refusal = ev.refusal
               usage.inputTokens += ev.usage.inputTokens
               usage.outputTokens += ev.usage.outputTokens
+              usage.cacheReadTokens = (usage.cacheReadTokens ?? 0) + (ev.usage.cacheReadTokens ?? 0) || undefined
               break
             case 'error':
               throw ev.error
@@ -296,7 +348,21 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     for (const call of calls) {
       if (opts.signal?.aborted) break
       emit({ type: 'tool_start', call })
-      const result = await executeTool(call.name, call.input, runId)
+      const fingerprint = `${call.name}:${JSON.stringify(call.input)}`
+      const toolStartedAt = performance.now()
+      const result = callsSeen.has(fingerprint)
+        ? { content: 'La misma llamada con los mismos argumentos ya se ejecutó en este turno; usa su resultado anterior o cambia los argumentos.', isError: true, undoable: false }
+        : await executeTool(call.name, call.input, runId)
+      callsSeen.add(fingerprint)
+      metrics.toolTimeMs += performance.now() - toolStartedAt
+      if (result.discoveredToolIds?.length && !expanded) {
+        // One expansion per turn: what the search found rides on top of what the request already carried.
+        // Replacing the list with the findings alone used to drop the core and the app the person had named.
+        discovered = result.discoveredToolIds
+        tools = buildTools()
+        expanded = true
+        metrics.expanded = true
+      }
       toolEvents.push({ call, result })
       emit({ type: 'tool_end', call, result })
       results.push({ type: 'tool_result', toolCallId: call.id, content: clip(result.content, resultCap()), isError: result.isError })
@@ -321,9 +387,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
   if (import.meta.env.DEV) {
     const cache = usage.cacheReadTokens ? ` (${usage.cacheReadTokens} desde caché)` : ''
     console.info(
-      `[ia] ${model} · ${route.tier ?? (opts.model ? 'modelo fijo' : 'auto')} · reglas ${(system.length / 1024).toFixed(1)} kB · herramientas ${tools.length} (${Math.round(JSON.stringify(tools).length / 1024)} kB) · entrada ${usage.inputTokens}${cache} · salida ${usage.outputTokens}`,
+      `[ia] ${model} · ${route.tier ?? (opts.model ? 'modelo fijo' : 'auto')} · ${metrics.requestCount} solicitudes/${metrics.iterationCount} iteraciones · reglas ${(metrics.systemBytes / 1024).toFixed(1)} kB · estado ${(metrics.stateBytes / 1024).toFixed(1)} kB · herramientas ${metrics.strategy} ${firstBudget.total}${metrics.expanded ? '+búsqueda' : ''} (${Math.round(metrics.toolBytes / 1024)} kB) · entrada ${usage.inputTokens}${cache} · salida ${usage.outputTokens}`,
     )
   }
 
-  return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier, usage }
+  return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier, usage, metrics }
 }
