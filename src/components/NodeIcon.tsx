@@ -27,7 +27,9 @@ interface Props {
 
 export function NodeIcon({ node, onOpenFolder, animateLayout = false, surface = DESKTOP_SURFACE, onPick }: Props) {
   const selected = useUi((s) => s.selectionSurface === surface && s.selection.includes(node.id))
-  const renaming = useUi((s) => s.renamingId === node.id)
+  // Only the surface that started the renaming paints the field: the same node can be on the desk and inside
+  // an Archivos window at ROOT, and both used to open a rename input over the same icon.
+  const renaming = useUi((s) => s.renamingId === node.id && (s.renamingSurface ?? DESKTOP_SURFACE) === surface)
   const kind = fileKind(node)
   const isFolder = kind === 'folder'
   const [dropHover, setDropHover] = useState(false)
@@ -57,7 +59,7 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false, surface = 
     const ids = selected && ui.selection.length > 1 ? ui.selection : [node.id]
     if (!selected) ui.select([node.id], surface)
     const at = { x: e.clientX, y: e.clientY }
-    void nodeMenu(node, ids, at).then((items) => ui.openMenu(at.x, at.y, items))
+    void nodeMenu(node, ids, at, surface).then((items) => ui.openMenu(at.x, at.y, items))
   }
 
   const onDragStart = (e: DragEvent) => {
@@ -106,7 +108,11 @@ export function NodeIcon({ node, onOpenFolder, animateLayout = false, surface = 
       draggable={!renaming}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
-      onDragLeave={() => setDropHover(false)}
+      onDragLeave={(e) => {
+        // dragleave bubbles from the children: moving from the icon to the label used to blink the ring and
+        // swap the name for «Soltar aquí». Same guard as the containers.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropHover(false)
+      }}
       onDrop={onDrop}
       onMouseDown={onMouseDown}
       onDoubleClick={open}
@@ -161,7 +167,10 @@ function RenameInput({ node }: { node: FsNode }) {
     el.focus()
     const base = node.kind === 'file' ? stripExt(node.name).length : node.name.length
     el.setSelectionRange(0, base)
-  }, [node])
+    // Not [node]: Dexie hands out fresh objects on every re-emit, so an autosave elsewhere in the folder
+    // used to rerun this, jump the cursor to the start and leave the half-typed name selected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id])
 
   const finish = (commit: boolean) => {
     if (done.current) return

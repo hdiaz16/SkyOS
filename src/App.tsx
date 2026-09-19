@@ -117,7 +117,7 @@ export default function App() {
       } else if (e.key === 'Enter' && ui.selection.length === 1) {
         void dispatch('ui.open', { id: ui.selection[0] })
       } else if (e.key === 'F2' && ui.selection.length === 1) {
-        ui.setRenaming(ui.selection[0])
+        ui.setRenaming(ui.selection[0], ui.selectionSurface)
       }
     }
     // In the capture phase: every text field in the app stops keys from bubbling, which is right for the

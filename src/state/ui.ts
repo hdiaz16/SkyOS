@@ -25,9 +25,11 @@ interface UiState {
   toggleSelect: (id: string, surface?: string) => void
   clearSelection: () => void
   renamingId: string | null
+  /** Where renaming started: the same node can be on the desk and inside an Archivos window at once. */
+  renamingSurface: string | null
   /** Where the selection on screen was made: the desk, or one Archivos window. One selection, one place. */
   selectionSurface: string
-  setRenaming: (id: string | null) => void
+  setRenaming: (id: string | null, surface?: string) => void
   contextMenu: ContextMenuState | null
   openMenu: (x: number, y: number, items: MenuItem[]) => void
   closeMenu: () => void
@@ -54,7 +56,10 @@ export const useUi = create<UiState>((set) => ({
     }),
   clearSelection: () => set({ selection: [] }),
   renamingId: null,
-  setRenaming: (renamingId) => set({ renamingId }),
+  renamingSurface: null,
+  // The surface travels with the id: renaming used to be global, so a node shown by the desk and by an
+  // Archivos window at ROOT painted two rename fields over the same icon, each with its own half-written text.
+  setRenaming: (renamingId, surface = DESKTOP_SURFACE) => set({ renamingId, renamingSurface: renamingId ? surface : null }),
   contextMenu: null,
   openMenu: (x, y, items) => set({ contextMenu: { x, y, items, nonce: ++menuNonce } }),
   closeMenu: () => set({ contextMenu: null }),

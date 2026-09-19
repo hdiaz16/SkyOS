@@ -1,6 +1,6 @@
 import { useEffect, useState, type DragEvent, type MouseEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, FilePlus2, FolderPlus, Square, Sparkles, Upload } from 'lucide-react'
+import { ArrowUp, ChevronRight, FilePlus2, FolderPlus, Square, Sparkles, Upload } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { readProject } from '../../kernel/project'
 import { useDialog } from '../../state/dialog'
@@ -66,7 +66,7 @@ export function FilesApp({ win }: { win: Win }) {
     e.preventDefault()
     useUi.getState().clearSelection()
     const at = { x: e.clientX, y: e.clientY }
-    void folderMenu(folderId, at).then((items) => useUi.getState().openMenu(at.x, at.y, items))
+    void folderMenu(folderId, at, surface).then((items) => useUi.getState().openMenu(at.x, at.y, items))
   }
 
   /** Same as on the desk: the dotted frame steps aside when a folder icon is the one asking for the drop. */
@@ -100,8 +100,10 @@ export function FilesApp({ win }: { win: Win }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
-        <ToolButton label="Atrás" disabled={folderId === ROOT_ID} onClick={() => navigate(parentId)}>
-          <ChevronLeft className="h-4 w-4" />
+        {/* It said «Atrás» but went to the parent folder, so after jumping to «Escritorio» from deep inside
+            it looked dead exactly when you came from there. It says what it does now. */}
+        <ToolButton label="Subir" disabled={folderId === ROOT_ID} onClick={() => navigate(parentId)}>
+          <ArrowUp className="h-4 w-4" />
         </ToolButton>
 
         {/* Everything used to shrink at the same rate, so a deep path read «Escri… › Prop… › Acm… › Entr…»
@@ -121,7 +123,7 @@ export function FilesApp({ win }: { win: Win }) {
           ))}
         </nav>
 
-        <ToolButton label="Nueva carpeta" onClick={() => void createFolderAndRename(folderId)}>
+        <ToolButton label="Nueva carpeta" onClick={() => void createFolderAndRename(folderId, surface)}>
           <FolderPlus className="h-4 w-4" />
         </ToolButton>
         <ToolButton label="Nueva nota" onClick={() => void createFileAndOpen(folderId, 'note')}>

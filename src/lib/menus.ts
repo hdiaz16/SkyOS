@@ -2,7 +2,7 @@ import { dispatch, useToasts, type CommandContext } from '../kernel/commands'
 import { projectFile } from '../kernel/project'
 import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { USER_WIDGET_TYPES, WIDGET_META } from '../kernel/widgets'
-import { useUi } from '../state/ui'
+import { useUi, DESKTOP_SURFACE } from '../state/ui'
 import type { MenuItem } from '../state/ui'
 import { useDialog } from '../state/dialog'
 import { isAiConfigured } from '../ai/settings'
@@ -17,11 +17,11 @@ export interface Point {
   y: number
 }
 
-/** Creates a folder and immediately enters rename mode on it. */
-export async function createFolderAndRename(parentId: string): Promise<void> {
+/** Creates a folder and immediately enters rename mode on it, on the surface that asked. */
+export async function createFolderAndRename(parentId: string, surface = DESKTOP_SURFACE): Promise<void> {
   const node = await dispatch<FsNode>('fs.createFolder', { parentId })
-  useUi.getState().select([node.id])
-  useUi.getState().setRenaming(node.id)
+  useUi.getState().select([node.id], surface)
+  useUi.getState().setRenaming(node.id, surface)
 }
 
 /** Creates a file of the given type and opens it in the editor. */
@@ -75,9 +75,9 @@ async function projectItem(folderId: string): Promise<MenuItem[]> {
   ]
 }
 
-export async function folderMenu(parentId: string, at?: Point): Promise<MenuItem[]> {
+export async function folderMenu(parentId: string, at?: Point, surface = DESKTOP_SURFACE): Promise<MenuItem[]> {
   const items: MenuItem[] = [
-    { label: 'Nueva carpeta', onSelect: () => void createFolderAndRename(parentId) },
+    { label: 'Nueva carpeta', onSelect: () => void createFolderAndRename(parentId, surface) },
     { label: 'Nueva nota', onSelect: () => void createFileAndOpen(parentId, 'note') },
     {
       label: 'Nuevo archivo…',
@@ -135,12 +135,12 @@ async function runTask(task: () => Promise<unknown>): Promise<void> {
   }
 }
 
-export async function nodeMenu(node: FsNode, ids: string[], at?: Point): Promise<MenuItem[]> {
+export async function nodeMenu(node: FsNode, ids: string[], at?: Point, surface = DESKTOP_SURFACE): Promise<MenuItem[]> {
   const many = ids.length > 1
   const items: MenuItem[] = []
   if (!many) {
     items.push({ label: 'Abrir', shortcut: 'Enter', onSelect: () => void dispatch('ui.open', { id: node.id }) })
-    items.push({ label: 'Renombrar', shortcut: 'F2', onSelect: () => useUi.getState().setRenaming(node.id) })
+    items.push({ label: 'Renombrar', shortcut: 'F2', onSelect: () => useUi.getState().setRenaming(node.id, surface) })
     if (isAiConfigured()) {
       const kind = fileKind(node)
       const aiItems: MenuItem[] = []
