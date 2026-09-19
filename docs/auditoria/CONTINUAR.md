@@ -21,9 +21,9 @@ un caso que alguien puede vivir usando el escritorio, no un olor de código. Viv
 
 | Severidad | Total | Resueltas | Pendientes |
 | --- | --- | --- | --- |
-| Alta | 53 | 46 | **7** (arregladas en el código, esperan verificación en el navegador) |
+| Alta | 53 | 53 | **0** (7 arregladas en el código, esperan verificación en el navegador) |
 | Media | 105 | 105 | 0 |
-| Baja | 28 | 2 | **26** |
+| Baja | 28 | 28 | **0** (las 26 de la última tanda esperan verificación en el navegador) |
 
 ### Las 7 altas que faltan
 
@@ -40,8 +40,9 @@ dónde vivía cada problema; la receta de verificación está en la lista de la 
 | 46 | `commands/canvas.ts:38` | `parseCanvas` convierte lo ilegible en un lienzo vacío, que luego se guarda encima del original. |
 | 50 | `ai/tasks.ts:378` | `transformFile` corta a 60 000 caracteres sin marcar el corte, y «Aplicar al archivo» escribe el resultado truncado. |
 
-Las 26 bajas están en `hallazgos.json` bajo la clave `baja`; las dos primeras (el zoom del visor de PDF en
-sus extremos, el mensaje del lienzo vacío) ya están cerradas.
+Las 26 bajas restantes se cerraron en la tanda del 19 de septiembre (ver abajo); sus recetas de verificación
+acompañan a cada commit. Las dos primeras (el zoom del visor de PDF en sus extremos, el mensaje del lienzo
+vacío) se cerraron antes con `b8266c5`.
 
 ## Cómo se trabaja
 
@@ -110,7 +111,8 @@ ejemplo: `git log --oneline -14`.
 2. ~~El paso corto de permisos~~ — hecho en `d23625c` (micrófono, ubicación, notificaciones; **verificación
    pendiente**: entrar con un perfil que no los haya ofrecido aún y ver la tarjeta a los cinco segundos, con
    sus tres filas, lo ya concedido marcado y el cierre que no vuelve a molestar).
-3. **Las 28 bajas** de la auditoría.
+3. ~~Las 28 bajas~~ de la auditoría — hechas: las 2 primeras en `b8266c5`, las 26 restantes en la tanda del
+   19 de septiembre; todas en verificación.
 
 ## Lo que se hizo en esta tanda (septiembre de 2026)
 
@@ -171,3 +173,35 @@ Después del relevo, pedidos de Hector fuera de la auditoría:
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
+
+## Las 26 bajas (tanda del 19 de septiembre de 2026)
+
+Siete commits temáticos, todos **con verificación en el navegador pendiente**. La receta va con cada uno:
+
+- `49ee534` el renombrado pertenece a la superficie que lo pidió — **verificar**: abrir Archivos en el
+  escritorio, seleccionar un icono del escritorio y pulsar F2: solo el escritorio abre el campo, la ventana
+  no; renombrar con un editor autoguardando en la misma carpeta y ver que el cursor no salta; arrastrar
+  despacio sobre una carpeta (del icono a la etiqueta) sin que el anillo parpadee; en Archivos, el botón
+  dice «Subir» y sube un nivel.
+- `d70cdf1` los menús de selección aparecen aunque sueltes fuera y se retiran al usarse — **verificar**: en
+  un documento, seleccionar arrastrando hacia abajo y soltar fuera del borde de la ventana: el menú aparece;
+  en una hoja, seleccionar un rango, hacer scroll: el menú se oculta, y al pedir «Resumir» se cierra.
+- `e86a0bc` los visores cuentan lo que pasó — **verificar**: una respuesta con valla ``` sin lenguaje se pinta
+  como bloque, sin recuadro dentro del recuadro; una imagen aún cargando muestra el pie sin separador suelto;
+  un archivo de Office que no abre dice «No pude abrir este archivo ahora mismo» y el detalle queda en consola;
+  un diagrama que falló porque la red se cortó se reintenta al llegar el siguiente.
+- `3549428` lo que se corta se dice — **verificar**: en la terminal, pedir algo largo y Ctrl+C a mitad de
+  respuesta: aparece «(detenido)» aunque hubiera texto; en la barra, «5/0» ya no responde «= ∞».
+- `188afb4` deshacer un movimiento devuelve también el nombre — **verificar**: mover «notas.md» a una carpeta
+  que ya tiene uno igual (se vuelve «notas 2.md»), Ctrl+Z: vuelve con su nombre original; restaurar desde la
+  papelera un archivo cuya carpeta también está en la papelera: el toast dice que cayó en el Escritorio;
+  vaciar la papelera dice «N elementos eliminados para siempre».
+- `e8e6c6e` el diario y los avisos dicen lo que pasó — **verificar**: pedirle a Sky «sincroniza» con nube
+  conectada: entra en «Lo que hice» marcada «En la app»; Ctrl+Mayús+Z con una sola ventana abierta: toast y
+  sin entrada nueva en el diario; en un resultado de transformación, mandar el archivo a la papelera y pulsar
+  «Aplicar al archivo»: dice que está en la papelera, no «Aplicado»; en Almacenamiento con la nube elegida
+  desconectada: «La nube ya no está conectada» manda sobre «Última vez…», y un «hace 3 días» se lee en días.
+- `a42b682` widgets, calendario y orillas — **verificar**: pedirle a Sky «pon el widget de divisas en 500
+  dólares»: la caja muestra 500; escribir en una nota de widget y recargar dentro de medio segundo: la nota
+  conserva lo último escrito; los días del calendario no se iluminan como botones; una ventana se estira
+  desde los cuatro bordes y las cuatro esquinas, y el mínimo se respeta estirando desde arriba o la izquierda.

@@ -19,11 +19,12 @@ método, lo que falta y las reglas de producto.
 | --- | --- | --- | --- |
 | Alta | 53 | 53 (arregladas; 7 esperan verificación en el navegador) | 0 |
 | Media | 105 | 105 | 0 |
-| Baja | 28 | 2 | 26 |
+| Baja | 28 | 28 (arregladas; las 26 de la última tanda esperan verificación en el navegador) | 0 |
 
 Las 53 altas tienen su arreglo comprometido en git. Las últimas siete (18, 23, 26, 32, 45, 46, 50) se
 arreglaron en la tanda de septiembre y esperan su verificación en el navegador, con la receta de cada caso en
-[`CONTINUAR.md`](CONTINUAR.md). Quedan por trabajar las 26 bajas de `hallazgos.json`.
+[`CONTINUAR.md`](CONTINUAR.md). Las 28 bajas están arregladas también; las 26 cerradas en la última tanda
+esperan su verificación igualmente, con la receta por commit en [`CONTINUAR.md`](CONTINUAR.md).
 
 ## Cómo se trabajan
 
