@@ -2,6 +2,16 @@
   "rewrites": [{ "source": "/oauth/callback", "destination": "/index.html" }],
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), payment=(), usb=(), serial=(), bluetooth=(), midi=()" }
+      ]
+    },
+    {
       "source": "/oauth/client-metadata.json",
       "headers": [
         { "key": "Content-Type", "value": "application/json" },
