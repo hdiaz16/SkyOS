@@ -36,6 +36,13 @@ export const BRIDGE_URL = (env.VITE_BRIDGE_URL?.trim() ?? '').replace(/\/+$/, ''
 export const hasBridge = BRIDGE_URL !== ''
 
 /**
+ * The bridge as named by the person (`VITE_BRIDGE_URL`), for AI providers that refuse browser-direct calls —
+ * Z.ai answers a preflight with no CORS headers, so a page can never talk to it straight. Only an explicitly
+ * named bridge counts: the deployment's `/api` relay is Groq's, and silently routing GLM into it would 404.
+ */
+export const AI_BRIDGE_URL = (env.VITE_BRIDGE_URL?.trim() ?? '').replace(/\/+$/, '')
+
+/**
  * Where accounts are verified. Both values are meant to be public — the URL of the project and its publishable
  * key, which is what a browser is supposed to hold — and without them SkyOS falls back to local profiles on
  * this device, which is what a copy without a server gets.

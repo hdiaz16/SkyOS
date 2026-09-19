@@ -85,6 +85,17 @@ function safeJson(text: string): Record<string, unknown> {
   }
 }
 
+/**
+ * The words for a fetch that never left the browser. Offline and refused-by-the-provider look identical
+ * from here (TypeError), and they are different problems: one is the person's network, the other is a
+ * provider that does not accept calls from a web page — «revisa tu red» was a lie for that one, and it
+ * sent people hunting for a break that was not theirs.
+ */
+function connectionError(name: string): AiError {
+  if (!navigator.onLine) return new AiError('No hay conexión a internet. Revisa tu red e inténtalo de nuevo.', true)
+  return new AiError(`${name} no respondió a esta página. Puede ser un corte puntual, o que el proveedor no acepte llamadas directas desde un navegador (CORS); el detalle técnico quedó en la consola.`, true)
+}
+
 /** Asks an OpenAI-compatible server which models it serves. Chat-capable ids only, sorted. */
 export async function listModels(baseUrl: string, apiKey?: string, shared = false): Promise<string[]> {
   const headers: Record<string, string> = {}
@@ -96,7 +107,7 @@ export async function listModels(baseUrl: string, apiKey?: string, shared = fals
     // Unwrapped, the browser's own words reached the toast — «Failed to fetch», in English, inside an
     // interface that speaks Spanish without jargon.
     console.warn('[ia] no se pudo consultar la lista de modelos:', err)
-    throw new AiError('No hay conexión con el proveedor, o la URL base no es correcta.')
+    throw connectionError(new URL(baseUrl).host)
   }
   if (!res.ok) throw shared ? sharedKeyBusy() : new AiError(res.status === 401 ? 'La llave no es válida.' : `El servidor respondió ${res.status}.`)
   const data = (await res.json()) as { data?: Array<{ id: string }>; models?: Array<{ name: string }> }
@@ -160,10 +171,8 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
           yield { type: 'done', stopReason: 'aborted', usage: { inputTokens: 0, outputTokens: 0 }, assistant: { role: 'assistant', parts: [] } }
           return
         }
-        // Wifi with no internet behind it — a captive portal, DNS down — leaves navigator.onLine true, so this
-        // is the line the person actually reads. Half Spanish and half machine English is no way to read it.
         console.warn(`[ai] ${cfg.name} inalcanzable:`, err)
-        yield { type: 'error', error: new AiError(`No hay conexión con ${cfg.name}. Revisa tu red e inténtalo de nuevo.`, true) }
+        yield { type: 'error', error: connectionError(cfg.name) }
         return
       }
 

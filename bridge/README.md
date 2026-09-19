@@ -68,6 +68,15 @@ Mismo relevo para los servidores OAuth: descubrimiento (`/.well-known/...`), reg
 endpoint de tokens. Acepta `GET` y `POST` (otros métodos responden `405`). Reenvía `Content-Type`, `Accept` y
 `Authorization`; devuelve el estado, `Content-Type` y el cuerpo.
 
+### `ALL /ai/proxy?target=<URL absoluta codificada>`
+
+Mismo relevo para proveedores de IA que no aceptan llamadas directas desde un navegador — Z.ai responde el
+preflight sin cabeceras CORS, así que una página nunca puede hablarle directo. SkyOS manda aquí sus llamadas a
+`/chat/completions` y `/models` (GLM, en Ajustes › Inteligencia) con la llave de la persona en `Authorization`.
+Acepta `GET` y `POST` (otros métodos responden `405`); reenvía `Authorization`, `Content-Type` y `Accept`, y
+devuelve el estado, `Content-Type` y `Retry-After`. Sin tiempo de espera: las respuestas se transmiten en
+streaming, token por token.
+
 ### Reglas para `target`
 
 - Debe ser una URL absoluta `https:`; cualquier otra cosa responde `400 invalid_target`.
@@ -106,7 +115,8 @@ VITE_BRIDGE_URL=https://puente.tudominio.com
 ```
 
 y añade el origen donde corre SkyOS a `ALLOWED_ORIGINS` del puente. Sin `VITE_BRIDGE_URL`, SkyOS habla con los
-servidores MCP directamente.
+servidores MCP directamente, y los proveedores de IA que no aceptan navegadores (Z.ai/GLM) quedan sin poder
+llamarse: el escritorio lo dice así, en vez de culpar a la red.
 
 ## Estructura
 

@@ -57,6 +57,18 @@ export const OAUTH_POLICY: ProxyPolicy = {
   timeoutMs: 30_000,
 };
 
+/**
+ * AI providers that refuse browser-direct calls (Z.ai answers a preflight with no CORS headers): the
+ * desktop repeats its `/chat/completions` and `/models` calls from here, with the person's own key in
+ * the Authorization header. No timeout: answers stream token by token.
+ */
+export const AI_POLICY: ProxyPolicy = {
+  label: 'el proveedor de IA',
+  allowedMethods: new Set(['GET', 'POST']),
+  requestHeaders: ['Authorization', 'Content-Type', 'Accept'],
+  responseHeaders: ['Content-Type', 'Retry-After'],
+};
+
 // --- Target validation ------------------------------------------------------------
 
 /** [network, prefix length] pairs that never leave the machine or the LAN. */

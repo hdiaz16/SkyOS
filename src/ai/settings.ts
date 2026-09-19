@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { sessionSuffix } from '../system/session'
-import { DEFAULT_GROQ_KEY, hasAiProxy, hasSharedGroqKey, sharedGroqBaseUrl } from '../config'
+import { AI_BRIDGE_URL, DEFAULT_GROQ_KEY, hasAiProxy, hasSharedGroqKey, sharedGroqBaseUrl } from '../config'
 import type { Effort, ModelInfo } from './types'
 
 export type ProviderId = 'groq' | 'anthropic' | 'openai' | 'gemini' | 'glm' | 'openrouter' | 'ollama' | 'custom' | 'mock'
@@ -29,6 +29,9 @@ export interface ProviderPreset {
   modelHint: string
   /** Whether image input works for this provider's typical models. */
   vision: boolean
+  /** The provider sends no CORS headers, so a page can never call it straight: with `VITE_BRIDGE_URL`
+   *  named, its requests ride the local bridge (bridge/); without it, the error says so honestly. */
+  relay?: boolean
   devOnly?: boolean
 }
 
@@ -106,6 +109,9 @@ export const PROVIDERS: ProviderPreset[] = [
     // No models are written here: what Z.ai serves today is asked to Z.ai itself, so new generations
     // (and retirements) arrive without anyone editing this file.
     models: [],
+    // Z.ai answers a preflight with no CORS headers: a page can never call it straight. With the bridge
+    // named (VITE_BRIDGE_URL), requests repeat from Node, where that refusal does not apply.
+    relay: true,
     autoTiers: true,
     modelHint: 'p. ej. glm-4.6',
     // The eyes are a separate family (-v): a request carrying an image switches to it when the live list
@@ -384,7 +390,13 @@ function resolveBaseUrl(state: AiSettingsState, provider: ProviderId): string {
   const own = state.baseUrls[provider]
   if (own) return own
   if (provider === 'groq' && !state.keys.groq) return sharedGroqBaseUrl()
-  return presetFor(provider).baseUrl ?? ''
+  const preset = presetFor(provider)
+  if (preset.relay && preset.baseUrl && AI_BRIDGE_URL) {
+    // The provider path is appended by whoever calls, and it travels whole inside target=: the query value
+    // accepts the extra path after the encoded base.
+    return `${AI_BRIDGE_URL}/ai/proxy?target=${encodeURIComponent(preset.baseUrl)}`
+  }
+  return preset.baseUrl ?? ''
 }
 
 /** True when requests to this provider would ride on Sky's included key rather than the person's own. */
