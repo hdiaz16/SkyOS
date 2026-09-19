@@ -3,7 +3,7 @@ import { fs } from '../fs'
 import { ROOT_ID, fileKind } from '../types'
 import { useWindows } from '../../state/windows'
 import { useUi } from '../../state/ui'
-import { useSettings, type Theme } from '../../state/settings'
+import { ACCENTS, BACKDROPS, useSettings, type Accent, type Backdrop, type Theme } from '../../state/settings'
 import { GOOGLE_HOME, googleSearchUrl, titleForUrl, toNavigableUrl } from '../../lib/web'
 
 /** Words that make these commands relevant; without one of them in the request, their tools stay home. */
@@ -142,6 +142,36 @@ registerCommand<{ theme?: Theme }, Theme>({
     // The only write in this group that had no inverse: the dialog promised «se puede deshacer después» and
     // then the entry showed up with nothing to press.
     return { result: next, label: `Tema ${THEME_NAMES[next]}`, undo: next === before ? undefined : { commandId: 'ui.theme', params: { theme: before } } }
+  },
+})
+
+registerCommand<{ theme?: Theme; accent?: Accent; backdrop?: Backdrop }, { theme: Theme; accent: Accent; backdrop: Backdrop }>({
+  id: 'ui.appearance',
+  risk: 'write',
+  keywords: LOOK_WORDS,
+  title: 'Cambiar la apariencia',
+  description: `Personaliza el escritorio: tema (system, light, dark), color de acento (${ACCENTS.map((a) => a.value).join(', ')}) y fondo (${BACKDROPS.map((b) => b.value).join(', ')}). Manda solo lo que cambia. Para "ponlo azul" usa accent cielo; "más cálido" es accent arena o backdrop atardecer; "modo noche" es theme dark.`,
+  params: {
+    theme: { type: 'string', description: 'system, light o dark', enum: ['system', 'light', 'dark'] },
+    accent: { type: 'string', description: 'Color de acento.', enum: ACCENTS.map((a) => a.value) },
+    backdrop: { type: 'string', description: 'Fondo del escritorio.', enum: BACKDROPS.map((b) => b.value) },
+  },
+  async run({ theme, accent, backdrop }) {
+    const s = useSettings.getState()
+    const before = { theme: s.theme, accent: s.accent, backdrop: s.backdrop }
+    if (theme && theme !== s.theme) s.setTheme(theme)
+    if (accent && accent !== s.accent) s.setAccent(accent)
+    if (backdrop && backdrop !== s.backdrop) s.setBackdrop(backdrop)
+    const after = useSettings.getState()
+    const changes = [
+      theme && theme !== before.theme ? `tema ${THEME_NAMES[theme]}` : '',
+      accent && accent !== before.accent ? `acento ${ACCENTS.find((a) => a.value === accent)?.label.toLowerCase() ?? accent}` : '',
+      backdrop && backdrop !== before.backdrop ? `fondo ${BACKDROPS.find((b) => b.value === backdrop)?.label.toLowerCase() ?? backdrop}` : '',
+    ].filter(Boolean)
+    const result = { theme: after.theme, accent: after.accent, backdrop: after.backdrop }
+    if (!changes.length) return { result }
+    // Not a toggle: the inverse carries the exact values that were there, so undoing puts back what was.
+    return { result, label: `Apariencia: ${changes.join(', ')}`, undo: { commandId: 'ui.appearance', params: before } }
   },
 })
 

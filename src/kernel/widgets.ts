@@ -36,6 +36,12 @@ export interface Widget {
   y: number
   w: number
   h: number
+  /**
+   * Distance to the right edge of the screen, when the widget is pinned there. The widgets live in a column
+   * on the right, and a column measured from the left drifts with every change of window size: the same desk on
+   * a smaller monitor had the weather sitting in the middle of the icons. Absent (or null) means free: x rules.
+   */
+  anchorRight?: number | null
   config: WidgetConfig
   createdAt: number
   updatedAt: number
@@ -134,22 +140,25 @@ export const widgets = {
 
   async create(
     type: WidgetType,
-    opts: { title?: string; config?: WidgetConfig; x?: number; y?: number; w?: number; h?: number } = {},
+    opts: { title?: string; config?: WidgetConfig; x?: number; y?: number; w?: number; h?: number; pinned?: boolean } = {},
   ): Promise<Widget> {
     const meta = WIDGET_META[type]
     const existing = await db.widgets.toArray()
     const w = opts.w ?? meta.w
     const h = opts.h ?? meta.h
     const pos = nextPosition(existing, w, h)
+    const x = opts.x ?? pos.x
     const t = now()
     const widget: Widget = {
       id: nanoid(8),
       type,
       title: (opts.title ?? '').trim() || meta.label,
-      x: opts.x ?? pos.x,
+      x,
       y: opts.y ?? pos.y,
       w,
       h,
+      // Pinned unless told otherwise: a new widget lands in the right-hand column and should stay in it.
+      anchorRight: opts.pinned === false ? null : Math.max(0, window.innerWidth - x - w),
       config: { ...meta.defaults(), ...(opts.config ?? {}) },
       createdAt: t,
       updatedAt: t,
@@ -178,7 +187,8 @@ export const widgets = {
     await db.widgets.update(id, { config: { ...current.config, ...config }, updatedAt: now() })
   },
 
-  async place(id: string, geometry: Partial<Pick<Widget, 'x' | 'y' | 'w' | 'h'>>): Promise<void> {
+  /** Moves, resizes or pins. `anchorRight: null` sets the widget free; a number pins it at that distance. */
+  async place(id: string, geometry: Partial<Pick<Widget, 'x' | 'y' | 'w' | 'h' | 'anchorRight'>>): Promise<void> {
     await db.widgets.update(id, geometry)
   },
 

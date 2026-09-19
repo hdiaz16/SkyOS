@@ -381,3 +381,21 @@ html.handoff-flood body,
   scrollbar-width: thin;
   scrollbar-color: var(--line-2) transparent;
 }
+
+/* Acentos: la misma paleta, otra tinta para lo elegido y lo pulsado. Se leen del elemento raíz. */
+:root[data-accent="cielo"] { --accent: #3f7ea6; --accent-soft: rgba(63, 126, 166, 0.14); --orb-disc: #4a8fb8; --orb-halo: #cfe0ea; }
+:root[data-accent="arena"] { --accent: #a67c3f; --accent-soft: rgba(166, 124, 63, 0.14); --orb-disc: #b8894a; --orb-halo: #eadfc8; }
+:root[data-accent="lavanda"] { --accent: #7b6aa8; --accent-soft: rgba(123, 106, 168, 0.14); --orb-disc: #8a78ba; --orb-halo: #e0daee; }
+:root[data-accent="coral"] { --accent: #b9614f; --accent-soft: rgba(185, 97, 79, 0.14); --orb-disc: #c56f5c; --orb-halo: #efd6cf; }
+.dark[data-accent="cielo"] { --accent: #86c2e6; --accent-soft: rgba(134, 194, 230, 0.16); --orb-disc: #5aa3cc; --orb-halo: #1f3c4c; }
+.dark[data-accent="arena"] { --accent: #e0b57a; --accent-soft: rgba(224, 181, 122, 0.16); --orb-disc: #c99a5a; --orb-halo: #46381f; }
+.dark[data-accent="lavanda"] { --accent: #b7a8e6; --accent-soft: rgba(183, 168, 230, 0.16); --orb-disc: #9a88cf; --orb-halo: #302848; }
+.dark[data-accent="coral"] { --accent: #e69a8a; --accent-soft: rgba(230, 154, 138, 0.16); --orb-disc: #cf7c69; --orb-halo: #4a2a24; }
+
+/* Fondos: las mismas manchas de luz y colinas, otra hora del día. */
+:root[data-backdrop="mar"] { --bg-a: #e6edef; --bg-b: #eef1f0; --bg-c: #dbe7ea; --blob-1: #b3cfd8; --blob-2: #c9dde8; --blob-3: #e8e3d0; --hill-1: #d7e3e5; --hill-2: #c9d8dc; }
+:root[data-backdrop="atardecer"] { --bg-a: #f0e9e2; --bg-b: #f4eee6; --bg-c: #ecdfd6; --blob-1: #ead2b8; --blob-2: #f3dcc0; --blob-3: #d9c9d8; --hill-1: #e6d9cf; --hill-2: #dccbc0; }
+:root[data-backdrop="bosque"] { --bg-a: #e2e9e0; --bg-b: #e9ede4; --bg-c: #d8e3da; --blob-1: #a9c9a8; --blob-2: #c2d8c4; --blob-3: #e6dfc2; --hill-1: #cfdccd; --hill-2: #bfcfbe; }
+.dark[data-backdrop="mar"] { --bg-a: #0d1418; --bg-b: #101a1f; --bg-c: #0f1a20; --blob-1: #1b3340; --blob-2: #1a2a3a; --blob-3: #26343a; --hill-1: #0c1418; --hill-2: #0a1013; }
+.dark[data-backdrop="atardecer"] { --bg-a: #16110f; --bg-b: #1c1512; --bg-c: #1a1412; --blob-1: #3d2a22; --blob-2: #45301f; --blob-3: #2e2530; --hill-1: #141010; --hill-2: #100d0c; }
+.dark[data-backdrop="bosque"] { --bg-a: #0b120e; --bg-b: #0f1812; --bg-c: #0d1610; --blob-1: #1d3a2a; --blob-2: #16302a; --blob-3: #2a3628; --hill-1: #0a110d; --hill-2: #080e0a; }

@@ -29,7 +29,7 @@ import { flows } from '../../kernel/flows'
 import { speak, listElevenVoices, listElevenModels, type ElevenVoice, type ElevenModel } from '../../ai/speech'
 import { useVoiceSettings } from '../../ai/voiceSettings'
 import { dispatch, useToasts } from '../../kernel/commands'
-import { useSettings, type Theme } from '../../state/settings'
+import { ACCENTS, BACKDROPS, useSettings, type Theme } from '../../state/settings'
 import {
   AUTO_MODEL,
   baseUrlFor,
@@ -170,6 +170,7 @@ function AppearanceSection() {
         onChange={setTheme}
         options={THEMES.map((t) => ({ value: t.value, label: t.label, icon: <t.icon className="h-4 w-4" strokeWidth={1.75} /> }))}
       />
+      <LookRow />
       <VoiceRow />
       <div className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
         <div className="min-w-0">
@@ -190,6 +191,53 @@ function AppearanceSection() {
           <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition', sounds ? 'left-[22px]' : 'left-0.5')} />
         </button>
       </div>
+    </div>
+  )
+}
+
+/** The accent and the backdrop: the same things Sky changes when asked «ponlo azul» or «más cálido». */
+function LookRow() {
+  const accent = useSettings((s) => s.accent)
+  const backdrop = useSettings((s) => s.backdrop)
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="w-[116px] shrink-0 text-[12.5px] text-ink-3">Acento</span>
+        <div className="flex items-center gap-2">
+          {ACCENTS.map((a) => (
+            <button
+              key={a.value}
+              type="button"
+              aria-label={a.label}
+              aria-pressed={accent === a.value}
+              title={a.label}
+              onClick={() => void dispatch('ui.appearance', { accent: a.value })}
+              className={cn('h-6 w-6 rounded-full border-2 transition hover:scale-110', accent === a.value ? 'border-ink' : 'border-transparent')}
+              style={{ background: a.swatch }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="w-[116px] shrink-0 text-[12.5px] text-ink-3">Fondo</span>
+        <div className="flex flex-wrap gap-1.5">
+          {BACKDROPS.map((b) => (
+            <button
+              key={b.value}
+              type="button"
+              aria-pressed={backdrop === b.value}
+              onClick={() => void dispatch('ui.appearance', { backdrop: b.value })}
+              className={cn(
+                'rounded-full border px-3 py-1 text-[12.5px] transition',
+                backdrop === b.value ? 'border-accent bg-accent-soft text-accent' : 'border-line-2 text-ink-2 hover:border-line hover:text-ink',
+              )}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-[12px] leading-relaxed text-ink-3">También se lo puedes pedir a Sky: «ponlo azul», «un fondo más cálido», «modo noche».</p>
     </div>
   )
 }

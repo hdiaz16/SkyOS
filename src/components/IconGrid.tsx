@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, type CSSProperties } from 'react'
 import { AnimatePresence } from 'motion/react'
 import type { FsNode } from '../kernel/types'
 import { useUi, DESKTOP_SURFACE } from '../state/ui'
@@ -12,9 +12,11 @@ interface Props {
   /** Which surface these icons belong to, so a selection never spans two of them. */
   surface?: string
   className?: string
+  /** Room the grid must leave (the desk hands it the column its pinned widgets occupy). */
+  style?: CSSProperties
 }
 
-export function IconGrid({ nodes, onOpenFolder, animateLayout = false, surface = DESKTOP_SURFACE, className }: Props) {
+export function IconGrid({ nodes, onOpenFolder, animateLayout = false, surface = DESKTOP_SURFACE, className, style }: Props) {
   /** Where a range starts: the last icon picked without Shift. */
   const anchor = useRef<string | null>(null)
 
@@ -39,7 +41,7 @@ export function IconGrid({ nodes, onOpenFolder, animateLayout = false, surface =
   return (
     <div
       className={className}
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 104px)', gap: '4px 6px', alignContent: 'start' }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 104px)', gap: '4px 6px', alignContent: 'start', ...style }}
     >
       <AnimatePresence initial={false}>
         {nodes.map((n) => (

@@ -7,10 +7,16 @@ import { useUi, DESKTOP_SURFACE } from '../state/ui'
 import { folderMenu, importFiles } from '../lib/menus'
 import { cn } from '../lib/utils'
 import { IconGrid } from './IconGrid'
+import { widgets } from '../kernel/widgets'
 import { NODE_DRAG_TYPE } from './NodeIcon'
 
 export function Desktop() {
   const nodes = useLiveQuery(() => fs.list(ROOT_ID), [])
+  // Icons and widgets share the desk, and the icons used to flow underneath the widgets: a file could land
+  // behind the weather and only be reachable by moving the widget. The column the pinned widgets hold is
+  // taken out of the grid; a free-floating widget is one the person put wherever they wanted.
+  const pinned = useLiveQuery(() => widgets.list(), [])?.filter((w) => w.anchorRight !== undefined && w.anchorRight !== null) ?? []
+  const reserved = pinned.length ? Math.max(...pinned.map((w) => (w.anchorRight ?? 0) + w.w)) + 20 : 0
   const [dragOver, setDragOver] = useState(false)
 
   const onMouseDown = (e: MouseEvent) => {
@@ -75,7 +81,7 @@ export function Desktop() {
       }}
       onDrop={onDrop}
     >
-      <IconGrid nodes={nodes ?? []} animateLayout surface={DESKTOP_SURFACE} className="h-full content-start" />
+      <IconGrid nodes={nodes ?? []} animateLayout surface={DESKTOP_SURFACE} className="h-full content-start" style={reserved ? { paddingRight: reserved } : undefined} />
 
       <div
         className={cn(

@@ -109,13 +109,14 @@ function summarize(w: Widget) {
       detail = typeof c.html === 'string' ? `${c.html.length} caracteres de HTML` : undefined
       break
   }
-  return { id: w.id, type: w.type, title: w.title, detail }
+  const pinned = w.anchorRight !== undefined && w.anchorRight !== null
+  return { id: w.id, type: w.type, title: w.title, detail, x: Math.round(w.x), y: Math.round(w.y), w: w.w, h: w.h, pinned }
 }
 
 /** Words that make these commands relevant; without one of them in the request, their tools stay home. */
-const WIDGET_WORDS = ['widget', 'widgets', 'reloj', 'clima', 'tiempo', 'temporizador', 'timer', 'pomodoro', 'tareas', 'pendientes', 'nota rapida', 'nota rápida', 'divisas', 'moneda', 'dolar', 'dólar', 'html', 'panel', 'escritorio']
+const WIDGET_WORDS = ['widget', 'widgets', 'reloj', 'clima', 'tiempo', 'temporizador', 'timer', 'pomodoro', 'tareas', 'pendientes', 'nota rapida', 'nota rápida', 'divisas', 'moneda', 'dolar', 'dólar', 'html', 'panel', 'escritorio', 'ancla', 'anclar', 'mueve', 'agranda', 'achica']
 
-registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: number; y?: number; w?: number; h?: number }, Widget>({
+registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: number; y?: number; w?: number; h?: number; pinned?: boolean }, Widget>({
   id: 'widgets.create',
   risk: 'write',
   keywords: WIDGET_WORDS,
@@ -129,6 +130,7 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
     y: { type: 'number', description: 'Posición vertical en píxeles (opcional).' },
     w: { type: 'number', description: 'Ancho en píxeles (opcional).' },
     h: { type: 'number', description: 'Alto en píxeles (opcional).' },
+    pinned: { type: 'boolean', description: 'Anclado al borde derecho (por defecto sí): conserva su zona aunque cambie el tamaño de la pantalla. false lo deja libre donde se ponga.' },
   },
   async run({ type, ...opts }) {
     if (!WIDGET_TYPES.includes(type)) throw new Error(`Tipo de widget desconocido: ${type}`)
@@ -164,6 +166,52 @@ registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
     return {
       result: after,
       label: `Widget "${after.title}" actualizado`,
+      undo: { commandId: 'widgets.restore', params: { widget: before } },
+    }
+  },
+})
+
+registerCommand<{ id: string; x?: number; y?: number; w?: number; h?: number; pinned?: boolean }, Widget>({
+  id: 'widgets.place',
+  risk: 'write',
+  keywords: WIDGET_WORDS,
+  title: 'Colocar widget',
+  description:
+    'Mueve, redimensiona o ancla un widget que ya existe. x/y en píxeles desde arriba a la izquierda de la pantalla; w/h su tamaño; pinned true lo ancla al borde derecho (mantiene su zona al cambiar la pantalla), false lo deja libre. Usa widgets.list para saber el id y dónde está cada uno. Para "a la izquierda" usa x pequeño y pinned false; para "arriba a la derecha" basta pinned true con y pequeño.',
+  params: {
+    id: { type: 'string', description: 'Id del widget.', required: true },
+    x: { type: 'number', description: 'Nueva posición horizontal en píxeles.' },
+    y: { type: 'number', description: 'Nueva posición vertical en píxeles.' },
+    w: { type: 'number', description: 'Nuevo ancho en píxeles (mínimo 220).' },
+    h: { type: 'number', description: 'Nuevo alto en píxeles (mínimo 140).' },
+    pinned: { type: 'boolean', description: 'true ancla al borde derecho; false lo suelta.' },
+  },
+  async run({ id, x, y, w, h, pinned }) {
+    const before = await widgets.get(id)
+    if (!before) throw new Error('El widget ya no existe')
+    if (x === undefined && y === undefined && w === undefined && h === undefined && pinned === undefined) {
+      throw new Error('Di qué cambiar: posición (x, y), tamaño (w, h) o anclaje (pinned)')
+    }
+    const width = w === undefined ? before.w : Math.max(220, Math.round(w))
+    const height = h === undefined ? before.h : Math.max(140, Math.round(h))
+    const left = x === undefined ? before.x : Math.max(0, Math.round(x))
+    const top = y === undefined ? before.y : Math.max(44, Math.round(y))
+    const wasPinned = before.anchorRight !== undefined && before.anchorRight !== null
+    const willPin = pinned ?? (x === undefined ? wasPinned : false)
+    // A widget moved by hand to a place is free at that place, unless the request also says to pin it there.
+    const anchorRight = willPin ? Math.max(0, window.innerWidth - left - width) : null
+    await widgets.place(id, { x: left, y: top, w: width, h: height, anchorRight })
+    const after = (await widgets.get(id)) ?? before
+    const said = [
+      x !== undefined || y !== undefined ? 'movido' : '',
+      w !== undefined || h !== undefined ? 'redimensionado' : '',
+      pinned === true ? 'anclado al borde' : pinned === false ? 'suelto' : '',
+    ]
+      .filter(Boolean)
+      .join(', ')
+    return {
+      result: after,
+      label: `Widget "${after.title}" ${said || 'colocado'}`,
       undo: { commandId: 'widgets.restore', params: { widget: before } },
     }
   },

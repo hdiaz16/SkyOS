@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { X } from 'lucide-react'
+import { Pin, PinOff, X } from 'lucide-react'
 import { widgets as widgetService, type Widget } from '../../kernel/widgets'
 import { dispatch } from '../../kernel/commands'
 import { useUi } from '../../state/ui'
@@ -32,9 +32,34 @@ function inside(g: Geometry): Geometry {
   return { ...g, x: Math.min(Math.max(0, g.x), maxX), y: Math.min(Math.max(44, g.y), maxY) }
 }
 
+/**
+ * Where a pinned widget sits on this screen. A pinned widget remembers its distance to the right edge, not its
+ * x: the widgets live in a column on the right, and measured from the left that column drifted with every
+ * change of window size — open the same desk on a smaller monitor and the weather had wandered into the middle
+ * of the icons. Measured from the edge it holds, it stays in the same area whatever the width.
+ */
+function placed(widget: Widget, viewportWidth: number): Geometry {
+  const base = { x: widget.x, y: widget.y, w: widget.w, h: widget.h }
+  if (widget.anchorRight === undefined || widget.anchorRight === null) return base
+  return { ...base, x: Math.max(0, viewportWidth - widget.anchorRight - widget.w) }
+}
+
+/** The viewport width, kept fresh so pinned widgets can follow the edge while the window is resized. */
+function useViewportWidth(): number {
+  const [width, setWidth] = useState(window.innerWidth)
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return width
+}
+
 /** Draggable, resizable tile that hosts a widget on the desktop. Geometry persists on release. */
 export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
-  const stored: Geometry = { x: widget.x, y: widget.y, w: widget.w, h: widget.h }
+  const viewportWidth = useViewportWidth()
+  const pinned = widget.anchorRight !== undefined && widget.anchorRight !== null
+  const stored: Geometry = placed(widget, viewportWidth)
   // While dragging we render the live geometry; once the stored one catches up we fall back to it.
   const [dragGeo, setDragGeo] = useState<Geometry | null>(null)
   const [interacting, setInteracting] = useState(false)
@@ -42,23 +67,31 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   const geo = dragGeo && !same(dragGeo, stored) ? dragGeo : stored
 
   // On arrival, and whenever the window changes size, anything left outside is brought back within reach —
-  // the same courtesy the desk already does for windows.
+  // the same courtesy the desk already does for windows. A pinned widget only needs its height checked: its
+  // horizontal place is computed from the edge every time.
   useEffect(() => {
     const fit = () => {
-      const placed = inside(stored)
-      if (placed.x !== stored.x || placed.y !== stored.y) void widgetService.place(widget.id, { x: placed.x, y: placed.y })
+      const current = placed(widget, window.innerWidth)
+      const next = inside(current)
+      if (next.y !== current.y) void widgetService.place(widget.id, { y: next.y })
+      if (!pinned && next.x !== current.x) void widgetService.place(widget.id, { x: next.x })
     }
     fit()
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widget.id, stored.x, stored.y])
+  }, [widget.id, widget.x, widget.y, widget.w, widget.anchorRight])
+
+  /** Pinned: keeps its distance to the right edge. Free: keeps its x and drifts with the width. */
+  const togglePin = () => void dispatch('widgets.place', { id: widget.id, pinned: !pinned })
 
   /** Right-click on a widget used to open the browser's own menu — Recargar, Inspeccionar — inside SkyOS. */
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     useUi.getState().openMenu(e.clientX, e.clientY, [
+      { label: pinned ? 'Soltar del borde' : 'Anclar al borde derecho', onSelect: togglePin },
+      { type: 'separator' },
       { label: 'Quitar widget', danger: true, onSelect: () => void dispatch('widgets.remove', { id: widget.id }) },
     ])
   }
@@ -82,7 +115,11 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
         setInteracting(false)
         live.current = inside(live.current)
         setDragGeo(live.current)
-        void widgetService.place(widget.id, persist(live.current))
+        const change = persist(live.current)
+        // A pinned widget that was dragged keeps its pin: the new place is remembered as a new distance to the
+        // edge, so it stays put on the next screen too.
+        const anchored = pinned && change.x !== undefined ? { ...change, anchorRight: Math.max(0, window.innerWidth - live.current.x - live.current.w) } : change
+        void widgetService.place(widget.id, anchored)
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
@@ -94,7 +131,9 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   )
   const startResize = track(
     (dx, dy, s) => ({ ...s, w: Math.max(220, s.w + dx), h: Math.max(140, s.h + dy) }),
-    (g) => ({ w: g.w, h: g.h }),
+    // Growing to the right while pinned would push the widget past the edge it holds: the anchor shrinks by
+    // what the width grew, so the left side moves and the right side stays.
+    (g) => (pinned ? { w: g.w, h: g.h, anchorRight: Math.max(0, window.innerWidth - g.x - g.w) } : { w: g.w, h: g.h }),
   )
 
   return (
@@ -114,6 +153,18 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
       <div className="cursor-hand flex h-9 shrink-0 select-none items-center gap-2 px-3" onPointerDown={startDrag}>
         <Icon className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={2} />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink-2">{widget.title}</span>
+        <button
+          type="button"
+          aria-label={pinned ? 'Soltar del borde' : 'Anclar al borde derecho'}
+          title={pinned ? 'Anclado al borde derecho: se queda en su zona aunque cambie el tamaño de la pantalla' : 'Anclar al borde derecho'}
+          onClick={togglePin}
+          className={cn(
+            'flex h-5 w-5 items-center justify-center rounded-md transition hover:bg-surface-2 hover:text-ink',
+            pinned ? 'text-accent opacity-60 group-hover:opacity-100' : 'text-ink-3 opacity-0 group-hover:opacity-100',
+          )}
+        >
+          {pinned ? <Pin className="h-3 w-3" /> : <PinOff className="h-3 w-3" />}
+        </button>
         <button
           type="button"
           aria-label="Quitar widget"
