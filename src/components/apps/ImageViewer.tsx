@@ -45,8 +45,9 @@ export function ImageViewer({ win }: { win: Win }) {
       <div className="flex h-8 shrink-0 items-center justify-between border-t border-line px-4 text-[11px] text-ink-3">
         <span className="truncate">{node?.name}</span>
         <span className="shrink-0 tabular-nums">
-          {dims ? `${dims.w} × ${dims.h}` : ''}
-          {node ? ` · ${formatBytes(node.size)}` : ''}
+          {/* While the image loads (or if it never does) the foot read « · 1,2 MB»: a separator with nothing
+              before it. Only the parts that exist are joined now. */}
+          {[dims ? `${dims.w} × ${dims.h}` : '', node ? formatBytes(node.size) : ''].filter(Boolean).join(' · ')}
         </span>
       </div>
     </div>

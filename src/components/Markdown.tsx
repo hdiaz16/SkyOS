@@ -1,8 +1,11 @@
-import { isValidElement, type ReactNode } from 'react'
+import { createContext, isValidElement, useContext, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '../lib/utils'
 import { Mermaid } from './Mermaid'
+
+/** Whether the <code> being styled sits inside a <pre>: that, not the language- prefix, makes it a block. */
+const InPre = createContext(false)
 
 const isMermaidCode = (child: ReactNode): boolean =>
   isValidElement<{ className?: string }>(child) && typeof child.props.className === 'string' && child.props.className.includes('language-mermaid')
@@ -41,13 +44,13 @@ const components: Components = {
   pre: ({ children }) => {
     const only = Array.isArray(children) ? children.find((c) => isValidElement(c)) : children
     if (isMermaidCode(only)) return <div className="my-2">{children}</div>
-    return <pre className="scrollbar-thin my-2 overflow-x-auto rounded-xl bg-ink/[0.06] p-3 font-mono text-[12px] leading-relaxed text-ink dark:bg-white/[0.06]">{children}</pre>
+    return (
+      <pre className="scrollbar-thin my-2 overflow-x-auto rounded-xl bg-ink/[0.06] p-3 font-mono text-[12px] leading-relaxed text-ink dark:bg-white/[0.06]">
+        <InPre.Provider value>{children}</InPre.Provider>
+      </pre>
+    )
   },
-  code: ({ children, className }) => {
-    const block = typeof className === 'string' && className.startsWith('language-')
-    if (block && className.includes('language-mermaid')) return <Mermaid code={String(children)} />
-    return block ? <code className="font-mono">{children}</code> : <code className="rounded bg-surface-2 px-1 py-px font-mono text-[12.5px] text-ink">{children}</code>
-  },
+  code: ({ children, className }) => <MarkdownCode className={className}>{children}</MarkdownCode>,
   table: ({ children }) => (
     <div className="scrollbar-thin my-2 overflow-x-auto">
       <table className="min-w-[320px] border-collapse text-[13px]">{children}</table>
@@ -56,6 +59,15 @@ const components: Components = {
   thead: ({ children }) => <thead className="bg-surface-2">{children}</thead>,
   th: ({ children }) => <th className="border border-line px-2.5 py-1.5 text-left font-medium text-ink">{children}</th>,
   td: ({ children }) => <td className="border border-line px-2.5 py-1.5 align-top">{children}</td>,
+}
+
+/** A fence with no language —``` plain, the most common in model replies— carries no className, so it used to
+ *  fall to the inline style: a boxed 12.5px code inside the <pre>'s own box. Being inside a <pre> decides. */
+function MarkdownCode({ children, className }: { children: ReactNode; className?: string }) {
+  const inPre = useContext(InPre)
+  if (typeof className === 'string' && className.includes('language-mermaid')) return <Mermaid code={String(children)} />
+  const block = inPre || (typeof className === 'string' && className.startsWith('language-'))
+  return block ? <code className="font-mono">{children}</code> : <code className="rounded bg-surface-2 px-1 py-px font-mono text-[12.5px] text-ink">{children}</code>
 }
 
 export function Markdown({ text, className }: { text: string; className?: string }) {

@@ -29,10 +29,12 @@ export function OfficeViewer({ win }: { win: Win }) {
     let alive = true
     fs.readBlob(nodeId)
       .then((blob) => alive && setLoaded({ id: nodeId, version: stamp, blob, error: blob ? undefined : 'No encontré el contenido del archivo.' }))
-      .catch(
-        (err: unknown) =>
-          alive && setLoaded({ id: nodeId, version: stamp, blob: null, error: err instanceof Error ? err.message : 'No se pudo leer el archivo' }),
-      )
+      .catch((err: unknown) => {
+        // A rejected read (quota full, locked base) used to paint the raw error —«QuotaExceededError: …»—
+        // in English in the middle of the window. The detail stays in the console; the person gets our words.
+        console.warn('[OfficeViewer] no pude leer el blob', nodeId, err)
+        if (alive) setLoaded({ id: nodeId, version: stamp, blob: null, error: 'No pude abrir este archivo ahora mismo. Vuelve a intentarlo.' })
+      })
     return () => {
       alive = false
     }

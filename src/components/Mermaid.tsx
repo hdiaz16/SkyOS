@@ -10,7 +10,14 @@ let seq = 0
 
 /** The diagram library is heavy, so it arrives the first time a diagram shows up, and stays. */
 function loadMermaid(): Promise<MermaidApi> {
-  loading ??= import('mermaid').then((m) => m.default)
+  // The rejected promise used to be cached too: one moment without network and every diagram of the session
+  // showed the same English fetch error, never retried. The failure is not kept; the next diagram tries again.
+  loading ??= import('mermaid')
+    .then((m) => m.default)
+    .catch((err: unknown) => {
+      loading = null
+      throw err
+    })
   return loading
 }
 
