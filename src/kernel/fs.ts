@@ -187,8 +187,11 @@ export const fs = {
     return unique
   },
 
-  /** Moves nodes into a folder. Returns the previous parent of each moved node. */
-  async move(ids: string[], targetParentId: string): Promise<Record<string, string>> {
+  /**
+   * Moves nodes into a folder. Returns where each one came from, parent and name: a move can have to rename
+   * to fit («notas 2.md»), and undo has to give back both or it leaves something other than what was there.
+   */
+  async move(ids: string[], targetParentId: string): Promise<Record<string, { parentId: string; name: string }>> {
     if (targetParentId !== ROOT_ID) {
       const target = await requireNode(targetParentId)
       if (target.kind !== 'folder') throw new Error('El destino no es una carpeta')
@@ -196,7 +199,7 @@ export const fs = {
     // Everything is checked before anything moves. Half a move is the worst outcome: some files travelled,
     // the rest did not, and because the call ended in an error there is no journal entry to put them back.
     const going: FsNode[] = []
-    for (const id of ids) {
+    for (const id of new Set(ids)) {
       const node = await requireNode(id)
       if (node.parentId === targetParentId) continue
       if (node.kind === 'folder' && (await isSameOrDescendant(id, targetParentId))) {
@@ -204,10 +207,11 @@ export const fs = {
       }
       going.push(node)
     }
-    const previous: Record<string, string> = {}
+    const previous: Record<string, { parentId: string; name: string }> = {}
     for (const node of going) {
-      previous[node.id] = node.parentId
-      const name = await fs.uniqueName(targetParentId, node.name)
+      previous[node.id] = { parentId: node.parentId, name: node.name }
+      // Without excludeId, a repeated id in the list met itself already moved and renamed itself on the spot.
+      const name = await fs.uniqueName(targetParentId, node.name, node.id)
       await db.nodes.update(node.id, { parentId: targetParentId, name, updatedAt: now() })
     }
     return previous
@@ -227,7 +231,12 @@ export const fs = {
     })
   },
 
-  async restore(ids: string[]): Promise<void> {
+  /**
+   * Restores nodes out of the trash. Returns the ids that fell to the desk because their folder was still in
+   * the trash: the toast needs to say where they ended up, or the person looks for them where they are not.
+   */
+  async restore(ids: string[]): Promise<string[]> {
+    const fellToDesk: string[] = []
     await db.transaction('rw', db.nodes, async () => {
       for (const id of ids) {
         const node = await db.nodes.get(id)
@@ -235,7 +244,10 @@ export const fs = {
         let parentId = node.parentId
         if (parentId !== ROOT_ID) {
           const parent = await db.nodes.get(parentId)
-          if (!parent || parent.trashedAt !== null) parentId = ROOT_ID
+          if (!parent || parent.trashedAt !== null) {
+            parentId = ROOT_ID
+            fellToDesk.push(id)
+          }
         }
         const name = await fs.uniqueName(parentId, node.name, id)
         const stamp = node.trashedAt
@@ -251,6 +263,7 @@ export const fs = {
         }
       }
     })
+    return fellToDesk
   },
 
   async purge(ids: string[]): Promise<void> {

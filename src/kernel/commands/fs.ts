@@ -92,7 +92,7 @@ registerCommand<{ ids: string[]; targetParentId: string }, void>({
   },
 })
 
-registerCommand<{ previous: Record<string, string> }, void>({
+registerCommand<{ previous: Record<string, { parentId: string; name?: string } | string> }, void>({
   id: 'fs.moveBack',
   risk: 'write',
   scale: ({ previous }) => Object.keys(previous ?? {}).length,
@@ -103,14 +103,19 @@ registerCommand<{ previous: Record<string, string> }, void>({
   params: {},
   async run({ previous }) {
     let moved = 0
-    for (const [id, parentId] of Object.entries(previous ?? {})) {
+    for (const [id, raw] of Object.entries(previous ?? {})) {
       if (!(await fs.get(id))) continue
-      await fs.move([id], parentId)
+      // Journal entries written before the move remembered the name too carry a bare parentId string.
+      const home = typeof raw === 'string' ? { parentId: raw } : raw
+      await fs.move([id], home.parentId)
+      // Coming home used to keep the name the move had to invent («notas 2.md»): undo left the file back in
+      // place but called something other than what was there. The old name returns with the old folder.
+      if (home.name) await fs.rename(id, home.name)
       moved++
     }
     if (!moved) throw new Error('eso ya no existe')
     return { result: undefined }
-  },
+  }
 })
 
 registerCommand<{ ids: string[] }, void>({
@@ -144,7 +149,7 @@ registerCommand<{ ids: string[] }, void>({
   scale: ({ ids }) => ids?.length ?? 1,
   keywords: TRASH_WORDS,
   title: 'Restaurar',
-  description: 'Saca elementos de la papelera y los devuelve a su carpeta original.',
+  description: 'Saca elementos de la papelera y los devuelve a su carpeta original; si esa carpeta ya no está, al Escritorio.',
   params: {
     ids: { type: 'array', items: { type: 'string', description: 'Id' }, description: 'Ids a restaurar.', required: true },
   },
@@ -155,9 +160,13 @@ registerCommand<{ ids: string[] }, void>({
     const present = (await Promise.all(ids.map((id) => fs.get(id)))).filter((n) => !!n)
     if (!present.length) throw new Error('ya no está en la papelera')
     const alive = present.map((n) => n.id)
-    await fs.restore(alive)
+    const fell = new Set(await fs.restore(alive))
+    // «"X" restaurado» over a file whose folder is still in the trash sent the person looking where it is not.
+    const where = (id: string) => (fell.has(id) ? ' en el Escritorio, porque su carpeta ya no está' : '')
     const label =
-      alive.length === 1 ? `"${present[0].name}" restaurado` : `${alive.length} elementos restaurados`
+      alive.length === 1
+        ? `"${present[0].name}" restaurado${where(alive[0])}`
+        : `${alive.length} elementos restaurados${fell.size ? ` (${fell.size} en el Escritorio, porque su carpeta ya no está)` : ''}`
     return { result: undefined, label, undo: { commandId: 'fs.trash', params: { ids: alive } } }
   },
 })
@@ -189,7 +198,9 @@ registerCommand<Record<string, never>, number>({
   params: {},
   async run() {
     const n = await fs.emptyTrash()
-    return { result: n, label: n ? `Papelera vaciada (${n})` : 'La papelera ya estaba vacía' }
+    // «Papelera vaciada (3)» read like a log line, and that bare number was the only thing saying how much
+    // was gone for good. In the desk's own words now.
+    return { result: n, label: n ? `${n} ${plural(n, 'elemento eliminado para siempre', 'elementos eliminados para siempre')}` : 'La papelera ya estaba vacía' }
   },
 })
 
