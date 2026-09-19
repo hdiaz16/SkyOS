@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>SkyOS</title>
+    <script>
+      // A reload right after the onboarding flood keeps the page in the disc color until the desktop is in.
+      try { if (sessionStorage.getItem("mesa:handoff") === "flood") document.documentElement.classList.add("handoff-flood") } catch {}
+    </script>
+    <script type="module" crossorigin src="/assets/index-DI2z0ENY.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-Dd_uD5pT.js">
+    <link rel="modulepreload" crossorigin href="/assets/fs-EJqKbRZI.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-gJ566AVl.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

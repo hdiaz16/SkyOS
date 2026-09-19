@@ -15,7 +15,9 @@ import { approximateLocation } from '../../lib/weather'
 import { cn } from '../../lib/utils'
 import { BELOW_ORB, useOrbStage } from './orbStore'
 
-type Step = 'hello' | 'name' | 'ai' | 'setup'
+type Step = 'hello' | 'name' | 'access' | 'ai' | 'setup'
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
  * A name, and you are in. Sky is worth more shown than explained, so nothing else is asked before the desktop
@@ -23,7 +25,12 @@ type Step = 'hello' | 'name' | 'ai' | 'setup'
  * waits until you press dictate, and how Sky treats you lives in Ajustes › Cuenta, changeable any day. The
  * provider screen only appears where the deployment ships no model of its own.
  */
-const ORDER: Step[] = hasSharedGroqKey ? ['hello', 'name', 'setup'] : ['hello', 'name', 'ai', 'setup']
+/**
+ * The email is the registration: it is how the person gets back in from the login screen without doing this
+ * again, and the identity the account will hang from once verified accounts are switched on. With a verified
+ * account already in hand there is nothing to ask.
+ */
+const ORDER: Step[] = hasSharedGroqKey ? ['hello', 'name', 'access', 'setup'] : ['hello', 'name', 'access', 'ai', 'setup']
 
 const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'glm', 'openrouter', 'ollama']
 
@@ -31,6 +38,9 @@ const ONBOARDING_PROVIDERS: ProviderId[] = ['groq', 'anthropic', 'openai', 'glm'
 export function Onboarding() {
   const [step, setStep] = useState<Step>('hello')
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  /** Optional: four to six digits so nobody else walks in from this same browser. */
+  const [pin, setPin] = useState('')
   /** Found from the network address while the person types their name; never asked for here. */
   const [location, setLocation] = useState<UserLocation | null>(null)
   const detected = useRef(false)
@@ -44,9 +54,10 @@ export function Onboarding() {
   const adoptable = useAuth((s) => s.adoptable)
   const [skipAdopt, setSkipAdopt] = useState(false)
 
-  const index = ORDER.indexOf(step)
-  const next = () => setStep(ORDER[Math.min(index + 1, ORDER.length - 1)])
-  const back = () => setStep(ORDER[Math.max(index - 1, 0)])
+  const steps = account ? ORDER.filter((s) => s !== 'access') : ORDER
+  const index = steps.indexOf(step)
+  const next = () => setStep(steps[Math.min(index + 1, steps.length - 1)])
+  const back = () => setStep(steps[Math.max(index - 1, 0)])
 
   // Nobody should have to type where they are: as soon as the name is in, Sky works the place out from the
   // network address, so the screen that follows already has an answer. The city box is the last resort.
@@ -104,7 +115,13 @@ export function Onboarding() {
     // A PIN is set later, in Ajustes › Cuenta: asking for one before the desktop even exists slows everybody down.
     // With accounts on, the desktop is stamped with the one that just signed in: that is what makes it yours.
     const account = useAuth.getState().account
-    const user = await users.create({ name, profile, ...(account ? { authId: account.id, email: account.email } : {}) })
+    const user = await users.create({
+      name,
+      profile,
+      email: account?.email ?? email.trim().toLowerCase(),
+      pin: pin || undefined,
+      ...(account ? { authId: account.id } : {}),
+    })
     // Entering SkyOS is daylight: the arrival is light and the desktop that follows starts light too. Night is
     // a choice the person makes in Ajustes › Apariencia, not the state they are handed.
     persistThemeFor(user.id, 'light')
@@ -227,6 +244,54 @@ export function Onboarding() {
                 <Primary type="submit" disabled={!name.trim()}>
                   Continuar
                 </Primary>
+              </form>
+            </Screen>
+          )}
+
+          {step === 'access' && (
+            <Screen
+              question="¿Con qué correo te reconozco?"
+              note="Con él vuelves a entrar aquí sin repetir esto. Por ahora tu cuenta vive en este navegador; cuando el correo esté conectado, entrarás con él desde cualquier computadora."
+            >
+              <form
+                className="flex w-full flex-col items-center gap-6"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (EMAIL.test(email.trim()) && (!pin || pin.length >= 4)) next()
+                }}
+              >
+                <input
+                  autoFocus
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@correo.com"
+                  maxLength={120}
+                  className="font-display w-full max-w-[380px] border-b border-line-2 bg-transparent pb-2 text-center text-[26px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-3 focus:border-accent"
+                />
+                <label className="flex flex-col items-center gap-2 text-[13px] text-ink-2">
+                  <span>Un PIN, si quieres que nadie más entre desde esta computadora (opcional)</span>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                    placeholder="••••"
+                    className="glass h-10 w-40 rounded-xl px-3 text-center text-[18px] tracking-[0.4em] text-ink outline-none transition focus:ring-1 focus:ring-accent/50"
+                  />
+                </label>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={back} className="text-[13px] text-ink-2 transition hover:text-ink">
+                    Atrás
+                  </button>
+                  <Primary type="submit" disabled={!EMAIL.test(email.trim()) || (!!pin && pin.length < 4)}>
+                    Continuar
+                  </Primary>
+                </div>
               </form>
             </Screen>
           )}

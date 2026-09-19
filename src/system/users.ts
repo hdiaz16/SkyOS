@@ -44,6 +44,13 @@ export const users = {
   /** The desktop that belongs to an account on this device, if it has one here yet. */
   byAccount: (authId: string) => systemDb.users.where('authId').equals(authId).first(),
 
+  /** The desktop registered here under an email, however it was capitalised when typed. */
+  async byEmail(email: string): Promise<UserRow | undefined> {
+    const wanted = email.trim().toLowerCase()
+    if (!wanted) return undefined
+    return (await systemDb.users.toArray()).find((u) => u.email?.toLowerCase() === wanted)
+  },
+
   /**
    * Desktops made before accounts existed. Signing in for the first time on a machine that already had one
    * offers to adopt it, so nobody's files are stranded behind a login that did not exist when they made them.

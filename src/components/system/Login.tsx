@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Lock, UserPlus } from 'lucide-react'
 import { useAuth } from '../../system/auth'
+import { users } from '../../system/users'
 import type { UserRow } from '../../system/db'
 import { cn } from '../../lib/utils'
 import { BELOW_ORB, useOrbStage } from './orbStore'
@@ -11,13 +12,22 @@ const greeting = () => {
   return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'
 }
 
-/** Who is sitting down? Pick a person, type a PIN if they set one, and Sky boots their space. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Who is sitting down? Pick a person, type a PIN if they set one, and Sky boots their space. Or type the
+ * email the account was registered with: that is what "iniciar sesión" means to whoever is not in the list
+ * they see, and it is the same email the verified accounts will use.
+ */
 export function Login() {
   const list = useAuth((s) => s.users)
   const [selected, setSelected] = useState<UserRow | null>(list.length === 1 ? list[0] : null)
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [byEmail, setByEmail] = useState(false)
+  const [email, setEmail] = useState('')
+  const [notFound, setNotFound] = useState(false)
 
   const enter = async (user: UserRow, code?: string) => {
     setBusy(true)
@@ -33,6 +43,17 @@ export function Login() {
     setError(false)
     if (!user.pinHash) void enter(user)
     else setSelected(user)
+  }
+
+  const findByEmail = async () => {
+    setNotFound(false)
+    const user = await users.byEmail(email)
+    if (!user) {
+      setNotFound(true)
+      return
+    }
+    setByEmail(false)
+    pick(user)
   }
 
   useEffect(() => {
@@ -51,7 +72,7 @@ export function Login() {
     <div className="absolute inset-x-0 flex flex-col items-center gap-8 px-6 select-none" style={{ top: BELOW_ORB }}>
       <div className="text-center">
         <p className="text-[15px] text-ink-2">{greeting()}</p>
-        <h1 className="font-display mt-1 text-[36px] font-bold tracking-tight text-ink">¿Quién eres?</h1>
+        <h1 className="font-display mt-1 text-[36px] font-bold tracking-tight text-ink">Inicia sesión</h1>
       </div>
 
       <AnimatePresence mode="wait">
@@ -100,6 +121,54 @@ export function Login() {
               Otra persona
             </button>
           </motion.form>
+        ) : byEmail ? (
+          <motion.form
+            key="email"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex w-full max-w-[380px] flex-col items-center gap-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (EMAIL.test(email.trim())) void findByEmail()
+            }}
+          >
+            <input
+              autoFocus
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setNotFound(false)
+              }}
+              placeholder="tu@correo.com"
+              className={cn(
+                'glass h-11 w-full rounded-xl px-4 text-center text-[16px] text-ink outline-none transition focus:ring-1 focus:ring-accent/50',
+                notFound && 'ring-1 ring-danger',
+              )}
+            />
+            {notFound ? (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <p className="text-[13px] text-danger">No encuentro una cuenta con ese correo en este navegador.</p>
+                <button type="button" onClick={() => useAuth.getState().showOnboarding()} className="text-[13px] text-accent transition hover:underline">
+                  Es mi primera vez aquí
+                </button>
+              </div>
+            ) : (
+              <p className="h-4 text-[12px] text-ink-3">Tu cuenta vive en este navegador; entra con el correo con el que la creaste.</p>
+            )}
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => setByEmail(false)} className="flex items-center gap-1.5 text-[13px] text-ink-2 transition hover:text-ink">
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Elegir de la lista
+              </button>
+              <button type="submit" disabled={!EMAIL.test(email.trim())} className="rounded-full bg-accent px-5 py-2 text-[13px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40">
+                Entrar
+              </button>
+            </div>
+          </motion.form>
         ) : (
           <motion.div key="users" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="flex flex-wrap items-start justify-center gap-4">
             {list.map((u) => (
@@ -127,6 +196,11 @@ export function Login() {
           </motion.div>
         )}
       </AnimatePresence>
+      {!selected?.pinHash && !byEmail && (
+        <button type="button" onClick={() => setByEmail(true)} className="text-[13px] text-ink-2 transition hover:text-ink">
+          Entrar con mi correo
+        </button>
+      )}
     </div>
   )
 }
