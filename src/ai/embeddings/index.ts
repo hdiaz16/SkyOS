@@ -35,9 +35,11 @@ interface EmbeddingsState {
 
 function readPref(): boolean {
   try {
-    return localStorage.getItem(PREF_KEY) !== 'off'
+    // The model means a ~120 MB download and background CPU on every machine that never asked for it: it
+    // waits for a yes in Ajustes, like everything else that big. It used to come on for everyone.
+    return localStorage.getItem(PREF_KEY) === 'on'
   } catch {
-    return true
+    return false
   }
 }
 

@@ -180,6 +180,10 @@ Después del relevo, pedidos de Hector fuera de la auditoría:
   sube al modelo completo. Quien quiera todo en Flash elige el modelo a mano en Ajustes. **Verificación
   pendiente**: con la llave pegada, «pon un temporizador» y «resume esto»: el primero no cuesta (Flash) y el
   segundo viaja al modelo completo.
+- (esta tanda) la búsqueda por significado en el dispositivo apagada por defecto: el modelo local son ~120 MB
+  de descarga y CPU de fondo que nadie pidió al entrar. Se enciende con su interruptor en Ajustes ›
+  Inteligencia; quien ya lo usaba, lo vuelve a prender una vez y queda. **Verificación pendiente**: en una
+  instalación limpia, la red no descarga el modelo al arranque y Ajustes lo muestra «Desactivada».
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
