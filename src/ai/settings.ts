@@ -387,15 +387,17 @@ export function baseUrlFor(state: AiSettingsState | undefined = undefined, provi
 
 function resolveBaseUrl(state: AiSettingsState, provider: ProviderId): string {
   const own = state.baseUrls[provider]
-  if (own) return own
   if (provider === 'groq' && !state.keys.groq) return sharedGroqBaseUrl()
   const preset = presetFor(provider)
-  if (preset.relay && preset.baseUrl && AI_BRIDGE_URL) {
+  const base = own || preset.baseUrl || ''
+  // A provider that refuses browsers refuses them on every URL, theirs written by hand included: the coding
+  // endpoint, a self-hosted gateway, the default — all of them repeat from the bridge or they never arrive.
+  if (preset.relay && base && AI_BRIDGE_URL) {
     // The provider path is appended by whoever calls, and it travels whole inside target=: the query value
     // accepts the extra path after the encoded base.
-    return `${AI_BRIDGE_URL}/ai/proxy?target=${encodeURIComponent(preset.baseUrl)}`
+    return `${AI_BRIDGE_URL}/ai/proxy?target=${encodeURIComponent(base)}`
   }
-  return preset.baseUrl ?? ''
+  return base
 }
 
 /** True when requests to this provider would ride on Sky's included key rather than the person's own. */
