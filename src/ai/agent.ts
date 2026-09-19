@@ -201,7 +201,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
           messages,
           tools,
           serverTools: provider.capabilities.serverWebFetch ? opts.serverTools : undefined,
-          effort: active.effort,
+          // A trivial turn on the cheap tier has no business paying for deep thought: the escalator
+          // already decided this one is small, so the thinking rides down with it.
+          effort: route.auto && route.tier === 'fast' ? 'low' : active.effort,
           maxTokens: opts.maxTokens,
           signal: opts.signal,
         })) {

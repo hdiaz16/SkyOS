@@ -85,6 +85,9 @@ function safeJson(text: string): Record<string, unknown> {
   }
 }
 
+/** The depth levels GLM accepts (low/high/max on the 5.3 series; 5.2 folds medium into high), against ours. */
+const GLM_EFFORT: Record<string, string> = { low: 'low', medium: 'high', high: 'max' }
+
 /**
  * The words for a fetch that never left the browser. Offline and refused-by-the-provider look identical
  * from here (TypeError), and they are different problems: one is the person's network, the other is a
@@ -160,7 +163,10 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
           : {}),
         max_tokens: req.maxTokens ?? 8000,
         // gpt-oss reasons before answering; the person's effort setting decides how much.
+        // GLM-5.x thinks by default at max depth — an unasked-for chain of thought on every turn — so the
+        // effort setting always rides along on those models too.
         ...(/gpt-oss/.test(req.model) && req.effort ? { reasoning_effort: req.effort } : {}),
+        ...(/glm-5/.test(req.model) && req.effort ? { reasoning_effort: GLM_EFFORT[req.effort] ?? 'low' } : {}),
       }
 
       let res: Response

@@ -1,7 +1,7 @@
 import { execute, listCommands, type CommandDef } from '../kernel/commands'
 import { paramsToJsonSchema } from './schema'
 import type { ToolSpec } from './types'
-import { executeMcpTool, isMcpToolName, mcpToolSpecs, mentions, normalize, type ToolContext } from '../mcp/tools'
+import { executeMcpTool, isMcpToolName, mcpToolSpecs, type ToolContext } from '../mcp/tools'
 
 /** Tool names may only contain letters, digits, underscores and dashes, so "fs.move" becomes "fs_move". */
 export const toolNameFor = (commandId: string) => commandId.replace(/\./g, '_')
@@ -16,13 +16,14 @@ export function commandIdForTool(name: string): string | undefined {
 
 /**
  * Every AI-visible command, exposed as a tool. Order is stable (registration order) to keep prompt caches
- * warm. With a context, commands that declared keywords travel only when the request mentions one.
+ * warm. The list is the same on every turn on purpose: picking tools per request used to sound frugal, but
+ * a tool list that changes between turns changes the request prefix, and the provider's prompt cache — the
+ * one that bills the repeated part at a fraction — never gets to hit. Claude Code, Codex and opencode all
+ * carry their whole tool manual every turn for exactly this reason.
  */
-export function commandTools(only?: string[], context?: ToolContext): ToolSpec[] {
-  const text = context ? normalize(`${context.prompt} ${context.recent ?? ''}`) : ''
+export function commandTools(only?: string[]): ToolSpec[] {
   return aiCommands()
     .filter((c) => !only || only.includes(c.id))
-    .filter((c) => !context || !c.keywords || mentions(text, c.keywords))
     .map((c) => ({
       name: toolNameFor(c.id),
       description: c.description,
@@ -31,11 +32,11 @@ export function commandTools(only?: string[], context?: ToolContext): ToolSpec[]
 }
 
 /**
- * Every tool the model may use: Sky's commands plus the tools of the connected apps the request is about.
- * `only` restricts to those commands and leaves the apps out.
+ * Every tool the model may use: Sky's commands plus the tools of the connected apps.
+ * `only` restricts to those commands and leaves the apps out (one-shot jobs).
  */
 export function allTools(only?: string[], context?: ToolContext): ToolSpec[] {
-  return only ? commandTools(only) : [...commandTools(undefined, context), ...mcpToolSpecs(context)]
+  return only ? commandTools(only) : [...commandTools(), ...mcpToolSpecs(context)]
 }
 
 export interface ToolExecution {

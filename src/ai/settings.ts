@@ -216,10 +216,11 @@ export function effectiveTiers(state: AiSettingsState = useAiSettings.getState()
 }
 
 /**
- * Models that read the depth setting: the Claude ones that declare it (providers/anthropic.ts, CAPS) and the
- * gpt-oss family, which turns it into reasoning_effort (providers/openaiCompat.ts). Haiku and the rest ignore it.
+ * Models that read the depth setting: the Claude ones that declare it (providers/anthropic.ts, CAPS), the
+ * gpt-oss family, which turns it into reasoning_effort (providers/openaiCompat.ts), and GLM-5.x, which
+ * thinks at max depth by default unless it is told otherwise. Haiku and the rest ignore it.
  */
-const READS_EFFORT = /^claude-(opus|sonnet|fable)|gpt-oss/
+const READS_EFFORT = /^claude-(opus|sonnet|fable)|gpt-oss|^glm-5/
 
 /**
  * Whether «Profundidad» changes anything for what is chosen. The setting travels on every request, so drawing

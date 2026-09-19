@@ -3,7 +3,6 @@ import { useJournal } from '../kernel/commands'
 import { allowed, DECLINED } from '../kernel/consent'
 import type { ToolExecution } from '../ai/tools'
 import type { JsonSchema, ToolSpec } from '../ai/types'
-import { catalogFor } from './catalog'
 import { mcp, useMcp } from './manager'
 import { McpError, type CallToolResult, type McpServerRecord, type McpTool, type ToolContent } from './types'
 
@@ -21,11 +20,7 @@ const MAX_DEPTH = 2
 const MAX_RESULT_CHARS = 60_000
 /** Bytes of compacted tool definitions a request may carry; the agent halves it when a provider says "too large". */
 export const DEFAULT_MCP_BUDGET_BYTES = 7_000
-/** Score bonus for a catalog app's featured tools, so they win the budget over exotic ones. */
-const FEATURED_BONUS = 4
 export const MIN_MCP_BUDGET_BYTES = 2_000
-/** Tools every app conversation needs, whatever the wording. */
-const CORE_TOOL_WORDS = ['search', 'fetch', 'get', 'list', 'find', 'query', 'read', 'create', 'update', 'send']
 
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, '_')
 
@@ -116,96 +111,30 @@ export function mentions(text: string, words: string[]): boolean {
   return words.some((w) => text.includes(normalize(w)))
 }
 
-/** Words of the server's name and, for catalog apps, its keyword list. */
-function keywordsFor(server: McpServerRecord): string[] {
-  const own = server.name.toLowerCase().split(/\s+/)
-  const entry = server.catalogId ? catalogFor(server.catalogId) : undefined
-  return [...own, ...(entry?.keywords ?? [])]
-}
-
-/** Spanish request words → the English their tools are named in. Stems, so plurals and conjugations match. */
-const SYNONYMS: Array<[RegExp, string[]]> = [
-  [/^busc|^encuentr|^encontr/, ['search', 'find', 'query']],
-  [/^recient|^ultim|^últim/, ['recent', 'latest']],
-  [/^pagin|^págin/, ['page', 'pages']],
-  [/^document|^archiv/, ['document', 'file', 'files']],
-  [/^cre|^nuev|^agreg|^añad|^anad/, ['create', 'new', 'add']],
-  [/^actualiz|^edit|^cambi|^modific/, ['update', 'edit']],
-  [/^borr|^elimin|^quit/, ['delete', 'remove']],
-  [/^lee|^leer|^abr|^muestr|^ver$|^ve$/, ['read', 'get', 'fetch', 'open']],
-  [/^list|^cuál|^cual|^qué|^que$/, ['list']],
-  [/^correo|^mail|^email/, ['mail', 'email', 'message']],
-  [/^envi|^mand/, ['send']],
-  [/^respond|^contest/, ['reply']],
-  [/^tare|^pendient/, ['task', 'todo']],
-  [/^proyect/, ['project']],
-  [/^event|^reuni|^cita|^agend|^calendar/, ['event', 'calendar']],
-  [/^coment/, ['comment']],
-  [/^usuari|^person|^equip/, ['user', 'member', 'team']],
-  [/^canal/, ['channel']],
-  [/^mensaj/, ['message']],
-  [/^canci|^music|^músic|^tema/, ['track', 'song', 'music']],
-  [/^playlist|^lista/, ['playlist']],
-  [/^artist/, ['artist']],
-  [/^repo|^repositor/, ['repo', 'repository']],
-  [/^issue|^incidenc|^error/, ['issue']],
-  [/^pull|^pr$/, ['pull']],
-  [/^complet|^termin|^cerr/, ['complete', 'close']],
-  [/^favorit/, ['favorite']],
-  [/^compart/, ['shared', 'share']],
-  [/^privad/, ['private']],
-  [/^base|^tabla/, ['database', 'data source', 'table']],
-]
-
-/** The request's words plus their English counterparts, as the tool vocabulary is English. */
-function requestWords(prompt: string): string[] {
-  const words = prompt.split(/\W+/).filter((w) => w.length > 2)
-  const out = new Set(words.filter((w) => w.length > 3))
-  for (const w of words) for (const [re, en] of SYNONYMS) if (re.test(w)) for (const e of en) out.add(e)
-  return [...out]
-}
-
-/** Relevance of one tool to the request: words shared with its name weigh most, then its description, then core verbs. */
-function toolScore(tool: McpTool, prompt: string): number {
-  const name = normalize(tool.name.replace(/[-_]/g, ' '))
-  const text = normalize(`${tool.title ?? ''} ${tool.description ?? ''}`)
-  let score = CORE_TOOL_WORDS.some((w) => name.includes(w)) ? 2 : 0
-  for (const word of requestWords(prompt)) {
-    if (name.includes(word)) score += 3
-    else if (text.includes(word)) score += 1
-  }
-  return score
-}
-
 /**
- * The tools the model should see for this request. Requests stay small (free tiers allow about 8k tokens a
- * minute): a connected app contributes tools only when the request, or the conversation just before it,
- * is about that app; tools are compacted, ranked by relevance and added until the byte budget is spent.
- * Without a context, everything.
+ * The tools of every connected app, in one stable order. They used to be picked per request — ranked by
+ * relevance to what the person just said — and a list that changes between turns changes the request
+ * prefix, so the provider's prompt cache never got to hit. The byte budget stays: tools are compacted and
+ * the list is filled in name order until it is spent, deterministically, so the prefix only ever grows at
+ * the end.
  */
 export function mcpToolSpecs(context?: ToolContext): ToolSpec[] {
-  const prompt = context ? normalize(`${context.prompt} ${context.recent ?? ''}`) : ''
-  const candidates: Array<{ spec: ToolSpec; score: number }> = []
-  for (const [name, { server, tool }] of targets()) {
-    const alwaysOn = server.catalogId ? (catalogFor(server.catalogId)?.alwaysOn ?? false) : false
-    if (context && !alwaysOn && !mentions(prompt, keywordsFor(server)) && !prompt.includes(`mcp_${sanitize(server.id).toLowerCase()}__`)) continue
-    const text = short(tool.description || tool.title || tool.name, MAX_DESCRIPTION)
-    const featured = server.catalogId ? (catalogFor(server.catalogId)?.featuredTools?.includes(tool.name) ?? false) : false
-    candidates.push({ spec: { name, description: `[${server.name}] ${text}`, inputSchema: schemaOf(tool) }, score: toolScore(tool, prompt) + (featured ? FEATURED_BONUS : 0) })
-  }
-  if (!context) return candidates.map((c) => c.spec)
-  candidates.sort((a, b) => b.score - a.score)
-  const budget = context.budgetBytes ?? DEFAULT_MCP_BUDGET_BYTES
   const specs: ToolSpec[] = []
+  for (const [name, { server, tool }] of targets()) {
+    const text = short(tool.description || tool.title || tool.name, MAX_DESCRIPTION)
+    specs.push({ name, description: `[${server.name}] ${text}`, inputSchema: schemaOf(tool) })
+  }
+  specs.sort((a, b) => a.name.localeCompare(b.name))
+  const budget = context?.budgetBytes ?? DEFAULT_MCP_BUDGET_BYTES
+  const out: ToolSpec[] = []
   let used = 0
-  for (const { spec } of candidates) {
+  for (const spec of specs) {
     const size = JSON.stringify(spec).length
-    if (used + size > budget && specs.length) continue
-    specs.push(spec)
+    if (used + size > budget && out.length) break
+    out.push(spec)
     used += size
   }
-  // Stable order keeps prompt caches warm between turns.
-  return specs.sort((a, b) => a.name.localeCompare(b.name))
+  return out
 }
 
 /** A one-line summary per connected app, for the state snapshot the model reads. */
