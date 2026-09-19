@@ -589,20 +589,34 @@ function AiSection() {
     try {
       const provider = getProvider(ai)
       if (!provider) throw new AiError('Falta completar la configuración.')
-      const model = ai.model === AUTO_MODEL ? tiers?.fast ?? discovered[0] ?? '' : ai.model
-      if (!model) throw new AiError('No hay ningún modelo todavía: consulta los disponibles o escribe uno.')
-      let out = ''
-      for await (const ev of provider.chat({
-        model,
-        system: 'Responde únicamente con la palabra OK.',
-        messages: [{ role: 'user', parts: [{ type: 'text', text: 'Prueba de conexión' }] }],
-        maxTokens: 2000,
-        effort: 'low',
-      })) {
-        if (ev.type === 'text') out += ev.delta
-        if (ev.type === 'error') throw ev.error
+      // «Automático» no fija un modelo: escala del barato al completo cuando el proveedor limita. La prueba
+      // sube la misma escalera y dice cuál respondió — probar solo el barato de un minuto limitado siempre
+      // falla, y suena a que todo está roto cuando solo ese escalón está ocupado.
+      const ladder = [...new Set([tiers?.fast, tiers?.balanced, tiers?.deep].filter((m): m is string => !!m))]
+      if (!ladder.length) throw new AiError('No hay ningún modelo todavía: consulta los disponibles o escribe uno.')
+      let lastErr: unknown
+      for (const model of ladder) {
+        try {
+          let out = ''
+          for await (const ev of provider.chat({
+            model,
+            system: 'Responde únicamente con la palabra OK.',
+            messages: [{ role: 'user', parts: [{ type: 'text', text: 'Prueba de conexión' }] }],
+            maxTokens: 2000,
+            effort: 'low',
+          })) {
+            if (ev.type === 'text') out += ev.delta
+            if (ev.type === 'error') throw ev.error
+          }
+          setTest({ state: 'ok', message: `Conectado · respondió "${out.trim().slice(0, 30) || '…'}" con ${model}` })
+          return
+        } catch (err) {
+          lastErr = err
+          // Solo se escala lo que puede mejorar esperando o subiendo: un llave inválida no se arregla arriba.
+          if (!(err instanceof AiError) || !err.retryable) throw err
+        }
       }
-      setTest({ state: 'ok', message: `Conectado · respondió "${out.trim().slice(0, 30) || '…'}"` })
+      throw lastErr
     } catch (err) {
       setTest({ state: 'fail', message: err instanceof Error ? err.message : 'No se pudo conectar' })
     }
