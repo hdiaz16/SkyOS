@@ -13,6 +13,8 @@ export interface PromptRequest {
   danger?: boolean
   /** Nothing to decide: one button to close, no Cancelar. For telling, not asking. */
   info?: boolean
+  /** A password or a key: the field hides what is typed. */
+  secret?: boolean
 }
 
 interface DialogState {

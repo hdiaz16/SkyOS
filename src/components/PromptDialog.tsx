@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useDialog } from '../state/dialog'
+import { useDialog, type PromptRequest } from '../state/dialog'
 import { cn } from '../lib/utils'
 
 /** A single, calm question with a text field. Used when an action needs one line from the user. */
 export function PromptDialog() {
   const request = useDialog((s) => s.request)
-  return <AnimatePresence>{request && <Dialog key="dialog" />}</AnimatePresence>
+  return <AnimatePresence>{request && <Dialog key="dialog" request={request} />}</AnimatePresence>
 }
 
-function Dialog() {
-  const request = useDialog((s) => s.request)!
+/**
+ * Gets the request as a prop on purpose: while it fades out, the store has already let the request go, and a
+ * subscriber reading it there would find null in the middle of a render — which is how closing any dialog used
+ * to blank the whole desktop. The prop stays what it was until the exit finishes.
+ */
+function Dialog({ request }: { request: PromptRequest }) {
   const close = useDialog((s) => s.close)
   const [value, setValue] = useState(request.initialValue ?? '')
   const confirming = !!request.confirm
@@ -76,6 +80,8 @@ function Dialog() {
         ) : (
           <input
             autoFocus
+            type={request.secret ? 'password' : 'text'}
+            autoComplete={request.secret ? 'new-password' : 'off'}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.stopPropagation()}
