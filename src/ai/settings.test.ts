@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inferTiers } from './settings'
+import { inferTiers, inferVisionModel } from './settings'
 
 /**
  * Nothing is written down for auto-tier providers: the tiers are read from whatever the provider lists the
@@ -31,5 +31,31 @@ describe('los tiers se leen de la lista del proveedor, no de este archivo', () =
 
   it('sin lista no hay tiers: la persona elige a mano', () => {
     expect(inferTiers([])).toBeNull()
+  })
+})
+
+describe('el modelo con ojos sale de la misma lista viva', () => {
+  it('toma el -v de la generación más nueva', () => {
+    const ids = ['glm-4.6', 'glm-4.5', 'glm-4.5-air', 'glm-4.5v']
+    expect(inferVisionModel(ids)).toBe('glm-4.5v')
+  })
+
+  it('cuando Z.ai sirva el 4.6v, ese es el que mira', () => {
+    const ids = ['glm-4.6v', 'glm-4.6', 'glm-4.5v', 'glm-4.5']
+    expect(inferVisionModel(ids)).toBe('glm-4.6v')
+  })
+
+  it('otros nombres de ojos también cuentan', () => {
+    expect(inferVisionModel(['qwen2.5-vl-72b', 'qwen3-235b'])).toBe('qwen2.5-vl-72b')
+    expect(inferVisionModel(['gemma-3-27b-it-vision', 'gemma-3-27b-it'])).toBe('gemma-3-27b-it-vision')
+  })
+
+  it('los trabajos que no conversan no pasan por ojos aunque lleven v', () => {
+    expect(inferVisionModel(['glm-4.5v-audio', 'video-lipsync'])).toBeNull()
+  })
+
+  it('sin -v en la lista, nadie mira', () => {
+    expect(inferVisionModel(['glm-4.6', 'glm-4.5-air', 'embedding-3'])).toBeNull()
+    expect(inferVisionModel([])).toBeNull()
   })
 })

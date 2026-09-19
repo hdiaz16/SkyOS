@@ -108,7 +108,9 @@ export const PROVIDERS: ProviderPreset[] = [
     models: [],
     autoTiers: true,
     modelHint: 'p. ej. glm-4.6',
-    vision: false,
+    // The eyes are a separate family (-v): a request carrying an image switches to it when the live list
+    // offers one (router.ts), so the talkers can stay text-only.
+    vision: true,
   },
   {
     id: 'openrouter',
@@ -155,8 +157,12 @@ export const PROVIDERS: ProviderPreset[] = [
 
 export const presetFor = (id: ProviderId): ProviderPreset => PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0]
 
-/** Ids that cannot take a chat: they make embeddings, guardrails, video or narration, not conversation. */
-const NOT_CHAT = /embed|rerank|guard|video|realtime|audio|tts|stt|asr|image|moderation|(^|[-_.\d])v(ision)?(\d|$)/i
+/** The other jobs that cannot hold a conversation: embeddings, guardrails, video, audio. */
+const NOT_CHAT_CORE = /embed|rerank|guard|video|realtime|audio|tts|stt|asr|image|moderation/i
+/** The names of the models with eyes: glm-4.5v, qwen2.5-vl-72b, gemma-3-vision, llava-v1.6. */
+const VISION = /(^|[-_.\d])(v(ision)?|vl)([-_.\d]|$)/i
+/** Ids that cannot take a chat: the core jobs above, plus the vision-only ones (tiers want talkers). */
+const NOT_CHAT = new RegExp(`${NOT_CHAT_CORE.source}|${VISION.source}`, 'i')
 /** The names providers give their small, cheap models: Air, Mini, Flash, Turbo and friends. */
 const CHEAP = /(^|[-_.])(air|airx|mini|flash|flashx|lite|small|nano|turbo|haste|swift)($|[-_.\d])/i
 
@@ -164,6 +170,17 @@ const CHEAP = /(^|[-_.])(air|airx|mini|flash|flashx|lite|small|nano|turbo|haste|
 const versionOf = (id: string): number => {
   const nums = [...id.matchAll(/\d+(?:\.\d+)*/g)].map((m) => parseFloat(m[0]))
   return nums.length ? Math.max(...nums) : 0
+}
+
+/**
+ * The provider's model with eyes, for requests that carry an image: the newest generation naming itself
+ * vision (glm-4.5v, glm-4.6v…), ignoring the other non-chat jobs. Null when the list has none, and then
+ * the image travels with the model the tiers chose — the provider answers for what its model cannot see.
+ */
+export function inferVisionModel(ids: string[]): string | null {
+  const candidates = ids.filter((id) => VISION.test(id) && !NOT_CHAT_CORE.test(id))
+  if (!candidates.length) return null
+  return candidates.sort((a, b) => versionOf(b) - versionOf(a))[0]
 }
 
 /**

@@ -1,4 +1,4 @@
-import { AUTO_MODEL, effectiveTiers, presetFor, type AiSettingsState } from './settings'
+import { AUTO_MODEL, effectiveTiers, inferVisionModel, presetFor, type AiSettingsState } from './settings'
 import type { Attachment } from './types'
 
 /**
@@ -47,6 +47,13 @@ export function resolveModel(state: AiSettingsState, input: RouteInput, forceTie
   const tiers = effectiveTiers(state, preset)
   if (state.model !== AUTO_MODEL || !tiers) return { model: state.model, tier: null, auto: false }
   const tier = forceTier ?? estimateTier(input)
+  // The tier talkers may be text-only —GLM-4.6 is—, so a request carrying an image switches to the
+  // vision model of the provider's own list when there is one. Without it, the image travels anyway and
+  // the provider answers for what its model cannot see; a model picked by hand is never overridden.
+  if (input.attachments?.some((a) => a.type === 'image')) {
+    const eyes = inferVisionModel(state.discovered[state.provider] ?? [])
+    if (eyes) return { model: eyes, tier, auto: true }
+  }
   return { model: tiers[tier], tier, auto: true }
 }
 
