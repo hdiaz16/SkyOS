@@ -162,7 +162,9 @@ export function evaluateExpression(input: string): CalcResult | null {
   const tokens = tokenize(desugarPercent(raw))
   if (!tokens || tokens.length < 2) return null
   const value = parse(tokens)
-  if (value === null || Number.isNaN(value)) return null
+  // «5/0» answered «= ∞» with Enter ready to copy the ∞ character: a division by zero is not a result.
+  // Infinity joins NaN on the way out, so the bar falls back to normal search.
+  if (value === null || !Number.isFinite(value)) return null
   return { display: format(value), value, detail: raw }
 }
 
@@ -227,6 +229,8 @@ export function convertUnits(input: string): CalcResult | null {
   const to = UNITS[m[3].toLowerCase()]
   if (!from || !to || from.category !== to.category) return null
   const result = from.category === 'temp' ? convertTemp(value, from.label, to.label) : (value * from.factor) / to.factor
+  // Same as arithmetic: an impossible conversion is not an answer either.
+  if (!Number.isFinite(result)) return null
   return { display: `${format(result)} ${to.label}`, value: result, detail: `${format(value)} ${from.label} → ${to.label}` }
 }
 

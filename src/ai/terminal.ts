@@ -131,7 +131,10 @@ export const useTerminal = create<TerminalState>((set, get) => ({
         },
       })
       clearStatus()
-      if (!streamed) add('system', result.stopReason === 'aborted' ? '(detenido)' : '(sin salida)')
+      // Ctrl+C with the answer half-streamed used to cut the text mid-sentence with no mark that it was you
+      // who stopped it: it read as if the model had hung. The mark goes whenever the run was aborted.
+      if (result.stopReason === 'aborted') add('system', '(detenido)')
+      else if (!streamed) add('system', '(sin salida)')
       set({ running: false, controller: null, history: result.messages.slice(-MAX_HISTORY) })
     } catch (err) {
       clearStatus()

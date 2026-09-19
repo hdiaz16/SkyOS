@@ -304,7 +304,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
       break
     }
     messages.push({ role: 'user', parts: results })
-    if (text) text += '\n\n'
+    // The break between what was said before the tool and what comes after was added to the final text but
+    // never streamed: while the turn ran both halves read glued («…listo.Ahora reviso…») and the paragraph
+    // recomposed with a jump only when the reply was replaced at the end.
+    if (text) {
+      text += '\n\n'
+      emit({ type: 'text', delta: '\n\n' })
+    }
   }
 
   return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier, usage }
