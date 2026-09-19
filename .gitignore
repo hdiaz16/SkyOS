@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Compilaciones de prueba (variantes con otras variables): nunca al repo.
+dist-*/
