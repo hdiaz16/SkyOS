@@ -65,8 +65,8 @@ interface Delta {
 
 interface Chunk {
   choices?: Array<{ delta?: Delta; finish_reason?: string | null }>
-  usage?: { prompt_tokens?: number; completion_tokens?: number }
-  error?: { message?: string }
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }
+  error?: { message: string }
 }
 
 function mapFinish(reason: string | null | undefined, sawTools: boolean): StopReason {
@@ -227,7 +227,12 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
               continue
             }
             if (chunk.error?.message) throw new AiError(chunk.error.message)
-            if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 }
+            if (chunk.usage)
+              usage = {
+                inputTokens: chunk.usage.prompt_tokens ?? 0,
+                outputTokens: chunk.usage.completion_tokens ?? 0,
+                ...(chunk.usage.prompt_tokens_details?.cached_tokens ? { cacheReadTokens: chunk.usage.prompt_tokens_details.cached_tokens } : {}),
+              }
             const choice = chunk.choices?.[0]
             if (!choice) continue
             if (choice.finish_reason) finish = choice.finish_reason

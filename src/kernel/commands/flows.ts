@@ -59,6 +59,7 @@ registerCommand<{ name: string }, { name: string; instructions: string }>({
   title: 'Ejecutar flujo',
   description:
     'Obtiene las instrucciones de un flujo guardado para que las ejecutes paso a paso con las demás herramientas. Llámalo cuando la persona mencione un flujo por su nombre.',
+  keywords: FLOW_WORDS,
   params: { name: { type: 'string', description: 'Nombre del flujo.', required: true } },
   async run({ name }) {
     const flow = await flows.findByName(name)

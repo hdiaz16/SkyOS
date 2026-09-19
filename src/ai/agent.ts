@@ -313,5 +313,15 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentResult> {
     }
   }
 
+  // In development, the anatomy of every turn: without it, «gastó 5.8k» has no address — the manual of
+  // tools, the rules and the desk each carry their share, and the cache (when the provider honors it)
+  // is what turns the repeated part into the cheap part.
+  if (import.meta.env.DEV) {
+    const cache = usage.cacheReadTokens ? ` (${usage.cacheReadTokens} desde caché)` : ''
+    console.info(
+      `[ia] ${model} · ${route.tier ?? (opts.model ? 'modelo fijo' : 'auto')} · reglas ${(system.length / 1024).toFixed(1)} kB · herramientas ${tools.length} (${Math.round(JSON.stringify(tools).length / 1024)} kB) · entrada ${usage.inputTokens}${cache} · salida ${usage.outputTokens}`,
+    )
+  }
+
   return { runId, text: text.trim(), stopReason, messages, toolEvents, model, tier: route.tier, usage }
 }
