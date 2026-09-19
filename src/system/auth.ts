@@ -97,7 +97,15 @@ export const useAuth = create<AuthState>((set, get) => ({
       startSession({ userId: mine.id, dbName: mine.dbName, storageDir: mine.storageDir }, 'plain')
       return
     }
-    // First time on this machine. If there is a desktop here from before accounts, offer it before making one.
+    // First time on this machine with a verified account. A desktop registered here with this same email is
+    // this person's — that is what the email at the onboarding was for — so it becomes theirs without a
+    // question. Anything else from before accounts is offered, and they choose.
+    const twin = account.email ? await users.byEmail(account.email) : undefined
+    if (twin && !twin.authId) {
+      await users.adopt(twin.id, account.id, account.email)
+      startSession({ userId: twin.id, dbName: twin.dbName, storageDir: twin.storageDir }, 'plain')
+      return
+    }
     const adoptable = await users.orphans()
     set({ status: 'onboarding', account, adoptable, current: null })
   },
