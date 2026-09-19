@@ -21,6 +21,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  */
 export function Login() {
   const list = useAuth((s) => s.users)
+  const unavailable = useAuth((s) => s.accountsUnavailable)
   const [selected, setSelected] = useState<UserRow | null>(list.length === 1 ? list[0] : null)
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
@@ -73,6 +74,9 @@ export function Login() {
       <div className="text-center">
         <p className="text-[15px] text-ink-2">{greeting()}</p>
         <h1 className="font-display mt-1 text-[36px] font-bold tracking-tight text-ink">Inicia sesión</h1>
+        {unavailable && (
+          <p className="mt-2 max-w-[380px] text-center text-[12.5px] leading-relaxed text-ink-3">Este SkyOS todavía no puede abrir cuentas: por ahora los perfiles viven en este navegador, y los escritorios que ya son de una cuenta esperan a que vuelva.</p>
+        )}
       </div>
 
       <AnimatePresence mode="wait">

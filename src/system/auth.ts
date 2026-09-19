@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { UserRow } from './db'
 import { users } from './users'
 import { currentSession, endSession, readSession, startSession, watchSessionChange } from './session'
-import { accountsEnabled, currentAccount, signOutAccount, watchAccount, type Account } from './account'
+import { accountsEnabled, currentAccount, entryMode, signOutAccount, watchAccount, type Account, type EntryMode } from './account'
 
 /**
  * `account` is the screen that asks for an email, and only exists where accounts are configured. `login` is
@@ -26,10 +26,14 @@ interface AuthState {
   account: Account | null
   /** Desktops made before accounts existed, offered for adoption right after a first sign-in. */
   adoptable: UserRow[]
+  /** How the door opens where accounts exist: a code from the inbox, or a password. */
+  entryMode: EntryMode
+  /** Accounts are configured but the project cannot let anyone in yet: the desktop runs on local profiles and says so. */
+  accountsUnavailable: boolean
   /** Takes the session from a verified account to a desktop: finds it, or asks for a name to make one. */
   enter: (account: Account) => Promise<void>
-  /** Hands an old desktop to the account that just signed in, and opens it. */
-  adopt: (user: UserRow) => Promise<void>
+  /** Hands an old desktop to the account that just signed in, and opens it. False when the PIN it asked for was wrong. */
+  adopt: (user: UserRow, pin?: string) => Promise<boolean>
   load: () => Promise<void>
   /** Verifies the PIN when the account has one, then starts the session (reload). */
   login: (user: UserRow, pin?: string) => Promise<boolean>
@@ -46,6 +50,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   current: null,
   account: null,
   adoptable: [],
+  entryMode: 'password',
+  accountsUnavailable: false,
 
   load: async () => {
     // From here on this tab answers to one person only; if that changes elsewhere, it stands down.
@@ -79,15 +85,23 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
 
     if (accountsEnabled) {
-      if (!account) {
-        set({ status: 'account', current: null, account: null })
+      if (account) {
+        await get().enter(account)
         return
       }
-      await get().enter(account)
-      return
+      const mode = await entryMode()
+      if (mode !== 'unavailable') {
+        set({ status: 'account', current: null, account: null, entryMode: mode })
+        return
+      }
+      // The project cannot let anyone in yet: it wants emails confirmed and this deployment has nothing to send
+      // the confirmation with. A door that does not open is worse than no door, so the desktop works with local
+      // profiles until it does — and switches to accounts on its own the day the project allows it.
+      set({ accountsUnavailable: true })
     }
 
-    const list = await users.list()
+    // Desktops that already belong to an account are not on the local list while the account cannot be checked.
+    const list = (await users.list()).filter((u) => !u.authId || !accountsEnabled)
     set({ users: list, status: list.length ? 'login' : 'onboarding', current: null })
   },
 
@@ -100,8 +114,11 @@ export const useAuth = create<AuthState>((set, get) => ({
     // First time on this machine with a verified account. A desktop registered here with this same email is
     // this person's — that is what the email at the onboarding was for — so it becomes theirs without a
     // question. Anything else from before accounts is offered, and they choose.
+    // Unless nobody has verified that email and the desktop has a PIN: a password proves nothing about the inbox,
+    // so the PIN — set by its owner against exactly this, somebody else at the same browser — is asked for on
+    // the adoption screen before the desktop changes hands.
     const twin = account.email ? await users.byEmail(account.email) : undefined
-    if (twin && !twin.authId) {
+    if (twin && !twin.authId && (account.emailVerified || !twin.pinHash)) {
       await users.adopt(twin.id, account.id, account.email)
       startSession({ userId: twin.id, dbName: twin.dbName, storageDir: twin.storageDir }, 'plain')
       return
@@ -110,11 +127,13 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ status: 'onboarding', account, adoptable, current: null })
   },
 
-  adopt: async (user) => {
+  adopt: async (user, pin) => {
     const account = get().account
-    if (!account) return
+    if (!account) return false
+    if (user.pinHash && !account.emailVerified && !(await users.verifyPin(user, pin ?? ''))) return false
     await users.adopt(user.id, account.id, account.email)
     startSession({ userId: user.id, dbName: user.dbName, storageDir: user.storageDir }, 'plain')
+    return true
   },
 
   login: async (user, pin) => {

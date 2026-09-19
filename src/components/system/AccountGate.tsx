@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowLeft, Loader2, LogIn, Mail, UserPlus } from 'lucide-react'
-import { NoSuchAccount, sendCode, verifyCode } from '../../system/account'
+import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, LogIn, Mail, UserPlus } from 'lucide-react'
+import { AccountExists, NoSuchAccount, register, sendCode, signIn, verifyCode } from '../../system/account'
 import { useAuth } from '../../system/auth'
+import { MIN_PASSWORD, STRENGTH_LABEL, lockoutMs, passwordProblem, passwordStrength } from '../../lib/password'
+import { cn } from '../../lib/utils'
 import { useOrbStage, BELOW_ORB } from './orbStore'
 
 /**
- * Entering SkyOS. Your email, a six-digit code, and you are in — on this computer or on any other, because
- * what is checked happens on a server and not in this browser's memory. No password to invent and nothing to
- * click in another tab: the code is typed where you already are.
+ * Entering SkyOS. Your email and — where this deployment can send mail — a six-digit code typed where you are;
+ * everywhere else, your email and a password. Either way what is checked happens on a server and not in this
+ * browser's memory, so it is the same you on any other computer.
  *
- * Coming back and starting out ask for the same two things, but they are not the same intention and the screen
- * says which one you are doing. Somebody who mistypes their address on the way back should hear "no existe",
- * not land inside a brand-new empty desktop wondering where their files went.
+ * Coming back and starting out ask for the same things, but they are not the same intention and the screen
+ * says which one you are doing. Somebody who mistypes their address on the way back should hear "no existe"
+ * (with the code) or "correo o contraseña incorrectos" (with the password: one sentence for both, so nobody
+ * learns which emails have an account here), not land inside a brand-new empty desktop wondering where their
+ * files went. Wrong passwords in a row earn a wait that doubles; the server keeps its own count as well.
  *
  * Those files never travel with the account. They stay on the device that made them, which is the whole point
  * of a desktop that works without asking anyone's permission.
@@ -20,18 +24,25 @@ import { useOrbStage, BELOW_ORB } from './orbStore'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-type Step = 'choose' | 'email' | 'code'
+type Step = 'choose' | 'email' | 'code' | 'login' | 'register'
 
 export function AccountGate() {
+  const mode = useAuth((s) => s.entryMode)
   const [step, setStep] = useState<Step>('choose')
   const [creating, setCreating] = useState(false)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [missing, setMissing] = useState(false)
   /** The provider throttles codes anyway; the button says so instead of letting someone hammer it. */
   const [canResend, setCanResend] = useState(true)
+  /** Wrong passwords in a row, and until when the next try has to wait. */
+  const [failures, setFailures] = useState(0)
+  const [lockedUntil, setLockedUntil] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   const emailRef = useRef<HTMLInputElement>(null)
   const codeRef = useRef<HTMLInputElement>(null)
 
@@ -41,8 +52,20 @@ export function AccountGate() {
 
   useEffect(() => {
     if (step === 'code') codeRef.current?.focus()
-    if (step === 'email') emailRef.current?.focus()
+    if (step === 'email' || step === 'login' || step === 'register') emailRef.current?.focus()
   }, [step])
+
+  // While a wait is on, the seconds count down on the button.
+  useEffect(() => {
+    if (lockedUntil <= Date.now()) return
+    const t = window.setInterval(() => {
+      const at = Date.now()
+      setNow(at)
+      if (at >= lockedUntil) window.clearInterval(t)
+    }, 500)
+    return () => window.clearInterval(t)
+  }, [lockedUntil])
+  const waitSeconds = Math.max(0, Math.ceil((lockedUntil - now) / 1000))
 
   const ask = async (create = creating, again = false) => {
     if (!EMAIL.test(email.trim())) return setError('A ese correo le falta algo: revisa la arroba y el punto.')
@@ -84,12 +107,49 @@ export function AccountGate() {
     }
   }
 
+  /** The password way in. Checks the new password here first, so the refusal speaks before anything travels. */
+  const withPassword = async () => {
+    const mail = email.trim()
+    if (!EMAIL.test(mail)) return setError('A ese correo le falta algo: revisa la arroba y el punto.')
+    if (waitSeconds > 0) return
+    if (step === 'register') {
+      const problem = passwordProblem(password, mail)
+      if (problem) return setError(problem)
+    } else if (!password) {
+      return setError('Escribe tu contraseña.')
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const account = step === 'register' ? await register(mail, password) : await signIn(mail, password)
+      await useAuth.getState().enter(account)
+    } catch (err) {
+      if (err instanceof AccountExists) {
+        setStep('login')
+        setPassword('')
+        setError('Ese correo ya tiene cuenta: entra con tu contraseña.')
+      } else {
+        if (step === 'login') {
+          const count = failures + 1
+          setFailures(count)
+          const wait = lockoutMs(count)
+          if (wait) setLockedUntil(Date.now() + wait)
+        }
+        setError(err instanceof Error ? err.message : 'No se pudo entrar.')
+      }
+      setBusy(false)
+    }
+  }
+
   const start = (create: boolean) => {
     setCreating(create)
     setMissing(false)
     setError(null)
-    setStep('email')
+    setPassword('')
+    setStep(mode === 'password' ? (create ? 'register' : 'login') : 'email')
   }
+
+  const passwordStep = step === 'login' || step === 'register'
 
   return (
     <div className="absolute inset-x-0 flex flex-col items-center gap-7 px-6" style={{ top: BELOW_ORB }}>
@@ -98,7 +158,11 @@ export function AccountGate() {
           <Panel key="choose">
             <div className="text-center">
               <h1 className="font-display text-[30px] font-bold tracking-tight text-ink">Hola. Soy Sky.</h1>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">Entras con tu correo: sin contraseñas que recordar. Lo que hagas aquí se queda en esta computadora.</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
+                {mode === 'password'
+                  ? 'Entras con tu correo y una contraseña, desde cualquier computadora. Lo que hagas aquí se queda en esta.'
+                  : 'Entras con tu correo: sin contraseñas que recordar. Lo que hagas aquí se queda en esta computadora.'}
+              </p>
             </div>
             <div className="flex w-full flex-col gap-2">
               <button
@@ -116,6 +180,79 @@ export function AccountGate() {
               >
                 <UserPlus className="h-4 w-4" />
                 Es mi primera vez
+              </button>
+            </div>
+          </Panel>
+        )}
+
+        {passwordStep && (
+          <Panel key={step} onSubmit={() => void withPassword()}>
+            <div className="text-center">
+              <h1 className="font-display text-[30px] font-bold tracking-tight text-ink">{step === 'register' ? 'Creemos tu cuenta' : 'Hola otra vez'}</h1>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
+                {step === 'register'
+                  ? 'Tu correo y una contraseña que solo tú sepas. Con ellos entras desde cualquier computadora; lo que hagas se queda en esta.'
+                  : 'Tu correo y tu contraseña. Funciona igual aquí que en cualquier otra computadora.'}
+              </p>
+            </div>
+            <input
+              ref={emailRef}
+              type="email"
+              inputMode="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setError(null)
+              }}
+              placeholder="tu@correo.com"
+              aria-label="Tu correo"
+              className="w-full border-0 border-b border-line bg-transparent pb-2 text-center text-[19px] text-ink outline-none transition placeholder:text-ink-3 focus:border-accent"
+            />
+            <div className="relative w-full">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={step === 'register' ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setError(null)
+                }}
+                placeholder={step === 'register' ? 'Una contraseña nueva' : 'Tu contraseña'}
+                aria-label={step === 'register' ? 'Contraseña nueva' : 'Tu contraseña'}
+                className="w-full border-0 border-b border-line bg-transparent pb-2 pr-8 text-center text-[19px] text-ink outline-none transition placeholder:text-ink-3 focus:border-accent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Ocultar la contraseña' : 'Ver la contraseña'}
+                className="absolute right-0 top-1.5 text-ink-3 transition hover:text-ink"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {step === 'register' && <Strength password={password} email={email} />}
+            <button
+              type="submit"
+              disabled={busy || !email.trim() || !password || waitSeconds > 0}
+              className="flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-[13px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : step === 'register' ? <UserPlus className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
+              {busy ? (step === 'register' ? 'Creando…' : 'Entrando…') : waitSeconds > 0 ? `Espera ${waitSeconds} s` : step === 'register' ? 'Crear mi cuenta' : 'Entrar'}
+            </button>
+            {step === 'register' ? (
+              <p className="max-w-[340px] text-center text-[11.5px] leading-relaxed text-ink-3">
+                Guárdala en tu gestor de contraseñas: hasta que este SkyOS pueda mandar correos, no hay forma de recuperarla.
+              </p>
+            ) : failures >= 2 ? (
+              <p className="max-w-[340px] text-center text-[11.5px] leading-relaxed text-ink-3">
+                Si la olvidaste: este SkyOS todavía no manda correos, así que aún no puede restablecerla.
+              </p>
+            ) : null}
+            <div className="flex items-center gap-4 text-[12.5px]">
+              <Back onClick={() => setStep('choose')}>Atrás</Back>
+              <button type="button" onClick={() => start(step !== 'register')} className="text-accent transition hover:underline">
+                {step === 'register' ? 'Ya tengo cuenta' : 'Es mi primera vez'}
               </button>
             </div>
           </Panel>
@@ -211,6 +348,25 @@ export function AccountGate() {
           {error}
         </motion.p>
       )}
+    </div>
+  )
+}
+
+/** Under the new password, as it is typed: what is still missing, or how good it already is. */
+function Strength({ password, email }: { password: string; email: string }) {
+  if (!password) {
+    return <p className="h-4 text-center text-[11.5px] text-ink-3">Al menos {MIN_PASSWORD} caracteres; que no sea tu correo ni de las que cualquiera probaría.</p>
+  }
+  const problem = passwordProblem(password, email)
+  const level = passwordStrength(password, email)
+  return (
+    <div className="flex w-full flex-col items-center gap-1.5">
+      <div className="flex w-40 gap-1">
+        {[1, 2, 3].map((n) => (
+          <span key={n} className={cn('h-1 flex-1 rounded-full transition-colors', level >= n ? 'bg-accent' : 'bg-line-2')} />
+        ))}
+      </div>
+      <p className={cn('h-4 text-[11.5px]', problem ? 'text-ink-3' : 'text-ink-2')}>{problem ?? STRENGTH_LABEL[level]}</p>
     </div>
   )
 }

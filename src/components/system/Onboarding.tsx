@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ExternalLink, Loader2, XCircle } from 'lucide-react'
-import type { UserLocation, UserProfile } from '../../system/db'
+import type { UserLocation, UserProfile, UserRow } from '../../system/db'
 import { hasSharedGroqKey } from '../../config'
 import { users } from '../../system/users'
 import { useAuth } from '../../system/auth'
@@ -53,6 +53,10 @@ export function Onboarding() {
   const account = useAuth((s) => s.account)
   const adoptable = useAuth((s) => s.adoptable)
   const [skipAdopt, setSkipAdopt] = useState(false)
+  /** A PIN-protected desktop offered to an account whose email nobody has verified: its PIN opens the adoption. */
+  const [pinFor, setPinFor] = useState<UserRow | null>(null)
+  const [adoptPin, setAdoptPin] = useState('')
+  const [adoptError, setAdoptError] = useState(false)
 
   const steps = account ? ORDER.filter((s) => s !== 'access') : ORDER
   const index = steps.indexOf(step)
@@ -159,7 +163,15 @@ export function Onboarding() {
               <button
                 key={u.id}
                 type="button"
-                onClick={() => void useAuth.getState().adopt(u)}
+                onClick={() => {
+                  if (u.pinHash && !account.emailVerified) {
+                    setPinFor(u)
+                    setAdoptPin('')
+                    setAdoptError(false)
+                    return
+                  }
+                  void useAuth.getState().adopt(u)
+                }}
                 className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3 text-left transition hover:border-accent/60 hover:bg-accent-soft/40"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-medium text-accent">{u.initials}</span>
@@ -170,6 +182,44 @@ export function Onboarding() {
               </button>
             ))}
           </div>
+          {pinFor && (
+            <form
+              className="mt-4 flex flex-col items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void useAuth
+                  .getState()
+                  .adopt(pinFor, adoptPin)
+                  .then((ok) => {
+                    if (!ok) {
+                      setAdoptError(true)
+                      setAdoptPin('')
+                    }
+                  })
+              }}
+            >
+              <p className="text-[12.5px] text-ink-2">El escritorio de {pinFor.name} tiene PIN. Escríbelo para que sea tuyo.</p>
+              <input
+                autoFocus
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={adoptPin}
+                onChange={(e) => {
+                  setAdoptPin(e.target.value.replace(/\D/g, ''))
+                  setAdoptError(false)
+                }}
+                placeholder="••••"
+                aria-label="PIN del escritorio"
+                className={cn('glass h-10 w-40 rounded-xl px-3 text-center text-[18px] tracking-[0.4em] text-ink outline-none transition focus:ring-1 focus:ring-accent/50', adoptError && 'ring-1 ring-danger')}
+              />
+              {adoptError && <p className="text-[12px] text-danger">Ese PIN no es.</p>}
+              <button type="submit" disabled={adoptPin.length < 4} className="rounded-full bg-accent px-4 py-1.5 text-[12.5px] font-medium text-white transition hover:brightness-110 disabled:opacity-40">
+                Abrirlo
+              </button>
+            </form>
+          )}
           <button type="button" onClick={() => setSkipAdopt(true)} className="mt-5 text-[12.5px] text-ink-3 transition hover:text-ink">
             No es mío, quiero uno nuevo
           </button>

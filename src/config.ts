@@ -51,6 +51,13 @@ export const AI_BRIDGE_URL = BRIDGE_URL
 export const ACCOUNTS_URL = (env.VITE_SUPABASE_URL?.trim() ?? '').replace(/\/+$/, '')
 export const ACCOUNTS_KEY = env.VITE_SUPABASE_ANON_KEY?.trim() ?? ''
 
+/**
+ * Whether this deployment can send email: its own SMTP in Supabase. With it, entering is a code typed from the
+ * inbox and the email is verified; without it, entering is a password and the email is a name nobody checked —
+ * and only while the project does not insist on confirming emails it has no way to deliver (account.ts looks).
+ */
+export const ACCOUNTS_MAIL = env.VITE_ACCOUNTS_MAIL === '1'
+
 /** Public https origin where SkyOS is served; enables Client ID Metadata Documents for MCP authorization. */
 export const APP_ORIGIN = (env.VITE_APP_ORIGIN?.trim() ?? '').replace(/\/+$/, '')
 

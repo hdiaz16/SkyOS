@@ -53,6 +53,8 @@ import { useAuth } from '../../system/auth'
 import { users } from '../../system/users'
 import type { Autonomy, Purpose, Tone, UserProfile } from '../../system/db'
 import { useDialog } from '../../state/dialog'
+import { changePassword } from '../../system/account'
+import { MIN_PASSWORD, passwordProblem } from '../../lib/password'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
 import { AppsPanel } from './Apps'
@@ -494,6 +496,7 @@ const AUTONOMY_OPTIONS: Array<{ value: Autonomy; label: string }> = [
 
 function AccountSection() {
   const user = useAuth((s) => s.current)
+  const account = useAuth((s) => s.account)
   if (!user) return null
 
   const setProfile = async (patch: Partial<UserProfile>) => {
@@ -537,6 +540,29 @@ function AccountSection() {
     useToasts.getState().push({ message: 'PIN eliminado', kind: 'info' })
   }
 
+  /** The account's password: for whoever entered with one, or wants one ready for another computer. */
+  const changeAccountPassword = async () => {
+    const password = await useDialog.getState().ask({
+      title: 'Nueva contraseña de tu cuenta',
+      description: `Al menos ${MIN_PASSWORD} caracteres; que no sea tu correo ni de las que cualquiera probaría. Con ella entras desde cualquier computadora.`,
+      placeholder: '••••••••',
+      confirmLabel: 'Guardar',
+      secret: true,
+    })
+    if (password === null) return
+    const problem = passwordProblem(password, account?.email)
+    if (problem) {
+      useToasts.getState().push({ message: problem, kind: 'error' })
+      return
+    }
+    try {
+      await changePassword(password)
+      useToasts.getState().push({ message: 'Contraseña actualizada', kind: 'info' })
+    } catch (err) {
+      useToasts.getState().push({ message: err instanceof Error ? err.message : 'No se pudo cambiar la contraseña', kind: 'error' })
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
     <div className="flex items-center gap-3 rounded-xl border border-line p-4">
@@ -544,6 +570,7 @@ function AccountSection() {
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-medium text-ink">{user.name}</p>
         <p className="text-[12px] text-ink-3">
+          {account ? `${account.email} · ` : ''}
           {user.profile.location?.place ?? 'Sin ubicación'} · {user.pinHash ? 'Con PIN' : 'Sin PIN'}
         </p>
       </div>
@@ -565,6 +592,11 @@ function AccountSection() {
       {user.pinHash && (
         <button type="button" onClick={() => void removePin()} className="rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
           Quitar PIN
+        </button>
+      )}
+      {account && (
+        <button type="button" onClick={() => void changeAccountPassword()} className="rounded-lg px-2.5 py-1.5 text-[12px] text-ink-2 transition hover:bg-surface-2 hover:text-ink">
+          Contraseña
         </button>
       )}
       <button

@@ -101,14 +101,16 @@ ejemplo: `git log --oneline -14`.
 
 ## Pendientes que no son de la auditoría
 
-1. **Las cuentas verificadas siguen apagadas en producción**, y mientras tanto el escritorio se registra en el
-   onboarding (nombre, correo, PIN opcional) y se vuelve a entrar con el correo desde la pantalla de inicio
-   (`5c31e5b`). La puerta de Supabase está completa en el código (`src/system/account.ts`,
-   `src/components/system/AccountGate.tsx`), pero `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` nunca se
-   pusieron en Vercel. **Encenderlas sin SMTP propio deja fuera a todo el mundo menos a Hector**: el mailer por
-   defecto de Supabase solo escribe al dueño del proyecto. El orden correcto es conectar Resend (o el SMTP que él
-   elija), pegar la plantilla de `supabase/templates/magic-link.html`, y entonces sí las variables. Al adoptar un
-   escritorio local, el correo registrado es el que casa con la cuenta.
+1. ~~Las cuentas verificadas siguen apagadas en producción~~ — **encendidas el 19 de septiembre (cuarta tanda)**
+   con registro por contraseña: `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` puestas en Vercel (producción) desde
+   la CLI, con permiso de Hector. El proyecto `kccuieiyjzddyihfqyii` tenía «Confirm email» encendido
+   (`/auth/v1/settings` → `mailer_autoconfirm: false`) y desde aquí no se pudo apagar (no hay CLI de Supabase ni
+   token en la máquina; el MCP de Supabase de la sesión apunta a otro proyecto, `mexzqdakiwwoxflyznnm`, y no toca la
+   configuración de auth). Por eso el código lo detecta al arrancar y sigue con perfiles locales, con aviso, hasta que
+   Hector lo apague en Authentication › Sign In / Providers › Email; en ese momento las cuentas quedan vivas sin
+   redesplegar. Sin SMTP no hay recuperación de contraseña. Migrar al código por correo, en este orden: SMTP propio
+   (Resend) → plantilla `supabase/templates/magic-link.html` → «Confirm email» encendido → `VITE_ACCOUNTS_MAIL=1` en
+   Vercel → redeploy. Las cuentas con contraseña siguen valiendo después.
 2. ~~El paso corto de permisos~~ — hecho en `d23625c` y corregido en la tercera tanda del 19 de septiembre (las
    respuestas del navegador se distinguían mal); **verificado** con Ana: la tarjeta a los cinco segundos, lo que el
    navegador ya decidió marcado desde el inicio, «cerrar sin responder» con Reintentar, y el cierre —a mano o solo,
@@ -300,3 +302,42 @@ números medidos en el propio escritorio. `ai/tools.test.ts` fija ambas mitades.
   19:30 y 22:30 pintadas a mano (capturas), la geometría del sol (`left` 463 px = 50,38 % × 1524 − 20vw), el tema
   oscuro en modo hora (`#0e1517`) y vuelta, el sol real de Colima guardado (6:43 / 18:53) y el fondo intacto tras
   recargar. README, `.env.example` y `package.json` (0.4.1) al día.
+
+## Tanda del 19 de septiembre de 2026 (cuarta): cuentas en producción, por contraseña
+
+Hector pidió prender las cuentas ya, con registro en vez de correo, migrar al SMTP después, «agregar seguridad» y
+publicar. Lo que hay:
+
+- **Dos formas de entrar** (`system/account.ts`): `entryMode()` lee `/auth/v1/settings` del proyecto al arrancar. Con
+  `VITE_ACCOUNTS_MAIL=1` → código por correo (el flujo de antes, intacto). Sin él y con `mailer_autoconfirm: true` →
+  contraseña (`register`, `signIn`, `changePassword`, `requestPasswordReset`). Sin él y con el proyecto exigiendo
+  confirmar correos → `unavailable`: `auth.ts` sigue con perfiles locales (`accountsUnavailable`), la pantalla de
+  inicio lo dice, la consola dice qué apagar, y los escritorios que ya son de una cuenta no salen en la lista local.
+  `Account.emailVerified` es verdadero solo con el código.
+- **Seguridad añadida**: `lib/password.ts` (mínimo 8, sin las comunes ni el propio correo, dos clases de caracteres
+  si es corta, medidor de fuerza, `lockoutMs`: 30 s tras cinco fallos y doblando hasta 5 min); un solo mensaje para
+  correo o contraseña incorrectos (`describeAuthError`, con los códigos de Supabase); campos con `autocomplete`
+  correcto y ojo para ver la contraseña; **adopción con PIN**: un escritorio local con PIN no pasa a una cuenta con
+  su mismo correo sin el PIN mientras el correo no esté verificado (`auth.enter`/`adopt`, formulario en el paso de
+  adopción del onboarding); Ajustes › Cuenta muestra el correo de la cuenta y cambia la contraseña con un diálogo que
+  oculta lo escrito (`PromptRequest.secret`); cabeceras en `vercel.json` (HSTS, nosniff, SAMEORIGIN, Referrer-Policy,
+  Permissions-Policy). `lib/password.test.ts` y `system/account.test.ts` fijan política, espera y mensajes.
+- **Bug de raíz encontrado de paso y corregido**: `PromptDialog` leía la petición del store durante la animación de
+  salida, cuando ya es `null`; `request.initialValue` lanzaba dentro del render y React 19, sin frontera de error
+  encima, desmontaba el escritorio entero al cerrar cualquier diálogo de texto (pantalla en blanco). La petición viaja
+  ahora como prop. Los dos «initialValue» de la consola de sesiones anteriores eran esto.
+- **Doble de prueba** (`tools/fake-accounts.mjs`): `/settings`, `/signup`, `/token?grant_type=password`, `/recover`,
+  `PUT /user`; `FAKE_CONFIRM_EMAIL=1` simula el proyecto con confirmación encendida.
+- **Verificado** con el doble en `localhost:4181` (`VITE_SUPABASE_URL=http://localhost:54321
+  VITE_SUPABASE_ANON_KEY=cuentas-de-prueba npx vite build --outDir dist-fake` + `vite preview --port 4181`):
+  la puerta en modo contraseña, «Es mi primera vez» → `12345678` avisa «Esa es de las primeras que probaría
+  cualquiera.», `salvia-campo-2026` marca «Fuerte», crear → onboarding sin el paso del correo → escritorio (el doble
+  registra `ana.prueba@example.com`); Ajustes › Cuenta con el correo y «Contraseña»: débil → aviso, fuerte →
+  «Contraseña actualizada» y el doble lo anota; cerrar el diálogo ya no deja el escritorio en blanco. Salir → puerta →
+  «Ya nos conocemos»: cinco contraseñas malas dan «Correo o contraseña incorrectos.» y a la quinta el botón pasa a
+  «Espera 30 s» (desactivado) con la nota de que aún no hay recuperación; pasados los 30 s, la contraseña nueva entra al
+  escritorio de Ana. Con el doble en `FAKE_CONFIRM_EMAIL=1`: la consola avisa qué apagar, el escritorio de Ana (ya de
+  una cuenta) no sale en la lista local y se puede crear un perfil local (Beto, con PIN 1234); al salir, «Inicia sesión»
+  muestra a Beto y la nota. Doble de vuelta en autoconfirmación: registrar `beto@example.com` **no** adopta el
+  escritorio de Beto solo por el correo — sale la pantalla de adopción, «Abrirlo» con `9999` dice «Ese PIN no es.», con
+  `1234` abre el escritorio de Beto.

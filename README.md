@@ -31,11 +31,14 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
 
 **Sesiones**
 
-- Registro en el onboarding: nombre, correo y un PIN opcional (PBKDF2). Volver es entrar: si la sesión sigue abierta se
-  sigue donde estabas; si no, la pantalla de inicio deja elegir tu perfil o escribir tu correo, sin repetir el onboarding.
-  Por ahora esa cuenta vive en ese navegador. Con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` —y un SMTP propio en
-  Supabase, porque su correo por defecto solo le escribe al dueño del proyecto— entrar es tu correo y un código de seis
-  dígitos, en cualquier dispositivo, y el escritorio local de antes se adopta con un clic.
+- Cuentas. Con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`, entrar es tu correo y una contraseña, desde cualquier
+  dispositivo; el escritorio local de antes se adopta al entrar (si tenía PIN se pide, porque una contraseña no prueba
+  que el correo sea tuyo). Contraseñas de 8 caracteres como mínimo, sin las que cualquiera probaría ni tu propio correo,
+  espera creciente tras cinco intentos fallidos y un solo mensaje para «correo o contraseña incorrectos». El proyecto
+  de Supabase debe tener «Confirm email» apagado; si no, SkyOS lo detecta al arrancar, sigue con perfiles locales y lo
+  dice. Con un SMTP propio y `VITE_ACCOUNTS_MAIL=1`, entrar pasa a ser correo y un código de seis dígitos, con el correo
+  verificado; las cuentas con contraseña siguen valiendo. Sin Supabase, registro local en el onboarding: nombre, correo y
+  un PIN opcional (PBKDF2); volver es entrar, y la pantalla de inicio deja elegir tu perfil o escribir tu correo.
 - Separación por perfil: cada cuenta tiene su base de datos, su carpeta de archivos, sus ajustes, su llave de IA, sus
   widgets, flujos e índice; la sesión se fija al cargar la pestaña, y si otra pestaña entra con otra cuenta, esta se
   detiene en vez de mezclar. El PIN evita entradas de paso, **no** cifra nada: los perfiles son comodidad entre personas
@@ -178,7 +181,8 @@ que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la m
 | `VITE_APP_ORIGIN` | `https://sky-os.cloud` | Permite identificarse ante los servidores MCP con Client ID Metadata Documents. |
 | `VITE_BRIDGE_URL` | vacía | En un despliegue el puente se sirve solo, en `/api` (MCP, OAuth y `/api/ai/proxy`). |
 | `AI_RELAY_HOSTS` | opcional | Hosts extra a los que `/api/ai/proxy` puede llevar la llave de la persona; Z.ai ya va incluido. Sin `VITE_`. |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | opcional | Encienden las cuentas verificadas (correo + código). **Antes** configura un SMTP propio en Supabase y pega `supabase/templates/magic-link.html`: el correo por defecto solo le llega al dueño del proyecto, y encenderlas sin eso deja fuera a todos los demás. |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | puestas | Encienden las cuentas (correo + contraseña). En Supabase, «Confirm email» debe estar **apagado** mientras no haya SMTP propio; si está encendido, SkyOS lo detecta y sigue con perfiles locales hasta que se apague. |
+| `VITE_ACCOUNTS_MAIL` | vacía | Ponla en `1` cuando Supabase tenga SMTP propio y la plantilla `supabase/templates/magic-link.html`: entrar pasa a ser correo + código de seis dígitos. |
 | `VITE_GOOGLE_CLIENT_ID` / `_SECRET` | opcional | Con esto conectar Drive, Docs, Gmail y Calendar es un clic para todo el mundo. |
 | `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` / `_SECRET`, `VITE_SLACK_CLIENT_ID` / `_SECRET`, `VITE_BOX_CLIENT_ID` / `_SECRET` | opcional | Lo mismo para Spotify, GitHub, Slack y Box, que tampoco registran clientes al vuelo. Un `_SECRET` con prefijo `VITE_` viaja en el paquete: en un sitio público deja de ser secreto. |
 | `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |

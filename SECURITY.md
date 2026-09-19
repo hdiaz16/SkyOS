@@ -66,6 +66,18 @@ incluido además tiene un presupuesto por dirección IP.
 navegador y nada más: no se comprueba y no viaja a ningún lado. El PIN opcional (PBKDF2) evita entradas de paso
 desde ese mismo navegador; no cifra los archivos. Es comodidad entre personas de confianza, no una frontera.
 
+**Las cuentas con contraseña.** Con Supabase configurado y sin SMTP propio, entrar es correo y contraseña. La
+contraseña la comprueba el servidor de Supabase, nunca este navegador; SkyOS exige al menos 8 caracteres, rechaza
+las que cualquiera probaría y el propio correo, hace esperar cada vez más tras cinco intentos fallidos (además del
+límite del propio servidor) y responde lo mismo a un correo desconocido que a una contraseña equivocada, para no
+revelar quién tiene cuenta. Lo que **no** hay: el correo no se verifica (nadie recibe nada), así que un escritorio
+local con PIN pide ese PIN antes de pasar a una cuenta que solo comparte el correo; y no hay recuperación de
+contraseña hasta que exista SMTP. Cuando lo haya (`VITE_ACCOUNTS_MAIL=1`), entrar pasa a ser un código enviado al
+correo, que sí lo verifica. Si el proyecto exige confirmar correos sin poder enviarlos, SkyOS lo detecta al arrancar
+y sigue con perfiles locales, con aviso: nadie queda fuera por una configuración a medias. El despliegue en Vercel
+manda además cabeceras de seguridad: HSTS, `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy` y una
+`Permissions-Policy` que apaga cámara, pagos, USB, serie, Bluetooth y MIDI.
+
 ## Lo que **no** protege
 
 Esto importa tanto como lo anterior.
@@ -75,8 +87,8 @@ Esto importa tanto como lo anterior.
   abrir la base de cualquier perfil. Los perfiles son comodidad, no una frontera de seguridad.
 - **Los datos no están cifrados en reposo.** Viven como cualquier dato de sitio web. Cifrarlos en serio exige
   una llave que el usuario aporte en cada arranque, y hoy SkyOS no la pide.
-- **La cuenta verifica quién eres, no qué puedes ver.** Con Supabase configurado, entrar exige un código
-  enviado a tu correo y la sesión la valida un servidor, así que «mi sesión» ya significa algo fuera de este
+- **La cuenta verifica quién eres, no qué puedes ver.** Con Supabase configurado, entrar exige una contraseña o
+  un código enviado a tu correo, y la sesión la valida un servidor, así que «mi sesión» ya significa algo fuera de este
   navegador. Pero los archivos siguen siendo locales y no hay nada remoto que autorizar: el escritorio se abre
   porque la cuenta coincide con la que lo creó, no porque un servidor conceda permisos sobre datos. Quien tenga
   acceso al navegador y a sus herramientas puede seguir abriendo la base de cualquier perfil de ese equipo. El
