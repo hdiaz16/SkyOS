@@ -101,13 +101,14 @@ ejemplo: `git log --oneline -14`.
 
 ## Pendientes que no son de la auditoría
 
-1. **Las cuentas no están encendidas en producción.** La puerta de correo + código con Supabase está completa
-   en el código (`src/system/account.ts`, `src/components/system/AccountGate.tsx`), pero
-   `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` nunca se pusieron en Vercel, así que `accountsEnabled` es
-   falso en el despliegue y cae a perfiles locales. **Encenderlas sin SMTP propio deja fuera a todo el mundo
-   menos a Hector**: el mailer por defecto de Supabase solo escribe al dueño del proyecto. El orden correcto es
-   conectar Resend (o el SMTP que él elija), pegar la plantilla de `supabase/templates/magic-link.html`, y
-   entonces sí las variables.
+1. **Las cuentas verificadas siguen apagadas en producción**, y mientras tanto el escritorio se registra en el
+   onboarding (nombre, correo, PIN opcional) y se vuelve a entrar con el correo desde la pantalla de inicio
+   (`5c31e5b`). La puerta de Supabase está completa en el código (`src/system/account.ts`,
+   `src/components/system/AccountGate.tsx`), pero `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` nunca se
+   pusieron en Vercel. **Encenderlas sin SMTP propio deja fuera a todo el mundo menos a Hector**: el mailer por
+   defecto de Supabase solo escribe al dueño del proyecto. El orden correcto es conectar Resend (o el SMTP que él
+   elija), pegar la plantilla de `supabase/templates/magic-link.html`, y entonces sí las variables. Al adoptar un
+   escritorio local, el correo registrado es el que casa con la cuenta.
 2. ~~El paso corto de permisos~~ — hecho en `d23625c` (micrófono, ubicación, notificaciones; **verificación
    pendiente**: entrar con un perfil que no los haya ofrecido aún y ver la tarjeta a los cinco segundos, con
    sus tres filas, lo ya concedido marcado y el cierre que no vuelve a molestar).
@@ -226,3 +227,31 @@ Siete commits temáticos, todos **con verificación en el navegador pendiente**.
   dólares»: la caja muestra 500; escribir en una nota de widget y recargar dentro de medio segundo: la nota
   conserva lo último escrito; los días del calendario no se iluminan como botones; una ventana se estira
   desde los cuatro bordes y las cuatro esquinas, y el mínimo se respeta estirando desde arriba o la izquierda.
+
+## Tanda del 19 de septiembre de 2026 (segunda): lo que Hector pidió tras el análisis del estado
+
+- `df736fb` **herramientas por proveedor**: el manual entero, en orden fijo, donde el prefijo se cachea
+  (Anthropic); una selección compacta —lo que la petición pide, un núcleo y una herramienta de búsqueda, nunca más
+  del tope ni nunca cero— donde se mide por minuto (Groq) o se cachea a mitad de precio (compatibles con OpenAI).
+  La conversación también se cachea en Anthropic. **Verificado**: «pon un temporizador de 10 minutos» en Groq viajó
+  con 12 herramientas (5 KB), 6 472 tokens de entrada en dos solicitudes.
+- `91f6bff` **GLM en producción**: `/api/ai/proxy` repite la petición con la llave de la persona, solo hacia Z.ai
+  (`AI_RELAY_HOSTS` amplía). **Verificado** con el manejador real: 403/400/400 y la petición llegando a Z.ai.
+  Pendiente en vivo: pegar una llave de Z.ai en el sitio publicado y ver la lista de modelos llegar.
+- `25edca1` **widgets anclados y apariencia**: `anchorRight` en el widget, pin en el marco, la rejilla del
+  escritorio deja libre la columna anclada; `widgets.place` y `ui.appearance` (tema, acento, fondo) con inversas
+  escritas; Ajustes › Apariencia con acentos y fondos. **Verificado** en el navegador.
+- `9b0f9e8` **selección por rectángulo y menú de varios**: `lib/marquee.ts`; agrupar (`fs.group`/`fs.ungroup`),
+  etiquetar, propiedades (diálogo `info`), abrir todos. **Verificado** en el navegador.
+- `5c31e5b` **registro local**: paso «¿Con qué correo te reconozco?» (correo + PIN opcional) y «Entrar con mi
+  correo» en la pantalla de inicio. **Verificado** en una compilación sin cuentas servida en `localhost:4180`
+  (`VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npx vite build --outDir dist-local`, luego `vite preview`).
+- `0c4e22a` **conectar es un clic**: la tarjeta de Google ya no pide un client id; dice que lo registra quien
+  administra la instalación y el botón no promete. **Verificado** en el navegador.
+- README, SECURITY y `package.json` (0.4.0) al día con GLM, ElevenLabs, el relevo de IA, el registro local y la
+  selección.
+
+**Lo que decidí y por qué, por si se quiere revisar**: el trabajo sin commit que había en `ai/tools.ts`
+(enrutado por dominio con tope de 15) iba en contra del commit anterior (`3f18071`, superficie constante para
+la caché). Ninguno de los dos era correcto para todos los proveedores; la respuesta es por proveedor, con los
+números medidos en el propio escritorio. `ai/tools.test.ts` fija ambas mitades.

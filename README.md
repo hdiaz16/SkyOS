@@ -4,8 +4,10 @@ SkyOS es un escritorio web tranquilo, inspirado en la naturaleza, donde la intel
 Escritorio, carpetas y ventanas como metáfora visual; una barra siempre visible como punto de entrada para pedir,
 buscar y navegar. Cada persona tiene su propia sesión, con sus archivos, ajustes y llaves aisladas.
 
-**Estado: fase 1 completa, con sesiones y onboarding.** Funciona en local; todo se guarda en el navegador. Con una llave
-de Groq (gratuita) o de Anthropic, u otro proveedor compatible con OpenAI incluido Ollama, la IA actúa sobre el escritorio.
+**Estado: fase 1 completa y en pulido (septiembre de 2026).** Todo se guarda en el navegador; publicado en Vercel con
+cuatro funciones pequeñas al lado. Con la llave incluida de Groq, o con la tuya de Anthropic, GLM (Z.ai), OpenAI, Gemini,
+OpenRouter u Ollama, la IA actúa sobre el escritorio. La auditoría que guía el pulido, con su marcador, vive en
+[docs/auditoria](docs/auditoria/README.md).
 
 ## Correr en local
 
@@ -17,9 +19,10 @@ npm run lint    # oxlint
 npm run build   # tipos y paquete de producción
 ```
 
-Abre `http://localhost:5173` en Chrome o Edge. La primera vez aparece el onboarding: tu nombre y entrar. Lo demás
-—tono, autonomía, tema, PIN, proveedor— empieza con valores sensatos y se cambia en Ajustes. El repositorio se llama
-`mesa` por su nombre de trabajo original; los identificadores internos lo conservan para no perder datos.
+Abre `http://localhost:5173` en Chrome o Edge. La primera vez aparece el onboarding: tu nombre, tu correo (y un PIN si
+quieres) y entrar. Lo demás —tono, autonomía, tema, proveedor— empieza con valores sensatos y se cambia en Ajustes. El
+repositorio se llama `mesa` por su nombre de trabajo original; los identificadores internos lo conservan para no perder
+datos.
 
 Qué protege SkyOS y qué no, con sus límites dichos sin adornos: [SECURITY.md](SECURITY.md). El estado del pulido en
 curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
@@ -28,21 +31,30 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
 
 **Sesiones**
 
-- Pantalla de inicio con las personas que usan este navegador; PIN opcional (PBKDF2). Cerrar sesión vuelve al inicio.
+- Registro en el onboarding: nombre, correo y un PIN opcional (PBKDF2). Volver es entrar: si la sesión sigue abierta se
+  sigue donde estabas; si no, la pantalla de inicio deja elegir tu perfil o escribir tu correo, sin repetir el onboarding.
+  Por ahora esa cuenta vive en ese navegador. Con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` —y un SMTP propio en
+  Supabase, porque su correo por defecto solo le escribe al dueño del proyecto— entrar es tu correo y un código de seis
+  dígitos, en cualquier dispositivo, y el escritorio local de antes se adopta con un clic.
 - Separación por perfil: cada cuenta tiene su base de datos, su carpeta de archivos, sus ajustes, su llave de IA, sus
   widgets, flujos e índice; la sesión se fija al cargar la pestaña, y si otra pestaña entra con otra cuenta, esta se
   detiene en vez de mezclar. El PIN evita entradas de paso, **no** cifra nada: los perfiles son comodidad entre personas
   de confianza, no una frontera de seguridad. El alcance exacto está en [SECURITY.md](SECURITY.md).
-- Splash de arranque y onboarding de dos pantallas: tu nombre y entrar. Todo lo demás empieza con valores sensatos y se
-  cambia en Ajustes; la ubicación se detecta sola mientras escribes y el micrófono lo pide el navegador la primera vez
-  que dictas. Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.
+- Splash de arranque y onboarding corto: nombre, correo y entrar. Todo lo demás empieza con valores sensatos y se
+  cambia en Ajustes; la ubicación se detecta sola mientras escribes, y unos segundos después de entrar una tarjeta
+  ofrece de una vez los tres permisos (micrófono, ubicación exacta, notificaciones), cada uno cuando quieras usarlo.
+  Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.
 
 **Escritorio**
 
 - Íconos, carpetas anidadas, ventanas arrastrables, dock integrado en la barra, saludo con tu nombre y reloj con calendario.
 - Widgets útiles: clima de tu ubicación (Open-Meteo), divisas (BCE), recientes, reloj mundial, tareas, nota,
-  temporizador. La IA puede crear widgets propios en HTML dentro de un marco aislado.
-- Fondo con gradientes, colinas y luz que deriva; modo claro y noche.
+  temporizador. La IA puede crear widgets propios en HTML dentro de un marco aislado. Los widgets nacen anclados al
+  borde derecho —conservan su zona aunque cambie el tamaño de la pantalla— y los iconos nunca quedan debajo de ellos;
+  el pin del marco los suelta o los vuelve a anclar.
+- Fondo con gradientes, colinas y luz que deriva; modo claro y noche, cinco acentos y cuatro fondos. Se cambian en
+  Ajustes › Apariencia o pidiéndoselo a Sky: «ponlo azul», «un fondo más cálido», «ancla el clima arriba a la derecha»,
+  «haz la nota más grande» (`ui.appearance`, `widgets.place`), todo con vuelta atrás.
 
 **Barra de Sky** (Ctrl+K)
 
@@ -57,9 +69,11 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
 - Contexto dinámico: la carpeta o el archivo de la ventana activa y la selección viajan en cada petición como
   contexto por defecto, así "resume estos archivos" o "qué hay aquí" no necesitan más explicación. Un ✨ en la
   ventana de Archivos abre la barra ya apuntando a esa carpeta.
-- Acciones en lote sobre la selección (clic derecho): pedir algo a Sky con los archivos adjuntos, sintetizarlos en
-  un documento o extraer los pendientes de todos. Los archivos de texto viajan en línea con presupuesto por proveedor;
-  `fs.readMany` lee varios de una vez.
+- Selección como en cualquier escritorio: clic, Ctrl+clic, Mayús+clic para un rango, o arrastrar un rectángulo sobre
+  el suelo vacío (también dentro de Archivos). Con varios seleccionados, el clic derecho agrupa en una carpeta nueva,
+  etiqueta de una vez, muestra las propiedades (cuántos, cuánto pesan, tipos, dónde, cuándo), abre todos o los manda a
+  la papelera; y con Sky: pedir algo con los archivos adjuntos, sintetizarlos en un documento o extraer los pendientes.
+  Los archivos de texto viajan en línea con presupuesto por proveedor; `fs.readMany` lee varios de una vez.
 - Resumir el contenido de una carpeta sin abrir nada; transformar un archivo con vista previa antes de aplicar.
 - Al importar al escritorio, la IA etiqueta y sugiere la carpeta correcta con un clic.
 - Búsqueda por significado en el dispositivo: un modelo multilingüe pequeño (Transformers.js, una descarga de unos
@@ -124,8 +138,11 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
 - Las herramientas de cada app llegan a Sky como `mcp_<app>__<herramienta>`, con su `ttlMs` respetado en caché.
 - Transporte Streamable HTTP dual: revisión 2026-07-28 (sin sesiones, `_meta` por petición, cabeceras
   `Mcp-Method`/`Mcp-Name`) con retroceso automático a las revisiones 2025 (`initialize` + `Mcp-Session-Id`).
-- Google no registra clientes al vuelo: hace falta un cliente OAuth de Google Cloud (`VITE_GOOGLE_CLIENT_ID` y
-  `VITE_GOOGLE_CLIENT_SECRET`, o Apps conectadas › Avanzado).
+- Google no registra clientes al vuelo: quien despliega SkyOS crea un cliente OAuth en Google Cloud (tipo «Aplicación
+  de página única», URL de retorno `<origen>/oauth/callback`) y lo pone en `VITE_GOOGLE_CLIENT_ID`; desde entonces,
+  para todo el mundo, conectar Drive, Docs, Gmail o Calendar es un clic. Sin eso la tarjeta lo dice así, en vez de
+  pedirle a la persona datos que no sabe dónde conseguir; en Avanzado cabe un cliente propio. Las demás apps registran
+  su cliente al vuelo y ya son un clic.
 - Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
   (p. ej. `ms-365-mcp-server`) por URL.
 - Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores.
@@ -136,11 +153,11 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
 ## Publicar en internet (Vercel + dominio propio)
 
 El escritorio es una página estática, pero el despliegue lleva cuatro funciones pequeñas en `api/` que hacen lo
-que un navegador solo no puede:
+que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la misma política en Node):
 
 | Función | Para qué |
 | --- | --- |
-| `api/ai/[...path].ts` | Habla con Groq poniendo la llave del lado del servidor, así el modelo incluido funciona sin que nadie pegue una llave y sin que la llave viaje al navegador. Solo atiende a la propia página y solo tres rutas: `chat/completions`, `models` y `audio/transcriptions`. |
+| `api/ai/[...path].ts` | Habla con Groq poniendo la llave del lado del servidor, así el modelo incluido funciona sin que nadie pegue una llave y sin que la llave viaje al navegador. Solo atiende a la propia página y solo tres rutas: `chat/completions`, `models` y `audio/transcriptions`. En `/api/ai/proxy?target=` repite además, con la llave de la propia persona, las llamadas a los proveedores que rechazan navegadores (Z.ai), y solo a esos hosts. |
 | `api/mcp/proxy.ts` | Repite las llamadas a servidores MCP que no envían cabeceras CORS, en streaming, para que Notion, Slack o Drive respondan desde el navegador. |
 | `api/oauth/proxy.ts` | Lo mismo para el descubrimiento, el registro y el canje de tokens del OAuth de MCP. |
 | `api/geo.ts` | Dice en qué ciudad está la visita leyendo las cabeceras de la red de Vercel: ubicación sin permiso ni terceros. |
@@ -151,9 +168,11 @@ que un navegador solo no puede:
 | --- | --- | --- |
 | `GROQ_API_KEY` | `gsk_…` | Sin el prefijo `VITE_`. Si además existe `VITE_GROQ_KEY`, bórrala: esa sí acaba en el paquete del navegador. |
 | `VITE_APP_ORIGIN` | `https://sky-os.cloud` | Permite identificarse ante los servidores MCP con Client ID Metadata Documents. |
-| `VITE_BRIDGE_URL` | vacía | En un despliegue el puente se sirve solo, en `/api`. |
-| `VITE_GOOGLE_CLIENT_ID` / `_SECRET` | opcional | Solo para Drive, Docs, Gmail y Calendar. |
-| `VITE_MS_CLIENT_ID` | opcional | Solo para sincronizar con OneDrive. |
+| `VITE_BRIDGE_URL` | vacía | En un despliegue el puente se sirve solo, en `/api` (MCP, OAuth y `/api/ai/proxy`). |
+| `AI_RELAY_HOSTS` | opcional | Hosts extra a los que `/api/ai/proxy` puede llevar la llave de la persona; Z.ai ya va incluido. Sin `VITE_`. |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | opcional | Encienden las cuentas verificadas (correo + código). **Antes** configura un SMTP propio en Supabase y pega `supabase/templates/magic-link.html`: el correo por defecto solo le llega al dueño del proyecto, y encenderlas sin eso deja fuera a todos los demás. |
+| `VITE_GOOGLE_CLIENT_ID` / `_SECRET` | opcional | Con esto conectar Drive, Docs, Gmail y Calendar es un clic para todo el mundo. |
+| `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |
 
 **Dominio en GoDaddy.** En Vercel: Project → Settings → Domains → añadir `sky-os.cloud` y `www.sky-os.cloud`.
 Luego, en GoDaddy → DNS:
@@ -217,10 +236,22 @@ autoalojados) o la cuenta de Microsoft 365 a través de Microsoft Graph; ambos e
 
 | Proveedor | Cómo | Modelo automático |
 | --- | --- | --- |
-| Groq (por defecto) | Protocolo de OpenAI, llave incluida en `.env.local`, nunca visible en la interfaz; si no responde, Sky solo dice que está atendiendo muchas solicitudes e invita a usar una llave propia | GPT-OSS 20B para lo cotidiano; GPT-OSS 120B para tareas complejas o redacción larga. Whisper Large v3 Turbo para dictar. |
+| Groq (por defecto) | Protocolo de OpenAI, llave incluida del lado del servidor, nunca visible en la interfaz; si no responde, Sky solo dice que está atendiendo muchas solicitudes e invita a usar una llave propia | GPT-OSS 20B para lo cotidiano; GPT-OSS 120B para tareas complejas o redacción larga. Whisper Large v3 Turbo para dictar. |
 | Anthropic (Claude) | SDK oficial en el navegador | Haiku 4.5 para lo simple, Sonnet 5 para lo medio, Opus 5 para lo complejo. Lee PDF, imágenes y páginas web. |
-| OpenAI, OpenRouter | Protocolo de chat completions | Modelo fijo elegido en Ajustes; lista de modelos en vivo. |
+| GLM (Z.ai) | Protocolo de OpenAI a través del relevo (`/api/ai/proxy` o el puente local), porque Z.ai no acepta llamadas desde el navegador | La lista de modelos llega viva al pegar la llave; el más barato (Flash/Air) carga lo cotidiano y solo lo difícil sube al completo; con una imagen adjunta viaja al `-v` más nuevo. |
+| OpenAI, Gemini, OpenRouter | Protocolo de chat completions | Modelo fijo o automático según el proveedor; lista de modelos en vivo. |
 | Ollama, compatibles | Misma interfaz, URL base propia | Modelos locales sin llave. |
+
+La voz de Sky sale del navegador por defecto; con una llave de Gemini o de ElevenLabs (Ajustes › Apariencia › La voz de
+Sky) habla con una voz hecha para hablar, con la voz y el modelo que cada quien elija.
+
+**Lo que viaja en cada petición, y por qué.** Medido en un escritorio real: las reglas de Sky son unos 1 000 tokens, el
+`<estado>` del escritorio unos 400, y el manual completo de herramientas —58 comandos— unos 6 100. Con Anthropic el
+manual viaja entero y en orden fijo, porque su caché de prefijo lo cobra a una décima y así el modelo nunca carece de
+una herramienta. Con Groq (8 000 tokens por minuto en la llave compartida) y los proveedores compatibles con OpenAI
+viaja lo que la petición pide —enrutado por lo que dice—, un núcleo que cualquier turno puede necesitar y una
+herramienta de búsqueda que trae el resto: unas 12 herramientas y 5 KB en vez de 58 y 22 KB. Las apps conectadas
+viajan solo cuando la petición las nombra. En desarrollo, la consola imprime la anatomía de cada turno.
 
 El enrutador estima la dificultad por la forma de la petición (adjuntos, longitud, verbos de análisis o redacción,
 pasos encadenados) sin gastar una llamada extra, y cada respuesta muestra qué modelo la atendió.
@@ -244,7 +275,7 @@ src/
   ai/                capa de IA neutral al proveedor
     settings.ts      proveedores (Groq, Anthropic, OpenAI, OpenRouter, Ollama), niveles de modelo
     router.ts        modelo automático por dificultad
-    tools.ts         comandos → herramientas del modelo
+    tools.ts         comandos → herramientas del modelo: manual entero donde se cachea, selección compacta donde se mide
     agent.ts         bucle de agente con streaming y runId para deshacer
     providers/       anthropic (SDK oficial), compatible con OpenAI, simulador
     context.ts       prompt de sistema con el perfil de la persona + estado del escritorio por turno

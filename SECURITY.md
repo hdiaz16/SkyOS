@@ -23,7 +23,9 @@ Nada de esto viaja a servidores de SkyOS. No hay cuentas en la nube, no hay back
 - **Al hablar con Sky**: el mensaje, el `<estado>` del escritorio (nombres de archivos, carpeta activa, memoria
   del proyecto) y los archivos que adjuntes van al proveedor del modelo. Con la llave incluida el proveedor es
   Groq y la petición pasa por `/api/ai/*`, que solo agrega la llave del servidor; con tu propia llave el
-  navegador habla directo con tu proveedor y esa ruta no se usa.
+  navegador habla directo con tu proveedor y esa ruta no se usa. La excepción es un proveedor que rechaza
+  llamadas desde el navegador (Z.ai): entonces la petición, con tu llave en `Authorization`, pasa por
+  `/api/ai/proxy`, que la repite sin guardar nada y solo hacia los hosts de esa lista (`AI_RELAY_HOSTS` la amplía).
 - **Al usar una app conectada**: la petición va al servidor MCP de esa app, con tu token. Cuando ese servidor no
   acepta llamadas desde el navegador, pasa por `/api/mcp` o `/api/oauth`, que la repiten sin guardar nada.
 - **Al sincronizar**: los archivos suben a tu Google Drive, Dropbox u OneDrive, con tu cuenta.
@@ -55,8 +57,14 @@ modelo como datos, no como instrucciones.
 
 **En los relés del servidor.** `/api/mcp` y `/api/oauth` solo aceptan destinos `https` públicos: rechazan
 `localhost`, las redes privadas y el rango de metadatos de la nube, revisan de nuevo cada redirección y sueltan
-el `Authorization` al cambiar de origen. Las tres rutas solo atienden peticiones del propio sitio. La ruta del
-modelo incluido además tiene un presupuesto por dirección IP.
+el `Authorization` al cambiar de origen. `/api/ai/proxy` es más estrecho todavía: lleva la llave de la persona
+solo a los proveedores de IA que rechazan navegadores (Z.ai, y los que el despliegue añada en `AI_RELAY_HOSTS`),
+nunca a una dirección que alguien nombre. Las rutas solo atienden peticiones del propio sitio. La ruta del modelo
+incluido además tiene un presupuesto por dirección IP.
+
+**El registro local.** Sin cuentas verificadas, el correo que se pide al entrar identifica el perfil en ese
+navegador y nada más: no se comprueba y no viaja a ningún lado. El PIN opcional (PBKDF2) evita entradas de paso
+desde ese mismo navegador; no cifra los archivos. Es comodidad entre personas de confianza, no una frontera.
 
 ## Lo que **no** protege
 
