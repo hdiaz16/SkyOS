@@ -1,4 +1,4 @@
-import { corsHeaders, errorResponse, originAllowed } from '../_lib/relay.js'
+import { AI_POLICY, aiTargetAllowed, corsHeaders, errorResponse, originAllowed, relay } from '../_lib/relay.js'
 
 /**
  * Sky's included model, without handing the key to the browser.
@@ -7,6 +7,11 @@ import { corsHeaders, errorResponse, originAllowed } from '../_lib/relay.js'
  * this function repeats the call against Groq with the key that lives in the deployment's environment, and
  * streams the answer back. So nobody can read the key from the page, and a person who pastes their own key in
  * Ajustes bypasses this route entirely and talks to their provider directly.
+ *
+ * `/api/ai/proxy?target=` is the other job: a provider that refuses browsers (Z.ai sends no CORS headers) gets
+ * the person's own request repeated from here, key included, exactly as the local bridge does. Until this
+ * existed GLM worked on a laptop with `npm run bridge` and nowhere else: the deployed desktop had no bridge to
+ * name, so pasting a Z.ai key on the site ended in «no acepta llamadas desde el navegador».
  */
 
 export const config = { runtime: 'edge' }
@@ -62,13 +67,16 @@ export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST' && request.method !== 'GET') return errorResponse(request, 405, 'Método no permitido.')
   if (!originAllowed(request)) return errorResponse(request, 403, 'Esta ruta solo atiende al escritorio de este sitio.')
 
+  const path = new URL(request.url).pathname.replace(/^\/api\/ai\/?/, '').replace(/\/+$/, '')
+  // The person's own key, to a provider that will not take it from a browser. Not the included key, so not
+  // the included key's budget either: whoever pasted a key pays their own bill.
+  if (path === 'proxy') return relay(request, AI_POLICY, aiTargetAllowed)
+  if (!ALLOWED.has(path)) return errorResponse(request, 404, 'Ruta no disponible.')
+
   const key = process.env.GROQ_API_KEY?.trim()
   if (!key) {
     return errorResponse(request, 503, 'Este despliegue no tiene configurada la llave incluida. Agrega tu propia llave en Ajustes › Inteligencia.')
   }
-
-  const path = new URL(request.url).pathname.replace(/^\/api\/ai\/?/, '').replace(/\/+$/, '')
-  if (!ALLOWED.has(path)) return errorResponse(request, 404, 'Ruta no disponible.')
 
   const wait = overBudget(caller(request))
   if (wait) {

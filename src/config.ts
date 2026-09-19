@@ -36,11 +36,12 @@ export const BRIDGE_URL = (env.VITE_BRIDGE_URL?.trim() ?? '').replace(/\/+$/, ''
 export const hasBridge = BRIDGE_URL !== ''
 
 /**
- * The bridge as named by the person (`VITE_BRIDGE_URL`), for AI providers that refuse browser-direct calls —
- * Z.ai answers a preflight with no CORS headers, so a page can never talk to it straight. Only an explicitly
- * named bridge counts: the deployment's `/api` relay is Groq's, and silently routing GLM into it would 404.
+ * Where AI providers that refuse browser-direct calls are repeated from — Z.ai answers a preflight with no CORS
+ * headers, so a page can never talk to it straight. In development it is the bridge the person named
+ * (`VITE_BRIDGE_URL`); a deployment serves the same route itself at `/api/ai/proxy`, so GLM works on the
+ * published site with nothing to configure.
  */
-export const AI_BRIDGE_URL = (env.VITE_BRIDGE_URL?.trim() ?? '').replace(/\/+$/, '')
+export const AI_BRIDGE_URL = BRIDGE_URL
 
 /**
  * Where accounts are verified. Both values are meant to be public — the URL of the project and its publishable

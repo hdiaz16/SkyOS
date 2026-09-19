@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isPrivateHost, originAllowed, resolveTarget, RelayError } from './relay.js'
+import { aiTargetAllowed, isPrivateHost, originAllowed, resolveTarget, RelayError } from './relay.js'
 
 /**
  * The relay is the only part of SkyOS that runs on somebody else's machine and holds a key. Everything it
@@ -51,5 +51,28 @@ describe('a dónde puede ir el relé', () => {
   it('no confunde un nombre público con uno privado', () => {
     expect(isPrivateHost('mcp.notion.com')).toBe(false)
     expect(isPrivateHost('2606:4700::1111')).toBe(false)
+  })
+})
+
+describe('a dónde puede llevar una llave el relevo de IA', () => {
+  it('a los proveedores que rechazan navegadores, y a ningún otro', () => {
+    expect(aiTargetAllowed(new URL('https://api.z.ai/api/paas/v4/chat/completions'))).toBe(true)
+    expect(aiTargetAllowed(new URL('https://open.bigmodel.cn/api/paas/v4/models'))).toBe(true)
+    // The MCP relay takes any public server; a key must not travel that freely.
+    expect(aiTargetAllowed(new URL('https://api.notion.com/v1'))).toBe(false)
+    expect(aiTargetAllowed(new URL('https://evil.example/collect'))).toBe(false)
+  })
+
+  it('un despliegue propio puede añadir hosts, y la mayúscula no cuenta', () => {
+    const before = process.env.AI_RELAY_HOSTS
+    process.env.AI_RELAY_HOSTS = 'ia.mi-empresa.mx, Otro.Proveedor.ai'
+    try {
+      expect(aiTargetAllowed(new URL('https://ia.mi-empresa.mx/v1'))).toBe(true)
+      expect(aiTargetAllowed(new URL('https://otro.proveedor.ai/v1'))).toBe(true)
+      expect(aiTargetAllowed(new URL('https://api.notion.com/v1'))).toBe(false)
+    } finally {
+      if (before === undefined) delete process.env.AI_RELAY_HOSTS
+      else process.env.AI_RELAY_HOSTS = before
+    }
   })
 })

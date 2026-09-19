@@ -40,6 +40,35 @@ export const OAUTH_POLICY: RelayPolicy = {
   timeoutMs: 30_000,
 }
 
+/**
+ * AI providers that refuse browser-direct calls — Z.ai answers a preflight with no CORS headers — so the desktop
+ * repeats its `/chat/completions` and `/models` calls from here, with the person's own key in Authorization.
+ * No timeout: answers stream token by token. Same policy as `bridge/src/proxy.ts`.
+ */
+export const AI_POLICY: RelayPolicy = {
+  label: 'el proveedor de IA',
+  methods: ['GET', 'POST'],
+  requestHeaders: ['Authorization', 'Content-Type', 'Accept'],
+  responseHeaders: ['Content-Type', 'Retry-After'],
+}
+
+/**
+ * Where a person's AI key may be carried. The MCP relay has to accept any public https server, because MCP
+ * servers are anybody's; an AI key is different — it only ever needs to reach the providers that refuse
+ * browsers, and a relay that carries Authorization to any address someone names is a gift to whoever forges
+ * an Origin. A self-hosted desktop adds hosts in AI_RELAY_HOSTS, comma separated.
+ */
+const AI_RELAY_HOSTS: ReadonlySet<string> = new Set(['api.z.ai', 'open.bigmodel.cn'])
+
+export function aiTargetAllowed(url: URL): boolean {
+  const extra = (process.env.AI_RELAY_HOSTS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  const host = url.hostname.toLowerCase()
+  return AI_RELAY_HOSTS.has(host) || extra.includes(host)
+}
+
 const USER_AGENT = 'skyos-bridge/1.0'
 /** A tool call is a few kilobytes; anything of this size is not one. */
 const MAX_RELAY_BYTES = 4 * 1024 * 1024
@@ -219,8 +248,11 @@ export const errorResponse = (request: Request, status: number, message: string)
   return new Response(JSON.stringify({ error: { message } }), { status, headers })
 }
 
-/** Repeats the browser's request against `?target=` and streams the answer back. */
-export async function relay(request: Request, policy: RelayPolicy): Promise<Response> {
+/**
+ * Repeats the browser's request against `?target=` and streams the answer back. `targetAllowed` narrows the
+ * destinations further than "any public https server" for the routes that carry a person's own key.
+ */
+export async function relay(request: Request, policy: RelayPolicy, targetAllowed?: (url: URL) => boolean): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, policy.exposeHeaders) })
   if (!originAllowed(request)) return errorResponse(request, 403, 'Esta ruta solo atiende al escritorio de este sitio.')
   try {
@@ -228,6 +260,7 @@ export async function relay(request: Request, policy: RelayPolicy): Promise<Resp
     if (policy.methods && !policy.methods.includes(method)) throw new RelayError(405, `Método no permitido para ${policy.label}.`)
 
     const url = resolveTarget(new URL(request.url).searchParams.get('target'))
+    if (targetAllowed && !targetAllowed(url)) throw new RelayError(400, `Este relevo no lleva llaves a ${url.hostname}.`)
     const headers = pick(request.headers, policy.requestHeaders, policy.requestPrefixes ?? [])
     headers.set('User-Agent', USER_AGENT)
     const body = BODYLESS.has(method) ? undefined : await request.arrayBuffer().then((b) => (b.byteLength ? b : undefined))
