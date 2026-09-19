@@ -41,8 +41,11 @@ export function AppView({ win }: { win: Win }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium text-ink">{record.name}</p>
           <p className="truncate text-[11px] text-ink-3">
-            {record.account?.name ? `${record.account.name} · ` : ''}
-            {record.tools?.length ?? 0} herramientas
+            {/* «0 herramientas» / «1 herramientas» read broken; with the list not cached yet, it said nothing
+                was there while the body below promised one. */}
+            {[record.account?.name, record.tools?.length ? `${record.tools.length} ${record.tools.length === 1 ? 'herramienta' : 'herramientas'}` : null]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         {entry?.webUrl && (
@@ -287,18 +290,28 @@ function GenericView({ record }: { record: McpServerRecord }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="scrollbar-thin flex-1 overflow-y-auto p-5">
-        <p className="text-[13px] leading-relaxed text-ink-2">
-          {record.name} no permite mostrarse dentro de otro sitio, pero Sky llega a todo lo que la app expone. Pídeselo abajo con tus palabras; esto es lo que puede hacer:
-        </p>
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-          {shown.map((t) => (
-            <li key={t.name} className="rounded-xl border border-line px-3 py-2">
-              <p className="text-[12px] font-medium text-ink">{t.title ?? t.name.replace(/[-_]/g, ' ')}</p>
-              {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-ink-3">{t.description}</p>}
-            </li>
-          ))}
-        </ul>
-        {tools.length > shown.length && <p className="mt-3 text-[11px] text-ink-3">Y {tools.length - shown.length} herramientas más.</p>}
+        {tools.length === 0 ? (
+          // The intro used to promise «esto es lo que puede hacer:» and then show an empty grid while the
+          // tool list had not arrived yet. With nothing to list, the line says that instead.
+          <p className="text-[13px] leading-relaxed text-ink-2">
+            {record.name} no permite mostrarse dentro de otro sitio. Todavía no me ha dicho qué herramientas trae; aparecerán aquí en cuanto responda. También puedes pedirle algo abajo.
+          </p>
+        ) : (
+          <>
+            <p className="text-[13px] leading-relaxed text-ink-2">
+              {record.name} no permite mostrarse dentro de otro sitio, pero Sky llega a todo lo que la app expone. Pídeselo abajo con tus palabras; esto es lo que puede hacer:
+            </p>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              {shown.map((t) => (
+                <li key={t.name} className="rounded-xl border border-line px-3 py-2">
+                  <p className="text-[12px] font-medium text-ink">{t.title ?? t.name.replace(/[-_]/g, ' ')}</p>
+                  {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-ink-3">{t.description}</p>}
+                </li>
+              ))}
+            </ul>
+            {tools.length > shown.length && <p className="mt-3 text-[11px] text-ink-3">Y {tools.length - shown.length} herramientas más.</p>}
+          </>
+        )}
       </div>
       <AskSky placeholder={`Pídele algo a Sky en ${record.name}`} prefix={`En ${record.name}:`} />
     </div>

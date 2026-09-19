@@ -26,7 +26,16 @@ registerCommand<Record<string, never>, string>({
       return { result: 'No hay una nube lista. Abrí Ajustes › Almacenamiento para que la persona elija y conecte una.' }
     }
     const report = await syncNow('command')
-    return { result: report ? `Sincronizado con ${provider.name}: ${summarize(report)}` : `Ya había una sincronización en curso con ${provider.name}.` }
+    return report
+      ? {
+          result: `Sincronizado con ${provider.name}: ${summarize(report)}`,
+          // A pass that uploaded 12 files and deleted 3 in the cloud left no trace in «Lo que hice», while
+          // minimising a window did: this was the only 'external' command the journal never heard of. It does
+          // now, marked «En la app» like the MCP calls.
+          label: `Sincronizado con ${provider.name} · ${summarize(report)}`,
+          external: true,
+        }
+      : { result: `Ya había una sincronización en curso con ${provider.name}.` }
   },
 })
 

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Check, Cloud, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { useMcp } from '../../mcp/manager'
@@ -21,7 +21,9 @@ const ROWS: ProviderRow[] = [
 
 const ago = (at: number) => {
   const min = Math.round((Date.now() - at) / 60_000)
-  return min < 1 ? 'hace un momento' : min < 60 ? `hace ${min} min` : `hace ${Math.round(min / 60)} h`
+  // It stopped at hours: a sync from three days ago read «hace 72 h», counting on the reader's arithmetic.
+  const h = Math.round(min / 60)
+  return min < 1 ? 'hace un momento' : min < 60 ? `hace ${min} min` : h < 24 ? `hace ${h} h` : h < 48 ? 'ayer' : `hace ${Math.round(h / 24)} días`
 }
 
 /** Settings › Almacenamiento: pick your cloud, what to sync, and watch it happen. */
@@ -29,6 +31,12 @@ export function CloudSyncPanel() {
   const { settings, running, lastRun, update } = useSync()
   const servers = useMcp((s) => s.servers)
   const [, bump] = useState(0)
+  // «hace un momento» used to be frozen at whatever the first render said: the panel open for an hour kept
+  // telling the same story. It retells itself every minute while it is on screen.
+  useEffect(() => {
+    const t = window.setInterval(() => bump((n) => n + 1), 60_000)
+    return () => window.clearInterval(t)
+  }, [])
   const [clientDraft, setClientDraft] = useState(oneDriveClientId())
   const [leaving, setLeaving] = useState(false)
   /** The Entra block only appears to whoever is actually setting OneDrive up. */
@@ -182,7 +190,17 @@ export function CloudSyncPanel() {
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-ink">Sincronización automática</p>
           <p className="truncate text-[12px] text-ink-3">
-            {running ? 'Sincronizando…' : lastRun ? `${lastRun.ok ? 'Última vez' : 'Falló'} ${ago(lastRun.at)} · ${lastRun.summary}` : active ? 'Cada 5 minutos y al cambiar archivos' : 'Elige una nube conectada'}
+            {/* lastRun used to win even with the chosen cloud gone: a dead switch over «Última vez hace 5 min ·
+                Todo al día», everything looking fine. The warning goes first; history is for when it works. */}
+            {running
+              ? 'Sincronizando…'
+              : active
+                ? lastRun
+                  ? `${lastRun.ok ? 'Última vez' : 'Falló'} ${ago(lastRun.at)} · ${lastRun.summary}`
+                  : 'Cada 5 minutos y al cambiar archivos'
+                : settings.providerId
+                  ? 'La nube elegida ya no está conectada; vuelve a conectarla'
+                  : 'Elige una nube conectada'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

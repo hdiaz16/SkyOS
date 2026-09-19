@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Check, Copy, Loader2, Save, Square } from 'lucide-react'
 import { useTasks } from '../../ai/tasks'
 import { dispatch, useToasts } from '../../kernel/commands'
+import { fs } from '../../kernel/fs'
 import { ROOT_ID, extOf, type FsNode } from '../../kernel/types'
 import type { Win } from '../../state/windows'
 import { cn } from '../../lib/utils'
@@ -46,6 +47,13 @@ export function ResultApp({ win }: { win: Win }) {
 
   const applyToFile = async () => {
     if (!task.context.nodeId) return
+    // This window does not close while the transform runs, and the file could have been sent to the trash
+    // meanwhile: writing over it said «Aplicado» about a file that is no longer in any visible folder.
+    const node = await fs.get(task.context.nodeId)
+    if (node?.trashedAt != null) {
+      useToasts.getState().push({ message: 'Ese archivo está en la papelera.', kind: 'error' })
+      return
+    }
     await dispatch('fs.writeText', { id: task.context.nodeId, content: task.text })
     setApplied(true)
   }

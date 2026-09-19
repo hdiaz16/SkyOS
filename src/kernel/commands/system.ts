@@ -1,4 +1,4 @@
-import { registerCommand } from '../commands'
+import { registerCommand, useToasts } from '../commands'
 import { fs } from '../fs'
 import { MIN_H, MIN_W, useWindows, type Win } from '../../state/windows'
 import { useUi } from '../../state/ui'
@@ -242,12 +242,17 @@ registerCommand<Record<string, never>, { zen: boolean; hidden: number }>({
   title: 'Modo Zen',
   description: 'Alterna el modo Zen (Ctrl+Mayús+Z): todas las ventanas menos la activa se desvanecen para dejar solo el documento en curso; volver a llamarlo las trae de vuelta.',
   params: {},
-  async run() {
+  async run(_, ctx) {
     const wm = useWindows.getState()
     const wasOn = !!wm.zen
     wm.toggleZen()
     const now = useWindows.getState().zen
-    if (!wasOn && !now) return { result: { zen: false, hidden: 0 }, label: 'No hay otras ventanas que apartar' }
+    if (!wasOn && !now) {
+      // «No hay otras ventanas que apartar» used to land in «Lo que hice» as if windows had been hidden, with
+      // nothing to undo. The journal keeps what changed; the person still gets told.
+      if (ctx.source !== 'ai') useToasts.getState().push({ message: 'No hay otras ventanas que apartar', kind: 'info' })
+      return { result: { zen: false, hidden: 0 } }
+    }
     return {
       result: { zen: !!now, hidden: now?.length ?? 0 },
       label: now ? `Modo Zen: ${plural(now.length, 'ventana apartada', 'ventanas apartadas')}` : 'Modo Zen apagado',
@@ -317,7 +322,7 @@ registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
   title: 'Limpiar escritorio',
   description: 'Deja solo la ventana activa. Por defecto minimiza las demás; con mode "close" las cierra. Quita la selección.',
   params: { mode: { type: 'string', description: 'minimize (por defecto) o close.', enum: ['minimize', 'close'] } },
-  async run({ mode = 'minimize' }) {
+  async run({ mode = 'minimize' }, ctx) {
     const wins = targets('inactive').filter((w) => mode === 'close' || !w.minimized)
     const wm = useWindows.getState()
     for (const w of wins) {
@@ -325,7 +330,11 @@ registerCommand<{ mode?: 'minimize' | 'close' }, unknown>({
       else wm.minimize(w.id)
     }
     useUi.getState().clearSelection()
-    if (!wins.length) return { result: { affected: 0 }, label: 'El escritorio ya estaba limpio' }
+    // Same as ui.zen: nothing changed, so nothing goes in the journal — only the person gets told.
+    if (!wins.length) {
+      if (ctx.source !== 'ai') useToasts.getState().push({ message: 'El escritorio ya estaba limpio', kind: 'info' })
+      return { result: { affected: 0 } }
+    }
     return {
       result: { affected: wins.length, mode },
       label: `Escritorio limpio: ${plural(wins.length, 'ventana', 'ventanas')} ${mode === 'close' ? 'cerradas' : 'minimizadas'}`,
