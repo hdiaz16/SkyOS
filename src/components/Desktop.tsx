@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type MouseEvent } from 'react'
+import { useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { fs } from '../kernel/fs'
 import { ROOT_ID } from '../kernel/types'
@@ -8,6 +8,7 @@ import { folderMenu, importFiles } from '../lib/menus'
 import { cn } from '../lib/utils'
 import { IconGrid } from './IconGrid'
 import { widgets } from '../kernel/widgets'
+import { useMarquee } from '../lib/marquee'
 import { NODE_DRAG_TYPE } from './NodeIcon'
 
 export function Desktop() {
@@ -18,6 +19,9 @@ export function Desktop() {
   const pinned = useLiveQuery(() => widgets.list(), [])?.filter((w) => w.anchorRight !== undefined && w.anchorRight !== null) ?? []
   const reserved = pinned.length ? Math.max(...pinned.map((w) => (w.anchorRight ?? 0) + w.w)) + 20 : 0
   const [dragOver, setDragOver] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  // Dragging on empty ground used to do nothing at all; now it draws the rectangle every desktop draws.
+  const marquee = useMarquee(rootRef, DESKTOP_SURFACE)
 
   const onMouseDown = (e: MouseEvent) => {
     if (e.button === 0 && !(e.target as HTMLElement).closest('[data-node]')) useUi.getState().clearSelection()
@@ -70,8 +74,10 @@ export function Desktop() {
 
   return (
     <div
+      ref={rootRef}
       className="absolute inset-0 px-5 pb-28 pt-14"
       onMouseDown={onMouseDown}
+      onPointerDown={marquee.onPointerDown}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       onDragOverCapture={onDragOverCapture}
@@ -82,6 +88,13 @@ export function Desktop() {
       onDrop={onDrop}
     >
       <IconGrid nodes={nodes ?? []} animateLayout surface={DESKTOP_SURFACE} className="h-full content-start" style={reserved ? { paddingRight: reserved } : undefined} />
+      {marquee.rect && (
+        <div
+          className="pointer-events-none absolute z-10 rounded-md border border-accent/60 bg-accent-soft"
+          style={{ left: marquee.rect.left, top: marquee.rect.top, width: marquee.rect.width, height: marquee.rect.height }}
+          aria-hidden
+        />
+      )}
 
       <div
         className={cn(

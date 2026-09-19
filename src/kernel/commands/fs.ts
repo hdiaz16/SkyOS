@@ -1,4 +1,4 @@
-import { registerCommand } from '../commands'
+import { registerCommand, runInverse } from '../commands'
 import { fs } from '../fs'
 import { ROOT_ID, extOf, type FsNode } from '../types'
 import { useWindows } from '../../state/windows'
@@ -65,6 +65,50 @@ registerCommand<{ id: string; name: string }, string>({
       label: `"${before.name}" ahora se llama "${after}"`,
       undo: { commandId: 'fs.rename', params: { id, name: before.name } },
     }
+  },
+})
+
+registerCommand<{ ids: string[]; name?: string }, FsNode>({
+  id: 'fs.group',
+  risk: 'write',
+  scale: ({ ids }) => ids?.length ?? 1,
+  keywords: ['agrupa', 'agrupar', 'junta', 'juntar', 'grupo'],
+  title: 'Agrupar en una carpeta',
+  description: 'Crea una carpeta junto a los elementos y los mete dentro. Para «junta estos archivos en una carpeta llamada Facturas». Si vienen de carpetas distintas, la carpeta nueva nace en el escritorio.',
+  params: {
+    ids: { type: 'array', items: { type: 'string', description: 'Id' }, description: 'Ids a agrupar.', required: true },
+    name: { type: 'string', description: 'Nombre de la carpeta nueva; «Grupo» si no se dice.' },
+  },
+  async run({ ids, name }) {
+    const nodes = (await Promise.all((Array.isArray(ids) ? ids : []).map((id) => fs.get(id)))).filter((n): n is FsNode => !!n && n.trashedAt === null)
+    if (!nodes.length) throw new Error('Eso ya no está aquí')
+    const parents = new Set(nodes.map((n) => n.parentId))
+    const parentId = parents.size === 1 ? nodes[0].parentId : ROOT_ID
+    const folder = await fs.createFolder(parentId, (name ?? '').trim() || 'Grupo')
+    const previous = await fs.move(nodes.map((n) => n.id), folder.id)
+    return {
+      result: folder,
+      label: `${nodes.length === 1 ? 'Un elemento agrupado' : `${nodes.length} elementos agrupados`} en "${folder.name}"`,
+      undo: { commandId: 'fs.ungroup', params: { folderId: folder.id, previous } },
+    }
+  },
+})
+
+registerCommand<{ folderId: string; previous: Record<string, { parentId: string; name?: string } | string> }, void>({
+  id: 'fs.ungroup',
+  risk: 'write',
+  scale: ({ previous }) => Object.keys(previous ?? {}).length,
+  title: 'Deshacer el grupo',
+  description: 'Devuelve los elementos a donde estaban y quita la carpeta que los agrupaba.',
+  // The written inverse of fs.group: everyone goes home, and the folder made for them goes away — unless
+  // something else was put in it meanwhile, in which case it stays with what it holds.
+  ai: false,
+  params: {},
+  async run({ folderId, previous }) {
+    await runInverse({ commandId: 'fs.moveBack', params: { previous } })
+    const left = await fs.list(folderId).catch(() => [])
+    if (!left.length && (await fs.get(folderId))) await fs.purge([folderId])
+    return { result: undefined }
   },
 })
 

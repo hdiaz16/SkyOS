@@ -11,6 +11,8 @@ export interface PromptRequest {
   confirm?: boolean
   /** Paints the confirming button as the serious thing it is. */
   danger?: boolean
+  /** Nothing to decide: one button to close, no Cancelar. For telling, not asking. */
+  info?: boolean
 }
 
 interface DialogState {

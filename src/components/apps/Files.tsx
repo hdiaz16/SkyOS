@@ -1,5 +1,6 @@
-import { useEffect, useState, type DragEvent, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useMarquee } from '../../lib/marquee'
 import { ArrowUp, ChevronRight, FilePlus2, FolderPlus, Square, Sparkles, Upload } from 'lucide-react'
 import { fs } from '../../kernel/fs'
 import { readProject } from '../../kernel/project'
@@ -38,6 +39,8 @@ export function FilesApp({ win }: { win: Win }) {
   const selectedCount = mine ? selection.length : 0
   const selectedNode = useLiveQuery(async () => (selectedCount === 1 ? await fs.get(selection[0]) : undefined), [selection, selectedCount])
   const [dragOver, setDragOver] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const marquee = useMarquee(bodyRef, surface)
 
   const navigate = (id: string) => {
     useUi.getState().clearSelection()
@@ -146,8 +149,10 @@ export function FilesApp({ win }: { win: Win }) {
       <ProjectStrip folderId={folderId} />
 
       <div
+        ref={bodyRef}
         className={cn('scrollbar-thin relative min-h-0 flex-1 overflow-y-auto p-3 transition-colors', dragOver && 'bg-accent-soft')}
         onMouseDown={onBodyMouseDown}
+        onPointerDown={marquee.onPointerDown}
         onContextMenu={onContextMenu}
         onDragOverCapture={onDragOverCapture}
         onDragOver={onDragOver}
@@ -165,6 +170,13 @@ export function FilesApp({ win }: { win: Win }) {
           // Keyed by folder: without it the icons on their way out stayed in the grid while they faded, so the
           // two items of the new folder appeared pushed behind the ten of the old one and then jumped.
           <IconGrid key={folderId} nodes={nodes ?? []} onOpenFolder={navigate} surface={surface} className="min-h-full" />
+        )}
+        {marquee.rect && (
+          <div
+            className="pointer-events-none absolute z-10 rounded-md border border-accent/60 bg-accent-soft"
+            style={{ left: marquee.rect.left, top: marquee.rect.top, width: marquee.rect.width, height: marquee.rect.height }}
+            aria-hidden
+          />
         )}
         {dragOver && (
           <div className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent/60">

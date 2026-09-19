@@ -53,7 +53,7 @@ const DOMAIN_PATTERNS: Record<ToolDomain, RegExp> = {
  */
 const COMMAND_DOMAINS: Record<string, ToolDomain> = {
   'fs.createFolder': 'files', 'fs.createFile': 'files', 'fs.rename': 'files', 'fs.move': 'files', 'fs.trash': 'files', 'fs.restore': 'files', 'fs.emptyTrash': 'files', 'fs.setTags': 'files', 'fs.writeText': 'files',
-  'fs.list': 'files', 'fs.overview': 'files', 'fs.read': 'files', 'fs.find': 'files', 'fs.readMany': 'files', 'fs.info': 'files', 'ui.open': 'files', 'ui.openFiles': 'files', 'ui.openTrash': 'files',
+  'fs.group': 'files', 'fs.list': 'files', 'fs.overview': 'files', 'fs.read': 'files', 'fs.find': 'files', 'fs.readMany': 'files', 'fs.info': 'files', 'ui.open': 'files', 'ui.openFiles': 'files', 'ui.openTrash': 'files',
   'ui.windows': 'windows', 'ui.closeWindows': 'windows', 'ui.minimizeWindows': 'windows', 'ui.arrangeWindows': 'windows', 'ui.cleanDesktop': 'windows', 'ui.zen': 'windows', 'ui.snapWindow': 'windows', 'ui.stackWindows': 'windows', 'system.info': 'windows',
   'widgets.create': 'widgets', 'widgets.update': 'widgets', 'widgets.remove': 'widgets', 'widgets.list': 'widgets', 'widgets.place': 'widgets',
   'canvas.create': 'canvas', 'canvas.read': 'canvas', 'canvas.addBlocks': 'canvas', 'canvas.updateBlock': 'canvas', 'canvas.removeBlock': 'canvas', 'canvas.save': 'canvas',
@@ -86,7 +86,7 @@ const FILE_INTENT_PACKS: Array<{ pattern: RegExp; ids: string[] }> = [
   { pattern: /\b(lee|leer|abre|abrir|muestra|muéstrame)\b/i, ids: ['fs.read', 'fs.readMany', 'fs.info', 'fs.find', 'ui.open', 'ui.openFiles'] },
   { pattern: /\b(busca|buscar|encuentra|donde|dónde)\b/i, ids: ['fs.find', 'fs.list', 'fs.info', 'ui.open'] },
   { pattern: /\b(sintetiza|sintetizar|resume|resumir|pendientes)\b/i, ids: ['fs.list', 'fs.read', 'fs.readMany', 'fs.find'] },
-  { pattern: /\b(mueve|mover|organiza|ordena|agrupa|junta)\b/i, ids: ['fs.move', 'fs.createFolder', 'fs.list', 'fs.find', 'fs.info'] },
+  { pattern: /\b(mueve|mover|organiza|ordena|agrupa|junta)\b/i, ids: ['fs.move', 'fs.group', 'fs.createFolder', 'fs.list', 'fs.find', 'fs.info'] },
   { pattern: /\b(borra|elimina|papelera|tira|quita)\b/i, ids: ['fs.trash', 'fs.restore', 'fs.list', 'fs.find', 'fs.info', 'ui.openTrash'] },
   { pattern: /\b(etiqueta|etiquetas|tag)\b/i, ids: ['fs.setTags', 'fs.find', 'fs.list', 'fs.info'] },
 ]

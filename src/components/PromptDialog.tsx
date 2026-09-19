@@ -59,7 +59,7 @@ function Dialog() {
         className="glass relative w-[460px] max-w-full rounded-2xl p-5 shadow-win"
       >
         <h2 className="text-[15px] font-medium text-ink">{request.title}</h2>
-        {request.description && <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{request.description}</p>}
+        {request.description && <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-ink-2">{request.description}</p>}
         {confirming ? null : request.multiline ? (
           <textarea
             autoFocus
@@ -84,13 +84,15 @@ function Dialog() {
           />
         )}
         <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => close(null)}
-            className="rounded-lg px-3 py-1.5 text-[13px] text-ink-2 transition hover:bg-surface-2 hover:text-ink"
-          >
-            Cancelar
-          </button>
+          {!request.info && (
+            <button
+              type="button"
+              onClick={() => close(null)}
+              className="rounded-lg px-3 py-1.5 text-[13px] text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+            >
+              Cancelar
+            </button>
+          )}
           <button
             type="submit"
             autoFocus={confirming}
