@@ -52,9 +52,13 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
   temporizador. La IA puede crear widgets propios en HTML dentro de un marco aislado. Los widgets nacen anclados al
   borde derecho —conservan su zona aunque cambie el tamaño de la pantalla— y los iconos nunca quedan debajo de ellos;
   el pin del marco los suelta o los vuelve a anclar.
-- Fondo con gradientes, colinas y luz que deriva; modo claro y noche, cinco acentos y cuatro fondos. Se cambian en
-  Ajustes › Apariencia o pidiéndoselo a Sky: «ponlo azul», «un fondo más cálido», «ancla el clima arriba a la derecha»,
-  «haz la nota más grande» (`ui.appearance`, `widgets.place`), todo con vuelta atrás.
+- Fondo con gradientes, colinas y luz que deriva; modo claro y noche, cinco acentos y cinco fondos. El de fábrica,
+  «Según la hora», vive: los colores siguen la hora real —una mañana en el campo, un mediodía más azul, la tarde
+  dorada, el ocaso, la hora azul, la luz de luna— y la luz cálida recorre el cielo como el sol. Entre una hora y otra
+  se funden minuto a minuto, anclados al amanecer y al ocaso de donde estás (los aprende el widget del clima); el
+  tema claro y el oscuro tienen cada uno su paleta por hora. Se cambian en Ajustes › Apariencia o pidiéndoselo a
+  Sky: «ponlo azul», «un fondo más cálido», «que siga la hora del día», «ancla el clima arriba a la derecha», «haz la
+  nota más grande» (`ui.appearance`, `widgets.place`), todo con vuelta atrás.
 
 **Barra de Sky** (Ctrl+K)
 
@@ -133,16 +137,20 @@ oficial y la autorización es la OAuth 2.1 del propio protocolo (PKCE, Client ID
 dinámico, `resource`, validación de `iss`). No hay llaves que pegar: la persona concede permiso una vez y Sky
 renueva los tokens en segundo plano; la sesión vive en su cuenta de este navegador y no vuelve a pedir entrar.
 
-- Catálogo por categorías: Google Drive, Google Docs, Gmail, Google Calendar, Notion, Evernote, Slack, Todoist,
-  GitHub y Spotify. Cualquier otro servidor MCP se agrega por URL desde el panel.
+- Catálogo por categorías: Google Drive, Google Docs, Gmail, Google Calendar, Dropbox, Box, Notion, Evernote, Slack,
+  Todoist, GitHub, Spotify, Rube (Composio) y Zapier MCP. Cualquier otro servidor MCP se agrega por URL desde el panel.
 - Las herramientas de cada app llegan a Sky como `mcp_<app>__<herramienta>`, con su `ttlMs` respetado en caché.
 - Transporte Streamable HTTP dual: revisión 2026-07-28 (sin sesiones, `_meta` por petición, cabeceras
   `Mcp-Method`/`Mcp-Name`) con retroceso automático a las revisiones 2025 (`initialize` + `Mcp-Session-Id`).
-- Google no registra clientes al vuelo: quien despliega SkyOS crea un cliente OAuth en Google Cloud (tipo «Aplicación
-  de página única», URL de retorno `<origen>/oauth/callback`) y lo pone en `VITE_GOOGLE_CLIENT_ID`; desde entonces,
-  para todo el mundo, conectar Drive, Docs, Gmail o Calendar es un clic. Sin eso la tarjeta lo dice así, en vez de
-  pedirle a la persona datos que no sabe dónde conseguir; en Avanzado cabe un cliente propio. Las demás apps registran
-  su cliente al vuelo y ya son un clic.
+- Un clic, o la verdad. Dropbox, Notion, Evernote, Todoist y Zapier registran a Sky al vuelo (registro dinámico o
+  Client ID Metadata Documents): conectar es un clic. Google, Spotify, GitHub, Slack y Box no lo permiten —comprobado
+  contra los metadatos que publica cada servidor de autorización el 19 de septiembre de 2026—: quien despliega SkyOS
+  registra **una vez** un cliente OAuth en la consola de cada uno (URL de retorno `<origen>/oauth/callback`) y lo pone
+  en `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID` o
+  `VITE_BOX_CLIENT_ID` (GitHub, Slack y Box exigen además `_SECRET`; Google y Spotify aceptan clientes públicos con
+  PKCE). Desde entonces, para todo el mundo, es un clic. Mientras no esté, la tarjeta dice quién lo registra y el botón
+  no promete, en vez de pedirle a la persona un client id que no sabe dónde conseguir; en Avanzado cabe un cliente
+  propio, y en las apps que se registran solas Avanzado solo muestra la URL.
 - Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
   (p. ej. `ms-365-mcp-server`) por URL.
 - Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores.
@@ -172,6 +180,7 @@ que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la m
 | `AI_RELAY_HOSTS` | opcional | Hosts extra a los que `/api/ai/proxy` puede llevar la llave de la persona; Z.ai ya va incluido. Sin `VITE_`. |
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | opcional | Encienden las cuentas verificadas (correo + código). **Antes** configura un SMTP propio en Supabase y pega `supabase/templates/magic-link.html`: el correo por defecto solo le llega al dueño del proyecto, y encenderlas sin eso deja fuera a todos los demás. |
 | `VITE_GOOGLE_CLIENT_ID` / `_SECRET` | opcional | Con esto conectar Drive, Docs, Gmail y Calendar es un clic para todo el mundo. |
+| `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` / `_SECRET`, `VITE_SLACK_CLIENT_ID` / `_SECRET`, `VITE_BOX_CLIENT_ID` / `_SECRET` | opcional | Lo mismo para Spotify, GitHub, Slack y Box, que tampoco registran clientes al vuelo. Un `_SECRET` con prefijo `VITE_` viaja en el paquete: en un sitio público deja de ser secreto. |
 | `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |
 
 **Dominio en GoDaddy.** En Vercel: Project → Settings → Domains → añadir `sky-os.cloud` y `www.sky-os.cloud`.

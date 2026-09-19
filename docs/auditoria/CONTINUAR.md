@@ -109,9 +109,10 @@ ejemplo: `git log --oneline -14`.
    defecto de Supabase solo escribe al dueño del proyecto. El orden correcto es conectar Resend (o el SMTP que él
    elija), pegar la plantilla de `supabase/templates/magic-link.html`, y entonces sí las variables. Al adoptar un
    escritorio local, el correo registrado es el que casa con la cuenta.
-2. ~~El paso corto de permisos~~ — hecho en `d23625c` (micrófono, ubicación, notificaciones; **verificación
-   pendiente**: entrar con un perfil que no los haya ofrecido aún y ver la tarjeta a los cinco segundos, con
-   sus tres filas, lo ya concedido marcado y el cierre que no vuelve a molestar).
+2. ~~El paso corto de permisos~~ — hecho en `d23625c` y corregido en la tercera tanda del 19 de septiembre (las
+   respuestas del navegador se distinguían mal); **verificado** con Ana: la tarjeta a los cinco segundos, lo que el
+   navegador ya decidió marcado desde el inicio, «cerrar sin responder» con Reintentar, y el cierre —a mano o solo,
+   cuando todo queda concedido— que guarda la respuesta y no vuelve a molestar.
 3. ~~Las 28 bajas~~ de la auditoría — hechas: las 2 primeras en `b8266c5`, las 26 restantes en la tanda del
    19 de septiembre; todas en verificación.
 
@@ -255,3 +256,47 @@ Siete commits temáticos, todos **con verificación en el navegador pendiente**.
 (enrutado por dominio con tope de 15) iba en contra del commit anterior (`3f18071`, superficie constante para
 la caché). Ninguno de los dos era correcto para todos los proveedores; la respuesta es por proveedor, con los
 números medidos en el propio escritorio. `ai/tools.test.ts` fija ambas mitades.
+
+## Tanda del 19 de septiembre de 2026 (tercera): lo que Hector vio en la tarjeta de Spotify
+
+- **Conectores: un clic, o la verdad.** Comprobé contra los metadatos públicos de cada servidor de autorización
+  (`/.well-known/oauth-protected-resource` → `/.well-known/oauth-authorization-server`, script en el scratchpad de la
+  sesión) quién registra clientes al vuelo: Dropbox, Notion (también CIMD), Evernote, Todoist (también CIMD) y Zapier
+  sí; **Google, Spotify, GitHub, Slack y Box no** (ni `registration_endpoint` ni CIMD; Box, Slack y GitHub además solo
+  aceptan clientes con secreto). Antes, Spotify/GitHub/Slack/Box fallaban al pulsar Conectar con «pega el client id en
+  Avanzado», que es lo que Hector vio. Ahora el catálogo lo declara (`registrar`), `config.ts` lee un cliente por
+  registrador (`OAUTH_CLIENTS`, `VITE_<X>_CLIENT_ID[/_SECRET]`), la tarjeta dice quién lo registra y el botón no
+  promete, y Avanzado solo enseña client id/secret en las apps que lo necesitan (en las demás, solo la URL).
+  `mcp/catalog.test.ts` fija quién es quién. **Verificado** en el navegador: la tarjeta de Spotify con su texto y el
+  botón desactivado (título «…no tiene registrada la conexión con Spotify»), Avanzado con «Client id de Spotify
+  (opcional)»; la de Notion con Conectar activo y Avanzado solo con la URL.
+  **Lo que solo Hector puede hacer**: registrar los cinco clientes (consolas en `REGISTRARS`, URL de retorno
+  `https://www.sky-os.cloud/oauth/callback`) y poner las variables en Vercel. Pendiente de mejora: llevar los
+  `_SECRET` al relevo (`/api/oauth`) en vez del paquete. Dos avisos vistos de paso: `rube.app` no resolvió DNS desde
+  esta red (curl 6), comprobar desde otra; y el gateway MCP de Spotify rechaza en CORS la cabecera `Mcp-Method` y
+  `accounts.spotify.com` no publica CORS, así que Spotify va a necesitar el puente (`/api/mcp/proxy`, `/api/oauth/proxy`)
+  incluso con cliente registrado.
+- **Permisos.** La tarjeta de los tres permisos traducía mal lo que responde el navegador: cerrar la pregunta sin
+  responder, un micrófono ausente o una posición que no llegó se marcaban «El navegador lo tiene bloqueado», sin
+  botón para volver a intentar; una petición que nunca respondía dejaba la fila girando; y si se concedía todo, la
+  tarjeta desaparecía sin guardar la respuesta y volvía a la siguiente entrada. Ahora `lib/permissions.ts` traduce
+  cada respuesta (concedido / denegado / cerrado / falló, con su nota), `requestNotifications` no se queda colgado
+  (promesa o callback, y captura), lo que el navegador ya bloqueó se muestra bloqueado desde el inicio, el título
+  cuenta los permisos que quedan y, cuando todo queda concedido tras pulsar, la tarjeta se cierra sola guardando.
+  `lib/permissions.test.ts` fija las traducciones. **Verificado** con Ana: en el navegador del panel, que tiene los
+  tres bloqueados, la tarjeta sale con las tres notas y sin botones; con respuestas simuladas (`Notification.permission`
+  «default», `permissions.query` concedido): «Un permiso, cuando quieras usarlo», Permitir → «Cerraste la pregunta sin
+  responder…» + Reintentar, Reintentar con «granted» → la tarjeta se cierra sola y `permissionsOffered` queda guardado;
+  tras recargar no vuelve.
+- **El día en el escritorio.** Fondo «Según la hora» (`lib/daylight.ts`), el de fábrica: siete anclas (noche, alba,
+  mañana = el campo de siempre, mediodía, tarde, ocaso, anochecer) colgadas del amanecer y el ocaso reales —el widget
+  del clima los aprende de Open-Meteo (`daily=sunrise,sunset`) y los guarda en `mesa:sun:<usuario>`; sin ellos,
+  6:30/19:30—, mezcla minuto a minuto con suavizado, la luz cálida (`blob-3`) recorre el cielo por `--sun-x/--sun-y`,
+  y `@property` registra las variables para que el navegador funda los colores (1.8 s). Paleta por ancla para el tema
+  claro y para el oscuro. `ui.appearance` acepta `backdrop: 'hora'` (la etiqueta dice «fondo según la hora»); Ajustes ›
+  Apariencia enseña «Ahora es mediodía en el escritorio…». `lib/daylight.test.ts` fija anclas, fase más cercana,
+  mezcla, el cruce de medianoche y un día nórdico. **Verificado** en el navegador con Ana: `data-backdrop="hora"` y las
+  variables en línea (`#e6eef0`, sol 50 %/4 % a las 13:03), el toast de la apariencia, las paletas de 6:10, 17:40,
+  19:30 y 22:30 pintadas a mano (capturas), la geometría del sol (`left` 463 px = 50,38 % × 1524 − 20vw), el tema
+  oscuro en modo hora (`#0e1517`) y vuelta, el sol real de Colima guardado (6:43 / 18:53) y el fondo intacto tras
+  recargar. README, `.env.example` y `package.json` (0.4.1) al día.

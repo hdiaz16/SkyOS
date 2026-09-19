@@ -4,6 +4,20 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Los colores del fondo se registran para que el navegador sepa interpolarlos: así el paso de una hora a otra —y de
+   un fondo a otro— es un fundido y no un salto. Donde no hay @property, simplemente cambian de golpe. */
+@property --bg-a { syntax: '<color>'; inherits: true; initial-value: #e8eee8; }
+@property --bg-b { syntax: '<color>'; inherits: true; initial-value: #f1eee6; }
+@property --bg-c { syntax: '<color>'; inherits: true; initial-value: #dfe9e6; }
+@property --blob-1 { syntax: '<color>'; inherits: true; initial-value: #b9d4b3; }
+@property --blob-2 { syntax: '<color>'; inherits: true; initial-value: #cfe1ea; }
+@property --blob-3 { syntax: '<color>'; inherits: true; initial-value: #f3e2c4; }
+@property --hill-1 { syntax: '<color>'; inherits: true; initial-value: #dbe5db; }
+@property --hill-2 { syntax: '<color>'; inherits: true; initial-value: #cfdccf; }
+/* Dónde está el sol (o la luna), en porcentaje de la pantalla; lo escribe lib/daylight.ts. */
+@property --sun-x { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+@property --sun-y { syntax: '<percentage>'; inherits: true; initial-value: 100%; }
+
 /* Mañana en el campo: niebla, salvia, arena, un poco de sol. */
 :root {
   --bg-a: #e8eee8;
@@ -399,3 +413,16 @@ html.handoff-flood body,
 .dark[data-backdrop="mar"] { --bg-a: #0d1418; --bg-b: #101a1f; --bg-c: #0f1a20; --blob-1: #1b3340; --blob-2: #1a2a3a; --blob-3: #26343a; --hill-1: #0c1418; --hill-2: #0a1013; }
 .dark[data-backdrop="atardecer"] { --bg-a: #16110f; --bg-b: #1c1512; --bg-c: #1a1412; --blob-1: #3d2a22; --blob-2: #45301f; --blob-3: #2e2530; --hill-1: #141010; --hill-2: #100d0c; }
 .dark[data-backdrop="bosque"] { --bg-a: #0b120e; --bg-b: #0f1812; --bg-c: #0d1610; --blob-1: #1d3a2a; --blob-2: #16302a; --blob-3: #2a3628; --hill-1: #0a110d; --hill-2: #080e0a; }
+
+/* Según la hora: los colores los escribe el escritorio minuto a minuto (lib/daylight.ts); aquí solo se les da el
+   fundido, y la luz cálida deja su sitio fijo para recorrer el cielo con el sol. */
+:root[data-backdrop="hora"] {
+  transition: --bg-a 1800ms linear, --bg-b 1800ms linear, --bg-c 1800ms linear, --blob-1 1800ms linear, --blob-2 1800ms linear,
+    --blob-3 1800ms linear, --hill-1 1800ms linear, --hill-2 1800ms linear, --sun-x 1800ms linear, --sun-y 1800ms linear;
+}
+
+:root[data-backdrop="hora"] .blob-3 {
+  left: calc(var(--sun-x) - 20vw);
+  top: calc(var(--sun-y) - 20vw);
+  bottom: auto;
+}

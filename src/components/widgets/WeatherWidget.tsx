@@ -5,6 +5,7 @@ import { useDialog } from '../../state/dialog'
 import { useAuth } from '../../system/auth'
 import { users } from '../../system/users'
 import { approximateLocation, currentPosition, describeCode, fetchWeather, geocode, reverseGeocode, type Weather, type WeatherKind } from '../../lib/weather'
+import { rememberSun } from '../../lib/daylight'
 import { cn } from '../../lib/utils'
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number }>
@@ -74,6 +75,8 @@ export function WeatherWidget({ widget }: { widget: Widget }) {
           }
         }
         const weather = await fetchWeather(coords.lat, coords.lon)
+        // The backdrop follows the real sun where the person is; this is where the desk learns it.
+        rememberSun(weather.sunrise, weather.sunset)
         if (alive) setState({ status: 'ok', weather, label: label || 'Tu ubicación' })
       } catch (err) {
         // Without network the browser rejects with its own TypeError, and «Failed to fetch» ended up printed

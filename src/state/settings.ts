@@ -1,12 +1,16 @@
 import { create } from 'zustand'
+import { followDaylight } from '../lib/daylight'
 import { sessionSuffix } from '../system/session'
 
 export type Theme = 'system' | 'light' | 'dark'
 
 /** The colour of what is chosen and pressed: sage by default, the others the same palette with another ink. */
 export type Accent = 'salvia' | 'cielo' | 'arena' | 'lavanda' | 'coral'
-/** The hour of the day behind the desk: the same suns and hills, another light. */
-export type Backdrop = 'campo' | 'mar' | 'atardecer' | 'bosque'
+/**
+ * What is behind the desk: the same suns and hills, another light. «hora» is the living one — the colours follow
+ * the real hour, from a morning in the field to moonlight (lib/daylight.ts); the rest hold one moment still.
+ */
+export type Backdrop = 'hora' | 'campo' | 'mar' | 'atardecer' | 'bosque'
 
 export const ACCENTS: { value: Accent; label: string; swatch: string }[] = [
   { value: 'salvia', label: 'Salvia', swatch: '#3d7a5a' },
@@ -17,6 +21,7 @@ export const ACCENTS: { value: Accent; label: string; swatch: string }[] = [
 ]
 
 export const BACKDROPS: { value: Backdrop; label: string }[] = [
+  { value: 'hora', label: 'Según la hora' },
   { value: 'campo', label: 'Campo' },
   { value: 'mar', label: 'Mar' },
   { value: 'atardecer', label: 'Atardecer' },
@@ -48,16 +53,22 @@ function readBackdrop(): Backdrop {
   } catch {
     /* storage unavailable */
   }
-  return 'campo'
+  // The day itself is the default: Sky starts as a morning in the field and goes on from there.
+  return 'hora'
 }
 
-/** Paints the chosen accent and backdrop: the stylesheet reads them off the root element. Defaults leave no mark. */
+/**
+ * Paints the chosen accent and backdrop: the stylesheet reads them off the root element, and «campo» is what it
+ * has on its own, so it leaves no mark. «hora» hands the colours to the clock, which writes them on the root
+ * minute by minute until another backdrop takes them back.
+ */
 export function applyLook(accent: Accent, backdrop: Backdrop): void {
   const root = document.documentElement
   if (accent === 'salvia') delete root.dataset.accent
   else root.dataset.accent = accent
   if (backdrop === 'campo') delete root.dataset.backdrop
   else root.dataset.backdrop = backdrop
+  followDaylight(() => useSettings.getState().dark, backdrop === 'hora')
 }
 
 function readSounds(): boolean {

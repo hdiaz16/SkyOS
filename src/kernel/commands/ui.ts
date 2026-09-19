@@ -7,7 +7,7 @@ import { ACCENTS, BACKDROPS, useSettings, type Accent, type Backdrop, type Theme
 import { GOOGLE_HOME, googleSearchUrl, titleForUrl, toNavigableUrl } from '../../lib/web'
 
 /** Words that make these commands relevant; without one of them in the request, their tools stay home. */
-const LOOK_WORDS = ['tema', 'oscuro', 'claro', 'modo noche', 'luz', 'apariencia', 'color', 'colores', 'paleta', 'fondo']
+const LOOK_WORDS = ['tema', 'oscuro', 'claro', 'modo noche', 'luz', 'apariencia', 'color', 'colores', 'paleta', 'fondo', 'según la hora', 'con el día', 'amanecer', 'atardecer']
 
 registerCommand<{ id: string }, void>({
   id: 'ui.open',
@@ -150,7 +150,7 @@ registerCommand<{ theme?: Theme; accent?: Accent; backdrop?: Backdrop }, { theme
   risk: 'write',
   keywords: LOOK_WORDS,
   title: 'Cambiar la apariencia',
-  description: `Personaliza el escritorio: tema (system, light, dark), color de acento (${ACCENTS.map((a) => a.value).join(', ')}) y fondo (${BACKDROPS.map((b) => b.value).join(', ')}). Manda solo lo que cambia. Para "ponlo azul" usa accent cielo; "más cálido" es accent arena o backdrop atardecer; "modo noche" es theme dark.`,
+  description: `Personaliza el escritorio: tema (system, light, dark), color de acento (${ACCENTS.map((a) => a.value).join(', ')}) y fondo (${BACKDROPS.map((b) => b.value).join(', ')}). Manda solo lo que cambia. Para "ponlo azul" usa accent cielo; "más cálido" es accent arena o backdrop atardecer; "modo noche" es theme dark; "que cambie con el día", "según la hora" o "como el cielo de verdad" es backdrop hora (sigue la hora real: amanecer, mañana, mediodía, tarde, ocaso, noche).`,
   params: {
     theme: { type: 'string', description: 'system, light o dark', enum: ['system', 'light', 'dark'] },
     accent: { type: 'string', description: 'Color de acento.', enum: ACCENTS.map((a) => a.value) },

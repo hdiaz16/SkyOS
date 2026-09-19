@@ -20,6 +20,9 @@ export interface Weather {
   humidity: number
   wind: number
   days: DayForecast[]
+  /** Today's sunrise and sunset where the person is, as Open-Meteo gives them (local ISO time); the desk's backdrop follows them. */
+  sunrise?: string
+  sunset?: string
   fetchedAt: number
 }
 
@@ -53,7 +56,7 @@ export async function fetchWeather(lat: number, lon: number): Promise<Weather> {
   url.searchParams.set('latitude', String(lat))
   url.searchParams.set('longitude', String(lon))
   url.searchParams.set('current', 'temperature_2m,weather_code,is_day,relative_humidity_2m,wind_speed_10m')
-  url.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
+  url.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset')
   url.searchParams.set('timezone', 'auto')
   url.searchParams.set('forecast_days', '4')
 
@@ -61,7 +64,7 @@ export async function fetchWeather(lat: number, lon: number): Promise<Weather> {
   if (!res.ok) throw new Error('No se pudo obtener el clima')
   const data = (await res.json()) as {
     current: { temperature_2m: number; weather_code: number; is_day: number; relative_humidity_2m: number; wind_speed_10m: number }
-    daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[] }
+    daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[]; sunrise?: string[]; sunset?: string[] }
   }
   const weather: Weather = {
     temperature: data.current.temperature_2m,
@@ -75,6 +78,8 @@ export async function fetchWeather(lat: number, lon: number): Promise<Weather> {
       min: data.daily.temperature_2m_min[i],
       max: data.daily.temperature_2m_max[i],
     })),
+    sunrise: data.daily.sunrise?.[0],
+    sunset: data.daily.sunset?.[0],
     fetchedAt: Date.now(),
   }
   cache.set(key, weather)

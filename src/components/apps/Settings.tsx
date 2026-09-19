@@ -30,6 +30,7 @@ import { speak, listElevenVoices, listElevenModels, type ElevenVoice, type Eleve
 import { useVoiceSettings } from '../../ai/voiceSettings'
 import { dispatch, useToasts } from '../../kernel/commands'
 import { ACCENTS, BACKDROPS, useSettings, type Theme } from '../../state/settings'
+import { PHASE_LABEL, minuteOf, phaseAt, readSun } from '../../lib/daylight'
 import {
   AUTO_MODEL,
   baseUrlFor,
@@ -237,7 +238,12 @@ function LookRow() {
           ))}
         </div>
       </div>
-      <p className="text-[12px] leading-relaxed text-ink-3">También se lo puedes pedir a Sky: «ponlo azul», «un fondo más cálido», «modo noche».</p>
+      {backdrop === 'hora' && (
+        <p className="text-[12px] leading-relaxed text-ink-3">
+          Ahora {PHASE_LABEL[phaseAt(minuteOf(new Date()), readSun())]} en el escritorio: el fondo va con la hora real, de una mañana en el campo a la luz de luna, sin saltos.
+        </p>
+      )}
+      <p className="text-[12px] leading-relaxed text-ink-3">También se lo puedes pedir a Sky: «ponlo azul», «un fondo más cálido», «que siga la hora del día», «modo noche».</p>
     </div>
   )
 }
