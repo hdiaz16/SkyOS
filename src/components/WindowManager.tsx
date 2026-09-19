@@ -1,10 +1,10 @@
+import { lazy, Suspense } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { useWindows, type Win } from '../state/windows'
 import { WindowFrame } from './WindowFrame'
 import { FilesApp } from './apps/Files'
 import { TextEditor } from './apps/TextEditor'
 import { ImageViewer } from './apps/ImageViewer'
-import { PdfViewer } from './apps/PdfViewer'
 import { BrowserApp } from './apps/Browser'
 import { ResultApp } from './apps/Result'
 import { TerminalApp } from './apps/Terminal'
@@ -15,6 +15,10 @@ import { AppView } from './apps/AppView'
 import { CanvasApp } from './apps/Canvas'
 import { SnapPreview } from './SnapPreview'
 
+// pdf.js pesa más que todo el resto del escritorio junto, y el entry lo cargaba entero en cada arranque
+// aunque nadie abriera un PDF. Viaja en su propio chunk y llega la primera vez que se abre uno.
+const PdfViewer = lazy(() => import('./apps/PdfViewer').then((m) => ({ default: m.PdfViewer })))
+
 function renderApp(win: Win) {
   switch (win.app) {
     case 'files':
@@ -24,7 +28,11 @@ function renderApp(win: Win) {
     case 'image':
       return <ImageViewer win={win} />
     case 'pdf':
-      return <PdfViewer win={win} />
+      return (
+        <Suspense fallback={<div className="flex h-full items-center justify-center text-[13px] text-ink-3">Abriendo el documento…</div>}>
+          <PdfViewer win={win} />
+        </Suspense>
+      )
     case 'browser':
       return <BrowserApp win={win} />
     case 'result':
