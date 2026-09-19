@@ -184,6 +184,12 @@ Después del relevo, pedidos de Hector fuera de la auditoría:
   de descarga y CPU de fondo que nadie pidió al entrar. Se enciende con su interruptor en Ajustes ›
   Inteligencia; quien ya lo usaba, lo vuelve a prender una vez y queda. **Verificación pendiente**: en una
   instalación limpia, la red no descarga el modelo al arranque y Ajustes lo muestra «Desactivada».
+- `dd23033` GLM puede hablar: Z.ai responde el preflight sin cabeceras CORS, así que una página nunca pudo
+  llamarlo directo — y el aviso culpaba a la red. Ahora el puente lleva IA (`/ai/proxy`, streaming, la llave
+  de la persona viaja en el Authorization) y GLM va por él cuando `VITE_BRIDGE_URL` lo nombra; sin puente, el
+  aviso dice lo que pasó y dónde está el detalle. **Verificación pendiente**: con el puente corriendo y
+  `VITE_BRIDGE_URL=http://127.0.0.1:8787`, pegar la llave de Z.ai: la lista de modelos llega y una conversación
+  fluye token a token; sin el puente, el aviso dice «no acepta llamadas directas desde un navegador».
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
