@@ -258,9 +258,14 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
             </p>
           )}
           {attention && <p className="mt-1.5 text-[12px] leading-relaxed text-amber-700 dark:text-amber-400">{attention}</p>}
+          {/* A normal person has no idea what a client id is or where one comes from, and the card used to ask
+              them for it. Registering the connection is the job of whoever runs this SkyOS, once; after that it
+              is one click for everybody. Until then the card says so, and Avanzado is still there for those who
+              have their own client. */}
           {!connected && needsClientId && (
             <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-              Google no registra clientes al vuelo: pega el client id (y secreto) de tu proyecto de Google Cloud en Avanzado, o defínelos en .env.local.
+              Google no permite conectarse sin que quien administra esta instalación registre antes la conexión (VITE_GOOGLE_CLIENT_ID). En cuanto eso esté, aquí
+              será un clic. Si tienes tu propio cliente de Google Cloud, pégalo en Avanzado.
             </p>
           )}
           {busy && (
@@ -292,7 +297,13 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
             </button>
           </>
         ) : (
-          <button type="button" disabled={!!busy || !item.url} onClick={() => void connect()} className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40">
+          <button
+            type="button"
+            disabled={!!busy || !item.url || needsClientId}
+            title={needsClientId ? 'Esta instalación aún no tiene registrada la conexión con Google' : undefined}
+            onClick={() => void connect()}
+            className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40"
+          >
             Conectar
           </button>
         )}
