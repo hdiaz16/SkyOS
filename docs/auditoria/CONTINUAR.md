@@ -341,3 +341,12 @@ publicar. Lo que hay:
   muestra a Beto y la nota. Doble de vuelta en autoconfirmación: registrar `beto@example.com` **no** adopta el
   escritorio de Beto solo por el correo — sale la pantalla de adopción, «Abrirlo» con `9999` dice «Ese PIN no es.», con
   `1234` abre el escritorio de Beto.
+- **Publicado**: `6172423` desplegado en Vercel (listo en 41 s) con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`
+  añadidas a producción desde la CLI justo antes del push. **Verificado en vivo** en sky-os.cloud: las cinco cabeceras
+  llegan (`curl -I`), el paquete publicado lleva el proyecto `kccuieiyjzddyihfqyii`, la lectura de `auth/v1/settings` y
+  las pantallas de contraseña; la sesión local de antes sigue entrando al escritorio (con el fondo «Según la hora» ya en
+  producción); al salir, la pantalla de inicio muestra la lista local con la nota «Este SkyOS todavía no puede abrir
+  cuentas…» y la consola el aviso `[cuentas]` con el interruptor a apagar. Es decir: todo listo, esperando a que Hector
+  apague «Confirm email»; en ese momento la puerta de correo y contraseña aparece sola, sin redesplegar. Primer registro
+  real de prueba y su borrado: cuando eso ocurra. También quedó fuera del repo `dist-local/` (175 archivos que entraron
+  con `5c31e5b`), con `dist-*/` en `.gitignore`.
