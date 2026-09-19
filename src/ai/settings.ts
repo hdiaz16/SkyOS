@@ -102,7 +102,7 @@ export const PROVIDERS: ProviderPreset[] = [
   {
     id: 'glm',
     name: 'GLM (Z.ai)',
-    tagline: 'Los modelos GLM de Z.ai con tu propia llave: buen criterio para código y trabajo largo. El Flash es gratis y carga lo cotidiano; la lista de modelos llega viva del proveedor.',
+    tagline: 'Los modelos GLM de Z.ai con tu propia llave: buen criterio para código y trabajo largo. El modelo más barato carga lo cotidiano; solo lo difícil sube al completo. La lista llega viva del proveedor.',
     needsKey: true,
     keyUrl: 'https://z.ai/manage-apikey/apikey',
     baseUrl: 'https://api.z.ai/api/paas/v4',
@@ -171,8 +171,6 @@ const VISION = /(^|[-_.\d])(v(ision)?|vl)([-_.\d]|$)/i
 const NOT_CHAT = new RegExp(`${NOT_CHAT_CORE.source}|${VISION.source}`, 'i')
 /** The names providers give their small, cheap models: Air, Mini, Flash, Turbo and friends. */
 const CHEAP = /(^|[-_.])(air|airx|mini|flash|flashx|lite|small|nano|turbo|haste|swift)($|[-_.\d])/i
-/** The family providers give away free (Z.ai's glm-*-flash costs nothing): the everyday workhorse. */
-const FLASH = /flash/i
 
 /** The version inside a model id, so generations can be compared: glm-4.6 → 4.6. Zero when there is none. */
 const versionOf = (id: string): number => {
@@ -192,16 +190,17 @@ export function inferVisionModel(ids: string[]): string | null {
 }
 
 /**
- * Tiers read from the names the provider itself lists, so nothing is written down to go stale: the Flash
- * family —the one providers serve for free— carries the everyday work, fast and balanced both, and only the
- * genuinely hard escalates to the full model; its cheap markers (Air and friends) play the same part when
- * there is no Flash. When nothing is listed, there are no tiers and the person picks by hand.
+ * Tiers read from the names the provider itself lists, so nothing is written down to go stale: the cheapest
+ * marker in the list (Air, Flash, Mini…) carries the everyday work, fast and balanced both, and only the
+ * genuinely hard escalates to the full model. Names are all a client ever gets — real prices are not
+ * published through the list — so the marker is the honest proxy for «cheap». When nothing is listed, there
+ * are no tiers and the person picks by hand.
  */
 export function inferTiers(ids: string[]): ModelTiers | null {
   const usable = ids.filter((id) => !NOT_CHAT.test(id))
   if (!usable.length) return null
   const byVersion = [...usable].sort((a, b) => versionOf(b) - versionOf(a))
-  const cheap = byVersion.find((id) => FLASH.test(id)) ?? byVersion.find((id) => CHEAP.test(id))
+  const cheap = byVersion.find((id) => CHEAP.test(id))
   const full = byVersion.filter((id) => !CHEAP.test(id))
   const deep = full[0] ?? byVersion[0]
   const balanced = cheap ?? full[1] ?? deep

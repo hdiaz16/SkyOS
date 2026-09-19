@@ -175,11 +175,12 @@ Después del relevo, pedidos de Hector fuera de la auditoría:
   declara `vision: true` y los `-v` siguen fuera de los tiers. **Verificación pendiente**: con GLM
   configurado, adjuntar una imagen y preguntar qué hay en ella: la petición viaja a glm-4.5v (o el más nuevo
   que sirva ese día); sin imagen, sigue el Flash como siempre.
-- (esta tanda) el Flash de Z.ai es gratis y carga lo cotidiano: `inferTiers` prefiere la familia Flash para
-  los escalones rápido y equilibrado (Air hace el papel cuando no hay Flash), y solo lo de verdad difícil
-  sube al modelo completo. Quien quiera todo en Flash elige el modelo a mano en Ajustes. **Verificación
-  pendiente**: con la llave pegada, «pon un temporizador» y «resume esto»: el primero no cuesta (Flash) y el
-  segundo viaja al modelo completo.
+- (esta tanda) el modelo más barato carga lo cotidiano: `inferTiers` toma el marcador económico más nuevo de
+  la lista (Air, Flash, Mini…) para los escalones rápido y equilibrado, y solo lo de verdad difícil sube al
+  modelo completo. Los nombres son lo único que un cliente ve — los precios reales no viajan en la lista —
+  así que el marcador es la apuesta honesta por «barato». Quien quiera un modelo fijo, lo elige a mano en
+  Ajustes. **Verificación pendiente**: con la llave pegada, «pon un temporizador» y «resume esto»: el primero
+  viaja al marcador barato y el segundo al completo.
 - (esta tanda) la búsqueda por significado en el dispositivo apagada por defecto: el modelo local son ~120 MB
   de descarga y CPU de fondo que nadie pidió al entrar. Se enciende con su interruptor en Ajustes ›
   Inteligencia; quien ya lo usaba, lo vuelve a prender una vez y queda. **Verificación pendiente**: en una

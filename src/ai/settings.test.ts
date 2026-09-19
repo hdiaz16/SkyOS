@@ -8,12 +8,12 @@ import { inferTiers, inferVisionModel } from './settings'
  */
 
 describe('los tiers se leen de la lista del proveedor, no de este archivo', () => {
-  it('el flash gratis carga lo cotidiano, y lo difícil sube al modelo completo', () => {
+  it('el marcador barato más nuevo carga lo cotidiano, y lo difícil sube al modelo completo', () => {
     const ids = ['glm-4.7-flash', 'glm-4.6', 'glm-4.5', 'glm-4.5-air']
     expect(inferTiers(ids)).toEqual({ fast: 'glm-4.7-flash', balanced: 'glm-4.7-flash', deep: 'glm-4.6' })
   })
 
-  it('sin flash, el marcador barato (air) toma lo cotidiano', () => {
+  it('sin flash, air toma lo cotidiano', () => {
     const ids = ['glm-4.6', 'glm-4.5', 'glm-4.5-air', 'glm-4.5-airx', 'glm-4.5v']
     expect(inferTiers(ids)).toEqual({ fast: 'glm-4.5-air', balanced: 'glm-4.5-air', deep: 'glm-4.6' })
   })
