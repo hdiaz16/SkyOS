@@ -191,8 +191,8 @@ export function createOpenAICompatProvider(cfg: Config): AiProvider {
             ? `La llave de ${cfg.name} no es válida.`
             : res.status === 404
               ? `El modelo "${req.model}" no existe en ${cfg.name}.`
-              : res.status === 429
-                ? `${cfg.name} está limitando las solicitudes en este momento.`
+            : res.status === 429
+              ? `${cfg.name} está limitando las solicitudes de «${req.model}» ahora mismo. Espera un momento e inténtalo de nuevo; en Automático, Sky suele escalar sola al siguiente modelo.`
                 : res.status >= 500
                   ? `${cfg.name} no está respondiendo ahora mismo. Inténtalo en un momento.`
                   : `${cfg.name} no aceptó la petición (${res.status}).`
