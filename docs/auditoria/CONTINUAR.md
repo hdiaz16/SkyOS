@@ -170,6 +170,11 @@ Después del relevo, pedidos de Hector fuera de la auditoría:
 - `1f155cb` la voz de ElevenLabs, con la voz y el modelo que cada quien elija de los que su cuenta trae.
   **Verificación pendiente**: pegar la llave en Ajustes › Apariencia › La voz de Sky, elegir voz y modelo,
   «Escúchala»; y que la llave viva en la cuenta (entrar con otro perfil y no verla).
+- (sin commit aún) los modelos de visión de GLM: con una imagen adjunta y «Automático», la petición cambia al
+  `-v` más nuevo de la lista viva (`inferVisionModel` en settings.ts, cambio en router.ts); el preset GLM
+  declara `vision: true` y los `-v` siguen fuera de los tiers. **Verificación pendiente**: con GLM
+  configurado, adjuntar una imagen y preguntar qué hay en ella: la petición viaja a glm-4.5v (o el más nuevo
+  que sirva ese día); sin imagen, sigue glm-4.5-air/4.5/4.6 como siempre.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).
