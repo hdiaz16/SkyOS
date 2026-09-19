@@ -74,11 +74,14 @@ export function SelectionMenu({ frameRef, source }: { frameRef: RefObject<HTMLDi
     }
     const hide = () => setPicked((p) => (p ? null : p))
 
-    frame.addEventListener('mouseup', onUp)
+    // The mouseup used to be heard only inside the frame: selecting downwards and letting go past the edge —
+    // the natural gesture to span paragraphs — left the selection made but with no menu. document hears it
+    // everywhere; read() still keeps only selections that start in this frame.
+    document.addEventListener('mouseup', onUp)
     frame.addEventListener('keyup', onKeyUp)
     frame.addEventListener('scroll', hide, true)
     return () => {
-      frame.removeEventListener('mouseup', onUp)
+      document.removeEventListener('mouseup', onUp)
       frame.removeEventListener('keyup', onKeyUp)
       frame.removeEventListener('scroll', hide, true)
     }

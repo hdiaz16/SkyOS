@@ -386,6 +386,8 @@ export default function SheetEditor({
     if (!whole) {
       useToasts.getState().push({ message: `La selección no cabe entera: le mando las primeras ${rows} filas.`, kind: 'info' })
     }
+    // Firing used to leave the menu open over the grid, already used up. It goes when it does its job.
+    setRange(null)
     useSession.getState().setOpen(true)
     void useSession.getState().send(`${rangeLead(intent, name, sheet.name, rangeLabel(range))}\n\n"""\n${text}\n"""${note}`)
   }
@@ -427,6 +429,20 @@ export default function SheetEditor({
       observer.disconnect()
     }
     // The grid only exists once the workbook is parsed; watch it from then on.
+  }, [sheets])
+
+  /**
+   * The menu's anchor is measured once, when the selection is made; scrolling the grid used to leave it
+   * floating at the same pixel, now over cells that had nothing to do with it. It hides with the scroll,
+   * like SelectionMenu's does.
+   */
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const hide = () => setRange((r) => (r ? null : r))
+    el.addEventListener('scroll', hide, true)
+    return () => el.removeEventListener('scroll', hide, true)
+    // The grid only exists once the workbook is parsed.
   }, [sheets])
 
   useEffect(() => {
