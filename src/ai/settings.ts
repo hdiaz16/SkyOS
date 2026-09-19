@@ -99,7 +99,7 @@ export const PROVIDERS: ProviderPreset[] = [
   {
     id: 'glm',
     name: 'GLM (Z.ai)',
-    tagline: 'Los modelos GLM de Z.ai con tu propia llave: buen criterio para código y trabajo largo. La lista de modelos llega viva del proveedor.',
+    tagline: 'Los modelos GLM de Z.ai con tu propia llave: buen criterio para código y trabajo largo. El Flash es gratis y carga lo cotidiano; la lista de modelos llega viva del proveedor.',
     needsKey: true,
     keyUrl: 'https://z.ai/manage-apikey/apikey',
     baseUrl: 'https://api.z.ai/api/paas/v4',
@@ -165,6 +165,8 @@ const VISION = /(^|[-_.\d])(v(ision)?|vl)([-_.\d]|$)/i
 const NOT_CHAT = new RegExp(`${NOT_CHAT_CORE.source}|${VISION.source}`, 'i')
 /** The names providers give their small, cheap models: Air, Mini, Flash, Turbo and friends. */
 const CHEAP = /(^|[-_.])(air|airx|mini|flash|flashx|lite|small|nano|turbo|haste|swift)($|[-_.\d])/i
+/** The family providers give away free (Z.ai's glm-*-flash costs nothing): the everyday workhorse. */
+const FLASH = /flash/i
 
 /** The version inside a model id, so generations can be compared: glm-4.6 → 4.6. Zero when there is none. */
 const versionOf = (id: string): number => {
@@ -184,19 +186,19 @@ export function inferVisionModel(ids: string[]): string | null {
 }
 
 /**
- * Tiers read from the names the provider itself lists, so nothing is written down to go stale: the cheap
- * markers name the fast tier, the highest version without them is the deep one, and the next of the same
- * standing balances. Requests start cheap and escalate by intent (router.ts); this only says which id each
- * step is today. When nothing is listed, there are no tiers and the person picks by hand.
+ * Tiers read from the names the provider itself lists, so nothing is written down to go stale: the Flash
+ * family —the one providers serve for free— carries the everyday work, fast and balanced both, and only the
+ * genuinely hard escalates to the full model; its cheap markers (Air and friends) play the same part when
+ * there is no Flash. When nothing is listed, there are no tiers and the person picks by hand.
  */
 export function inferTiers(ids: string[]): ModelTiers | null {
   const usable = ids.filter((id) => !NOT_CHAT.test(id))
   if (!usable.length) return null
   const byVersion = [...usable].sort((a, b) => versionOf(b) - versionOf(a))
-  const cheap = byVersion.find((id) => CHEAP.test(id))
+  const cheap = byVersion.find((id) => FLASH.test(id)) ?? byVersion.find((id) => CHEAP.test(id))
   const full = byVersion.filter((id) => !CHEAP.test(id))
   const deep = full[0] ?? byVersion[0]
-  const balanced = full[1] ?? deep
+  const balanced = cheap ?? full[1] ?? deep
   const fast = cheap ?? balanced
   return { fast, balanced, deep }
 }

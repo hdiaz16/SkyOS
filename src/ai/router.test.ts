@@ -24,7 +24,8 @@ describe('con imagen, el turno es del modelo que ve', () => {
   })
 
   it('sin imagen, los tiers siguen mandando', () => {
-    expect(resolveModel(state, { prompt: 'hola' }).model).toBe('glm-4.5')
+    // Sin flash en la lista, lo cotidiano lo toma el marcador barato.
+    expect(resolveModel(state, { prompt: 'hola' }).model).toBe('glm-4.5-air')
   })
 
   it('un adjunto que no es imagen no cambia nada', () => {

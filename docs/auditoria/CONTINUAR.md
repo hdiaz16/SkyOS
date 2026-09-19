@@ -165,16 +165,21 @@ Después del relevo, pedidos de Hector fuera de la auditoría:
 
 - `f72d872` GLM de Z.ai como proveedor, sin un solo modelo escrito aquí: la lista se le pide a su API al pegar
   la llave y los escalones (económico → capaz) se leen de lo que devuelva ese día. **Verificación pendiente**:
-  pegar una llave de Z.ai en Ajustes › Inteligencia y ver la lista llegar sola, «Automático» con air/4.5/4.6,
-  y que una petición sencilla arranque en el barato y «resume esto» suba al alto.
+  pegar una llave de Z.ai en Ajustes › Inteligencia y ver la lista llegar sola; «Automático» arranca en el
+  Flash (gratis) y «resume esto» sube al modelo completo.
 - `1f155cb` la voz de ElevenLabs, con la voz y el modelo que cada quien elija de los que su cuenta trae.
   **Verificación pendiente**: pegar la llave en Ajustes › Apariencia › La voz de Sky, elegir voz y modelo,
   «Escúchala»; y que la llave viva en la cuenta (entrar con otro perfil y no verla).
-- (sin commit aún) los modelos de visión de GLM: con una imagen adjunta y «Automático», la petición cambia al
+- `1217602` los modelos de visión de GLM: con una imagen adjunta y «Automático», la petición cambia al
   `-v` más nuevo de la lista viva (`inferVisionModel` en settings.ts, cambio en router.ts); el preset GLM
   declara `vision: true` y los `-v` siguen fuera de los tiers. **Verificación pendiente**: con GLM
   configurado, adjuntar una imagen y preguntar qué hay en ella: la petición viaja a glm-4.5v (o el más nuevo
-  que sirva ese día); sin imagen, sigue glm-4.5-air/4.5/4.6 como siempre.
+  que sirva ese día); sin imagen, sigue el Flash como siempre.
+- (esta tanda) el Flash de Z.ai es gratis y carga lo cotidiano: `inferTiers` prefiere la familia Flash para
+  los escalones rápido y equilibrado (Air hace el papel cuando no hay Flash), y solo lo de verdad difícil
+  sube al modelo completo. Quien quiera todo en Flash elige el modelo a mano en Ajustes. **Verificación
+  pendiente**: con la llave pegada, «pon un temporizador» y «resume esto»: el primero no cuesta (Flash) y el
+  segundo viaja al modelo completo.
 
 Antes de eso, en la misma línea de trabajo: `94655aa` (los editores dejan de pisarse a sí mismos),
 `fbe3e70` (barra, ajustes y panel), `012c65e` (ventanas), `a767571` (lienzo y tareas).

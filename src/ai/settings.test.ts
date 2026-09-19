@@ -8,14 +8,19 @@ import { inferTiers, inferVisionModel } from './settings'
  */
 
 describe('los tiers se leen de la lista del proveedor, no de este archivo', () => {
-  it('la lista de hoy: air para lo cotidiano, 4.5 de equilibrio, 4.6 para lo difícil', () => {
-    const ids = ['glm-4.6', 'glm-4.5', 'glm-4.5-air', 'glm-4.5-airx', 'glm-4.5-flash', 'glm-4.5v']
-    expect(inferTiers(ids)).toEqual({ fast: 'glm-4.5-air', balanced: 'glm-4.5', deep: 'glm-4.6' })
+  it('el flash gratis carga lo cotidiano, y lo difícil sube al modelo completo', () => {
+    const ids = ['glm-4.7-flash', 'glm-4.6', 'glm-4.5', 'glm-4.5-air']
+    expect(inferTiers(ids)).toEqual({ fast: 'glm-4.7-flash', balanced: 'glm-4.7-flash', deep: 'glm-4.6' })
+  })
+
+  it('sin flash, el marcador barato (air) toma lo cotidiano', () => {
+    const ids = ['glm-4.6', 'glm-4.5', 'glm-4.5-air', 'glm-4.5-airx', 'glm-4.5v']
+    expect(inferTiers(ids)).toEqual({ fast: 'glm-4.5-air', balanced: 'glm-4.5-air', deep: 'glm-4.6' })
   })
 
   it('mañana sale el 4.7 y el escalón más alto se mueve solo', () => {
-    const ids = ['glm-4.7', 'glm-4.6', 'glm-4.6-air', 'glm-4.5', 'glm-4.5-air']
-    expect(inferTiers(ids)).toEqual({ fast: 'glm-4.6-air', balanced: 'glm-4.6', deep: 'glm-4.7' })
+    const ids = ['glm-4.7-flash', 'glm-4.7', 'glm-4.6', 'glm-4.5']
+    expect(inferTiers(ids)).toEqual({ fast: 'glm-4.7-flash', balanced: 'glm-4.7-flash', deep: 'glm-4.7' })
   })
 
   it('un modelo que no conversa nunca sube al podio', () => {
