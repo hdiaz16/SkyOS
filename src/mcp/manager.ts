@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { useToasts } from '../kernel/commands'
 import { useWindows } from '../state/windows'
-import { CATALOG, catalogFor } from './catalog'
+import { CATALOG, catalogFor, shippedClient } from './catalog'
 import {
   accountFromIdToken,
   authorize,
@@ -110,7 +110,7 @@ async function authorizationServer(issuer: string): Promise<AuthorizationServerM
 
 function preregisteredFor(record: McpServerRecord): Preregistered | undefined {
   if (record.manualClient?.clientId) return record.manualClient
-  return record.catalogId ? catalogFor(record.catalogId)?.preregistered?.() : undefined
+  return record.catalogId ? shippedClient(catalogFor(record.catalogId)) : undefined
 }
 
 async function markAttention(record: McpServerRecord, message: string): Promise<void> {

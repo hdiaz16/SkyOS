@@ -170,7 +170,10 @@ export async function obtainClient(as: AuthorizationServerMetadata, preregistere
     return mcpStore.clients.save({ issuer, clientId: data.client_id, clientSecret: data.client_secret, registration: 'dcr', registeredAt: Date.now() })
   }
 
-  throw new McpError('not_configured', 'Este servidor necesita un client id registrado a mano. Ábrelo en Apps y pega el client id en Avanzado.')
+  // A person reading this does not know what a client id is, and should not have to: registering one is the job
+  // of whoever administers the app or this SkyOS. A catalog app says so on its card before the button is pressed;
+  // this is what a server added by URL gets.
+  throw new McpError('not_configured', 'El servidor de autorización de esta app no deja que Sky se registre solo: hace falta un cliente que registre quien la administra. Si ya tienes uno, pégalo en Avanzado.')
 }
 
 /* ---------- PKCE and helpers ---------- */

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, ChevronDown, ExternalLink, LayoutGrid, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useToasts } from '../../kernel/commands'
-import { CATALOG, CATEGORIES, categoryFor, type CatalogEntry, type CategoryId } from '../../mcp/catalog'
+import { CATALOG, CATEGORIES, REGISTRARS, categoryFor, registrationGap, type CatalogEntry, type CategoryId } from '../../mcp/catalog'
 import { mcp, useMcp } from '../../mcp/manager'
 import { McpError, type McpServerRecord } from '../../mcp/types'
 import { cn } from '../../lib/utils'
@@ -185,7 +185,7 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
     if (highlighted) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [highlighted])
 
-  const needsClientId = !!item.entry?.preregistered && !item.entry.preregistered() && !record?.manualClient?.clientId
+  const gap = registrationGap(item.entry, record)
 
   const connect = async () => {
     try {
@@ -259,13 +259,15 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
           )}
           {attention && <p className="mt-1.5 text-[12px] leading-relaxed text-amber-700 dark:text-amber-400">{attention}</p>}
           {/* A normal person has no idea what a client id is or where one comes from, and the card used to ask
-              them for it. Registering the connection is the job of whoever runs this SkyOS, once; after that it
-              is one click for everybody. Until then the card says so, and Avanzado is still there for those who
-              have their own client. */}
-          {!connected && needsClientId && (
+              them for it — for Google in words, for Spotify, GitHub, Slack and Box as an error after the click.
+              Those authorization servers only take clients registered by hand, so registering the connection is
+              the job of whoever runs this SkyOS, once; after that it is one click for everybody. Until then the
+              card says so and the button does not promise, and Avanzado is still there for those who have their
+              own client. */}
+          {!connected && gap && (
             <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-              Google no permite conectarse sin que quien administra esta instalación registre antes la conexión (VITE_GOOGLE_CLIENT_ID). En cuanto eso esté, aquí
-              será un clic. Si tienes tu propio cliente de Google Cloud, pégalo en Avanzado.
+              {gap.name} no deja que Sky se registre solo: quien administra esta instalación registra la conexión una vez ({gap.env}) y desde entonces
+              aquí es un clic. Si tienes tu propio cliente de {gap.name}, pégalo en Avanzado.
             </p>
           )}
           {busy && (
@@ -299,8 +301,8 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
         ) : (
           <button
             type="button"
-            disabled={!!busy || !item.url || needsClientId}
-            title={needsClientId ? 'Esta instalación aún no tiene registrada la conexión con Google' : undefined}
+            disabled={!!busy || !item.url || !!gap}
+            title={gap ? `Esta instalación aún no tiene registrada la conexión con ${gap.name}` : undefined}
             onClick={() => void connect()}
             className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40"
           >
@@ -343,6 +345,9 @@ function Advanced({ item, onDone }: { item: AppItem; onDone: () => void }) {
   const [clientId, setClientId] = useState(item.record?.manualClient?.clientId ?? '')
   const [clientSecret, setClientSecret] = useState(item.record?.manualClient?.clientSecret ?? '')
   const custom = !item.entry
+  const registrar = item.entry?.registrar ? REGISTRARS[item.entry.registrar] : undefined
+  /** Only servers that take clients registered by hand have anything to paste; the rest register Sky on their own. */
+  const handClient = custom || !!registrar
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
@@ -362,17 +367,25 @@ function Advanced({ item, onDone }: { item: AppItem; onDone: () => void }) {
       <Field label="URL del servidor MCP">
         <input value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
       </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Client id (opcional)">
-          <input value={clientId} onChange={(e) => setClientId(e.target.value)} spellCheck={false} placeholder="Solo si el servidor no registra clientes" className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
-        </Field>
-        <Field label="Client secret (opcional)">
-          <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="off" className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
-        </Field>
-      </div>
-      <p className="text-[11px] leading-relaxed text-ink-3">
-        Sky se identifica solo ante el servidor de autorización (Client ID Metadata Documents o registro dinámico). Estos campos son para servidores que exigen un cliente registrado a mano, como los de Google.
-      </p>
+      {handClient ? (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={registrar ? `Client id de ${registrar.name} (opcional)` : 'Client id (opcional)'}>
+              <input value={clientId} onChange={(e) => setClientId(e.target.value)} spellCheck={false} placeholder="Solo si tienes un cliente propio" className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
+            </Field>
+            <Field label="Client secret (opcional)">
+              <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="off" className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
+            </Field>
+          </div>
+          <p className="text-[11px] leading-relaxed text-ink-3">
+            {registrar
+              ? `Solo si tienes tu propio cliente OAuth de ${registrar.name}. Si no sabes qué es esto, no hace falta: la conexión la registra una vez quien administra esta instalación y desde entonces es un clic.`
+              : 'Sky se identifica solo ante el servidor de autorización (Client ID Metadata Documents o registro dinámico). Estos campos son solo para servidores que exigen un cliente registrado a mano.'}
+          </p>
+        </>
+      ) : (
+        <p className="text-[11px] leading-relaxed text-ink-3">Esta app registra a Sky sola ante su servidor de autorización: no hay ningún dato que pegar, solo la URL si cambia.</p>
+      )}
       <div className="flex items-center gap-2">
         <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110">
           Guardar

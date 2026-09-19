@@ -1,10 +1,15 @@
-import { GOOGLE_OAUTH } from '../config'
+import { OAUTH_CLIENTS, type RegistrarKey, type ShippedClient } from '../config'
 import type { Preregistered } from './auth'
 
 /**
  * The apps Sky knows out of the box: every one is an official remote MCP server, so Sky needs nothing but
  * the person's consent. Anything else can be added by URL from the panel. Grouped by what people do with
  * them, which is how the panel opens.
+ *
+ * Consent is one click only where the authorization server lets Sky register itself. Checked against the
+ * metadata each one publishes (19 September 2026): Dropbox, Notion, Evernote, Todoist and Zapier do; Google,
+ * Spotify, GitHub, Slack and Box do not, and those name a `registrar` — whoever deploys SkyOS registers one
+ * client there, once, and until then the card explains instead of asking the person for a client id.
  */
 
 export type CategoryId = 'files' | 'notes' | 'mail' | 'chat' | 'plan' | 'code' | 'music' | 'all' | 'custom'
@@ -40,8 +45,8 @@ export interface CatalogEntry {
   url: string
   /** Scopes to ask for when the server does not say (Google publishes many; these are the useful minimum). */
   preferredScopes?: string[]
-  /** OAuth client registered by hand, for authorization servers without dynamic registration (Google). */
-  preregistered?: () => Preregistered | undefined
+  /** Whose authorization server only takes clients registered by hand (see REGISTRARS). Absent: the server registers Sky on its own. */
+  registrar?: RegistrarKey
   /** Vendor documentation. */
   docsUrl?: string
   /** Words in a request that point at this app; its tools travel to the model only then (keeps requests small). */
@@ -54,7 +59,26 @@ export interface CatalogEntry {
   alwaysOn?: boolean
 }
 
-const google = (): Preregistered | undefined => (GOOGLE_OAUTH.clientId ? GOOGLE_OAUTH : undefined)
+/** Who has to register the connection before it can be a click, and where. */
+export interface Registrar {
+  key: RegistrarKey
+  /** The company, as the card names it. */
+  name: string
+  /** The variable the deployment reads the client id from. */
+  env: string
+  /** Whether the server refuses public clients, so a secret has to travel too. */
+  secret: boolean
+  /** Where the deployer creates the client. */
+  console: string
+}
+
+export const REGISTRARS: Record<RegistrarKey, Registrar> = {
+  google: { key: 'google', name: 'Google', env: 'VITE_GOOGLE_CLIENT_ID', secret: false, console: 'https://console.cloud.google.com/apis/credentials' },
+  spotify: { key: 'spotify', name: 'Spotify', env: 'VITE_SPOTIFY_CLIENT_ID', secret: false, console: 'https://developer.spotify.com/dashboard' },
+  github: { key: 'github', name: 'GitHub', env: 'VITE_GITHUB_CLIENT_ID', secret: true, console: 'https://github.com/settings/developers' },
+  slack: { key: 'slack', name: 'Slack', env: 'VITE_SLACK_CLIENT_ID', secret: true, console: 'https://api.slack.com/apps' },
+  box: { key: 'box', name: 'Box', env: 'VITE_BOX_CLIENT_ID', secret: true, console: 'https://app.box.com/developers/console' },
+}
 
 export const CATALOG: CatalogEntry[] = [
   {
@@ -69,7 +93,7 @@ export const CATALOG: CatalogEntry[] = [
     webUrl: 'https://drive.google.com',
     url: 'https://drivemcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file'],
-    preregistered: google,
+    registrar: 'google',
     docsUrl: 'https://developers.google.com/workspace/drive/api/guides/configure-mcp-server',
   },
   {
@@ -84,7 +108,7 @@ export const CATALOG: CatalogEntry[] = [
     webUrl: 'https://docs.google.com',
     url: 'https://docsmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file'],
-    preregistered: google,
+    registrar: 'google',
     docsUrl: 'https://developers.google.com/workspace/guides/configure-mcp-servers',
   },
   {
@@ -112,6 +136,7 @@ export const CATALOG: CatalogEntry[] = [
     keywords: ['box'],
     webUrl: 'https://app.box.com',
     url: 'https://mcp.box.com',
+    registrar: 'box',
     docsUrl: 'https://developer.box.com/guides/box-mcp/setup',
   },
   {
@@ -153,7 +178,7 @@ export const CATALOG: CatalogEntry[] = [
     webUrl: 'https://mail.google.com',
     url: 'https://gmailmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send'],
-    preregistered: google,
+    registrar: 'google',
     docsUrl: 'https://developers.google.com/workspace/guides/configure-mcp-servers',
   },
   {
@@ -167,6 +192,7 @@ export const CATALOG: CatalogEntry[] = [
     keywords: ['slack', 'canal', 'canales', 'mensaje', 'mensajes', 'equipo', 'chat'],
     webUrl: 'https://app.slack.com',
     url: 'https://mcp.slack.com/mcp',
+    registrar: 'slack',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/slack',
   },
   {
@@ -181,7 +207,7 @@ export const CATALOG: CatalogEntry[] = [
     webUrl: 'https://calendar.google.com',
     url: 'https://calendarmcp.googleapis.com/mcp/v1',
     preferredScopes: ['https://www.googleapis.com/auth/calendar.events'],
-    preregistered: google,
+    registrar: 'google',
     docsUrl: 'https://developers.google.com/workspace/guides/configure-mcp-servers',
   },
   {
@@ -208,6 +234,7 @@ export const CATALOG: CatalogEntry[] = [
     keywords: ['github', 'repo', 'repositorio', 'issue', 'issues', 'pull request', 'pr', 'commit', 'rama', 'código'],
     webUrl: 'https://github.com',
     url: 'https://api.githubcopilot.com/mcp/',
+    registrar: 'github',
     docsUrl: 'https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md',
   },
   {
@@ -221,6 +248,7 @@ export const CATALOG: CatalogEntry[] = [
     keywords: ['spotify', 'música', 'musica', 'canción', 'cancion', 'canciones', 'playlist', 'artista', 'álbum', 'album', 'podcast'],
     webUrl: 'https://open.spotify.com',
     url: 'https://mcp-gateway-external-pilot.spotify.net/mcp',
+    registrar: 'spotify',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/spotify',
   },
   {
@@ -256,3 +284,20 @@ export const CATALOG: CatalogEntry[] = [
 export const catalogFor = (id: string): CatalogEntry | undefined => CATALOG.find((c) => c.id === id)
 
 export const categoryFor = (id: CategoryId): Category => CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[CATEGORIES.length - 1]
+
+/** The client this deployment ships for an app whose authorization server wants one registered by hand. */
+export const shippedClient = (entry: CatalogEntry | undefined, clients: Partial<Record<RegistrarKey, ShippedClient | undefined>> = OAUTH_CLIENTS): Preregistered | undefined =>
+  entry?.registrar ? clients[entry.registrar] : undefined
+
+/**
+ * Why connecting this app is not a click yet: its authorization server only takes clients registered by hand,
+ * and neither the deployment nor the person has provided one. Undefined when nothing stands in the way.
+ */
+export function registrationGap(
+  entry: CatalogEntry | undefined,
+  record?: { manualClient?: { clientId: string } },
+  clients: Partial<Record<RegistrarKey, ShippedClient | undefined>> = OAUTH_CLIENTS,
+): Registrar | undefined {
+  if (!entry?.registrar || record?.manualClient?.clientId || clients[entry.registrar]) return undefined
+  return REGISTRARS[entry.registrar]
+}
