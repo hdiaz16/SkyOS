@@ -1,7 +1,7 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { Sparkles } from 'lucide-react'
-import { useWindows, type SnapTarget, type Win } from '../state/windows'
+import { useWindows, MIN_H, MIN_W, type SnapTarget, type Win } from '../state/windows'
 import { useUi } from '../state/ui'
 import { cn } from '../lib/utils'
 import { SelectionMenu } from './SelectionMenu'
@@ -27,9 +27,13 @@ function zoneFor(x: number, y: number): SnapTarget | null {
   return null
 }
 
+/** Which sides a corner or an edge handle stretches. */
+type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
 /**
  * The chrome around every app: a quiet header (three discreet dots, the title, a spark to ask Sky about what
- * is inside), drag to move with magnetic edges, a corner to resize, double-click to fill the workspace.
+ * is inside), drag to move with magnetic edges, every border and corner ready to resize, double-click to fill
+ * the workspace.
  */
 export function WindowFrame({ win, active, children }: Props) {
   const [interacting, setInteracting] = useState(false)
@@ -92,7 +96,7 @@ export function WindowFrame({ win, active, children }: Props) {
     )
   }
 
-  const startResize = (e: PointerEvent<HTMLDivElement>) => {
+  const startResize = (edge: Edge) => (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
@@ -100,9 +104,32 @@ export function WindowFrame({ win, active, children }: Props) {
     wm.focus(win.id)
     const sx = e.clientX
     const sy = e.clientY
-    const ow = win.w
-    const oh = win.h
-    track(e, (ev) => wm.resize(win.id, ow + ev.clientX - sx, oh + ev.clientY - sy))
+    const o = { x: win.x, y: win.y, w: win.w, h: win.h }
+    track(e, (ev) => {
+      const dx = ev.clientX - sx
+      const dy = ev.clientY - sy
+      let { x, y, w, h } = o
+      if (edge.includes('e')) w = o.w + dx
+      if (edge.includes('s')) h = o.h + dy
+      if (edge.includes('w')) {
+        w = o.w - dx
+        x = o.x + dx
+      }
+      if (edge.includes('n')) {
+        h = o.h - dy
+        y = o.y + dy
+      }
+      // When the minimum bites on a top/left edge, that edge stays put instead of travelling with the pointer.
+      if (w < MIN_W) {
+        if (edge.includes('w')) x = o.x + o.w - MIN_W
+        w = MIN_W
+      }
+      if (h < MIN_H) {
+        if (edge.includes('n')) y = o.y + o.h - MIN_H
+        h = MIN_H
+      }
+      wm.reshape(win.id, { x, y, w, h })
+    })
   }
 
   const askSky = () => {
@@ -196,7 +223,19 @@ export function WindowFrame({ win, active, children }: Props) {
         )}
       </div>
 
-      <div className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize" onPointerDown={startResize} aria-hidden />
+      {/* Only the bottom-right corner could be grabbed, and part of it fell outside the rounded border: a
+          window parked on the right half of the screen could not be widened towards the left without moving
+          the whole thing first. Every border and corner stretches now. */}
+      <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
+        <div className="pointer-events-auto absolute top-0 right-0 left-0 h-1.5 cursor-ns-resize" onPointerDown={startResize('n')} />
+        <div className="pointer-events-auto absolute right-0 bottom-0 left-0 h-1.5 cursor-ns-resize" onPointerDown={startResize('s')} />
+        <div className="pointer-events-auto absolute top-0 bottom-0 left-0 w-1.5 cursor-ew-resize" onPointerDown={startResize('w')} />
+        <div className="pointer-events-auto absolute top-0 right-0 bottom-0 w-1.5 cursor-ew-resize" onPointerDown={startResize('e')} />
+        <div className="pointer-events-auto absolute top-0 left-0 h-3 w-3 cursor-nwse-resize" onPointerDown={startResize('nw')} />
+        <div className="pointer-events-auto absolute top-0 right-0 h-3 w-3 cursor-nesw-resize" onPointerDown={startResize('ne')} />
+        <div className="pointer-events-auto absolute bottom-0 left-0 h-3 w-3 cursor-nesw-resize" onPointerDown={startResize('sw')} />
+        <div className="pointer-events-auto absolute right-0 bottom-0 h-3 w-3 cursor-nwse-resize" onPointerDown={startResize('se')} />
+      </div>
     </motion.div>
   )
 }

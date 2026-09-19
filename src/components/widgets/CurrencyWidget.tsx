@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight } from 'lucide-react'
 import { widgets, type Widget } from '../../kernel/widgets'
 import { CURRENCIES, fetchRate, formatMoney, type Rate } from '../../lib/currency'
@@ -17,6 +17,14 @@ export function CurrencyWidget({ widget }: { widget: Widget }) {
   const amount = typeof widget.config.amount === 'number' ? widget.config.amount : 1
   const [state, setState] = useState<State>({ status: 'loading' })
   const [draft, setDraft] = useState(String(amount))
+  /** Whether the box is being written in; a config change from outside (Sky setting 500) must not
+   *  overwrite it, and without it the box never learned about it either: the widget contradicted itself. */
+  const editing = useRef(false)
+
+  // Sky can change the amount from outside; the box follows whenever nobody is typing in it.
+  useEffect(() => {
+    if (!editing.current) setDraft(String(amount))
+  }, [amount])
 
   useEffect(() => {
     let alive = true
@@ -40,6 +48,7 @@ export function CurrencyWidget({ widget }: { widget: Widget }) {
 
   const set = (config: Record<string, unknown>) => void widgets.setConfig(widget.id, config)
   const commitAmount = () => {
+    editing.current = false
     const n = Number(draft.replace(',', '.'))
     if (Number.isFinite(n) && n >= 0) set({ amount: n })
     else setDraft(String(amount))
@@ -55,7 +64,10 @@ export function CurrencyWidget({ widget }: { widget: Widget }) {
         <input
           value={draft}
           inputMode="decimal"
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            editing.current = true
+            setDraft(e.target.value)
+          }}
           onBlur={commitAmount}
           onKeyDown={(e) => {
             e.stopPropagation()

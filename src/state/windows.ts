@@ -113,6 +113,9 @@ interface WindowsState {
   minimize: (id: string) => void
   move: (id: string, x: number, y: number) => void
   resize: (id: string, w: number, h: number) => void
+  /** One update for the four sides at once: stretching from the top or the left moves the window while it
+   *  resizes, and two separate updates would fight over the geometry mid-drag. */
+  reshape: (id: string, g: Geometry) => void
   setTitle: (id: string, title: string) => void
   setProps: (id: string, props: WindowProps) => void
   /** Puts a previously closed window back, on top. Used by undo. */
@@ -215,6 +218,15 @@ export const useWindows = create<WindowsState>((set, get) => ({
     set((s) => ({
       windows: s.windows.map((win) =>
         win.id === id ? { ...win, w: Math.max(MIN_W, Math.round(w)), h: Math.max(MIN_H, Math.round(h)), maximized: false, prev: undefined } : win,
+      ),
+    })),
+
+  reshape: (id, g) =>
+    set((s) => ({
+      windows: s.windows.map((win) =>
+        win.id === id
+          ? { ...win, x: Math.round(g.x), y: Math.max(28, Math.round(g.y)), w: Math.max(MIN_W, Math.round(g.w)), h: Math.max(MIN_H, Math.round(g.h)), maximized: false, prev: undefined }
+          : win,
       ),
     })),
 

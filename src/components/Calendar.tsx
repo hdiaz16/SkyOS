@@ -83,9 +83,11 @@ export function Calendar({ onClose }: { onClose: () => void }) {
             <span
               key={i}
               className={cn(
+                // Days light up like buttons on hover but nothing responds to a click: the calendar is for
+                // reading, and only today stands out.
                 'mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[12px] tabular-nums',
                 d === null && 'invisible',
-                isToday ? 'bg-accent font-semibold text-white' : 'text-ink hover:bg-surface-2',
+                isToday ? 'bg-accent font-semibold text-white' : 'text-ink',
               )}
             >
               {d}
