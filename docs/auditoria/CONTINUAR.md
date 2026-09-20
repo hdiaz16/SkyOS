@@ -400,3 +400,31 @@ publicar. Lo que hay:
   de seguir el borde. La geometría viva ahora se suelta en cuanto cambia la fila del widget o el ancho de la ventana
   sin nadie arrastrando. **Verificado** en `localhost:5173`: arrastrar el clima anclado, cambiar el ancho del panel y
   ver su borde derecho a la misma distancia del borde en los dos anchos.
+
+## Tanda del 19 de septiembre de 2026 (sexta): lo que Hector vio en el sitio
+
+- **Atrás se queda dentro** (`system/back.ts`, `trapBack()` en `main.tsx`): la página guarda un paso propio en el
+  historial del navegador; el botón Atrás del ratón, Alt+← o el gesto caen en ese paso, se vuelve a poner, y la
+  pulsación se ofrece a quien la quiera (`onBack`). El Navegador (`Browser.tsx`) la toma cuando es la ventana de
+  arriba y vuelve a la dirección anterior de esa ventana; si no hay nadie, no pasa nada. Antes salía del sitio o lo
+  recargaba. **Verificado**: `history.back()` deja la página en su sitio y rearmada; con el Navegador arriba,
+  dos → uno → la página de inicio.
+- **Los widgets se movían al redimensionar y no volvían**: el marco guardaba en la base la posición recortada a la
+  ventana en cada `resize`; un panel estrecho un instante (280 px al ocultarse) dejó a los tres widgets de Ana en
+  `x: 208` para siempre. Ahora el recorte es solo visual: `inside(placed(...), viewport)` al pintar, y nada se escribe
+  salvo por un arrastre de la persona. **Verificado**: 900×600 → filas intactas → tamaño normal → filas intactas.
+- **Interruptores de permisos que «no funcionaban»**: en el navegador de Hector los tres están bloqueados por el
+  propio navegador, y un interruptor deshabilitado se lee como un botón roto. Ahora un interruptor bloqueado sigue
+  respondiendo —al pulsarlo, un aviso dice cómo se desbloquea desde el candado— y «Todo» avisa cuáles están
+  bloqueados; además, una pregunta que el navegador nunca muestra (Chrome silencia los avisos en sitios donde se
+  cerraron antes) deja de girar a los 25 s con una nota que dice dónde está el icono. **Verificado** en el panel, que
+  tiene los tres bloqueados: aviso «Notificaciones: El navegador lo tiene bloqueado…» y el de «Todo».
+- **Conectar en Spotify parecía roto**: el botón deshabilitado ya no existe; pulsarlo abre un diálogo con lo que falta
+  (consola de Spotify, URL de retorno, `VITE_SPOTIFY_CLIENT_ID` en Vercel) y un botón para abrir la consola. Sigue
+  siendo trabajo de Hector: registrar el cliente y poner la variable. **Verificado** en el navegador.
+- **El día en el escritorio no se veía**: las paletas del tema claro eran tan cercanas al papel de la mañana que a las
+  19:50 el fondo era gris claro. Nuevas paletas con color de verdad en la luz, el cielo y las colinas —alba rosa y
+  durazno, mediodía azul, tarde dorada, ocaso naranja y rosa, anochecer índigo y violeta, noche pizarra bajo la luna—
+  con el papel aún claro para la tinta; el tema oscuro también gana contraste por hora. `daylight.test.ts` sigue
+  fijando la mañana en el campo. **Verificado** a las 19:58 en `localhost:5173`: el escritorio en lavanda e índigo.
+- Hector: el SMTP se deja por ahora y las cuentas siguen por registro con contraseña.

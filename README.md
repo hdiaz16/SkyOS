@@ -47,7 +47,10 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
   cambia en Ajustes; la ubicación se detecta sola mientras escribes, y unos segundos después de entrar una tarjeta
   ofrece los tres permisos (micrófono, ubicación exacta, notificaciones) como interruptores independientes, con uno
   general para prenderlos todos; los mismos interruptores viven en Ajustes › Cuenta, y apagar uno hace que Sky deje de
-  usarlo aunque el navegador lo siga permitiendo.
+  usarlo aunque el navegador lo siga permitiendo. Un permiso que el navegador tenga bloqueado se ve bloqueado y, al
+  pulsarlo, dice cómo se desbloquea desde el candado de la barra de direcciones.
+- El botón Atrás del navegador —el del ratón, Alt+←, el gesto— se queda dentro de SkyOS: en el Navegador vuelve a la
+  página anterior; en el resto del escritorio no hace nada, y en ningún caso saca del sitio ni lo recarga.
   Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.
 
 **Escritorio**
