@@ -366,3 +366,37 @@ publicar. Lo que hay:
   Groq (400 por no ser multipart, ya no NOT_FOUND), `models` 200, y sin `Origin` sigue siendo 403. Nota: la llave
   incluida ya no tiene los modelos `llama-3.x`; el catálogo del escritorio se lee de `/api/ai/models`, así que no hay
   nada que tocar.
+
+## Tanda del 19 de septiembre de 2026 (quinta): permisos con interruptores, galería de widgets, Groq en vivo
+
+- **Permisos como interruptores** (`components/system/PermissionSwitches.tsx`, compartido por la tarjeta de entrada y
+  Ajustes › Cuenta): tres interruptores independientes y uno general («Todo») que pide los tres uno por uno. Encendido
+  es «Sky pide al navegador una vez y lo usa»; apagado es «Sky deja de usarlo aunque el navegador lo siga
+  permitiendo», y la nota lo dice, porque una página no puede devolver un permiso. La preferencia vive en
+  `profile.permissions` (`system/db.ts`); la respetan las notificaciones de trabajos (`system/jobs.ts`), el botón de
+  dictado (`CommandBar`) y el widget del clima, que con la ubicación apagada ni pregunta ni vuelve a guardar el lugar.
+  Lo que el navegador ya bloqueó sale bloqueado y deshabilitado. `components/Switch.tsx` es el interruptor del sistema.
+- **Bug de raíz de paso**: `users.updateProfile` escribía el perfil entero a partir de la copia que tuviera quien
+  llamaba, así que dos escritores a la vez —el widget del clima guardando el lugar y los interruptores guardando una
+  respuesta— se borraban campos. Ahora cambia solo sus campos leyendo la fila dentro de su transacción, y un
+  `undefined` borra la clave. Los seis llamadores dejaron de pasar la copia.
+- **Galería de widgets** (`components/WidgetGallery.tsx`): botón «Widgets» en la barra, junto al audio de enfoque: los
+  siete tipos con su descripción y un toque para ponerlos en el escritorio, y «Otro, a tu medida», que deja en la barra
+  «Hazme un widget que…» para que Sky lo construya en HTML. Siguen valiendo el clic derecho y escribir «widget».
+- **Groq como IA por defecto, verificado en vivo**: en sky-os.cloud, con la cuenta de prueba, «Dime hola en una frase
+  corta» → «¡Hola! He dicho hola. GPT-OSS 20B · equilibrado · 1.5k tokens · 2.4 s» por `/api/ai/chat/completions`. El
+  preset de Groq ya no nombra los `llama-3.x` retirados; los niveles automáticos van a `openai/gpt-oss-20b` y
+  `openai/gpt-oss-120b`, y `groq/compound-mini` está marcado sin herramientas.
+- **Verificado** en `localhost:5173` con Ana y respuestas simuladas del navegador: la tarjeta con «Todo» y tres
+  interruptores; «Todo» encendido → los tres concedidos, lugar guardado, tarjeta cerrada y `permissionsOffered`; «Todo»
+  apagado desde Ajustes → los tres en `false`, la ubicación exacta borrada y el clima siguiendo por red sin volver a
+  guardarla; «Notificaciones» sola encendida → solo esa en `true`. Galería: los siete tipos listados, «Reloj mundial»
+  puesto en el escritorio con su aviso, y «Otro, a tu medida» dejando «Hazme un widget que » en la barra con el foco.
+  Nota para probar en el panel: `key Return` y los clics por `ref` no siempre llegan a los formularios de React; un
+  `form.requestSubmit()` o un `element.click()` desde JS sí.
+- **Los widgets brincaban al redimensionar** (lo vio Hector): `WidgetFrame` conservaba la geometría viva del último
+  arrastre hasta que la guardada coincidiera exactamente con ella, cosa que para un widget anclado el redimensionar
+  hacía imposible; así que un widget arrastrado alguna vez volvía a ese sitio viejo en cada cambio de tamaño en vez
+  de seguir el borde. La geometría viva ahora se suelta en cuanto cambia la fila del widget o el ancho de la ventana
+  sin nadie arrastrando. **Verificado** en `localhost:5173`: arrastrar el clima anclado, cambiar el ancho del panel y
+  ver su borde derecho a la misma distancia del borde en los dos anchos.

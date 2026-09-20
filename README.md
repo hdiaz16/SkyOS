@@ -45,7 +45,9 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
   de confianza, no una frontera de seguridad. El alcance exacto está en [SECURITY.md](SECURITY.md).
 - Splash de arranque y onboarding corto: nombre, correo y entrar. Todo lo demás empieza con valores sensatos y se
   cambia en Ajustes; la ubicación se detecta sola mientras escribes, y unos segundos después de entrar una tarjeta
-  ofrece de una vez los tres permisos (micrófono, ubicación exacta, notificaciones), cada uno cuando quieras usarlo.
+  ofrece los tres permisos (micrófono, ubicación exacta, notificaciones) como interruptores independientes, con uno
+  general para prenderlos todos; los mismos interruptores viven en Ajustes › Cuenta, y apagar uno hace que Sky deje de
+  usarlo aunque el navegador lo siga permitiendo.
   Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.
 
 **Escritorio**
@@ -54,7 +56,9 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
 - Widgets útiles: clima de tu ubicación (Open-Meteo), divisas (BCE), recientes, reloj mundial, tareas, nota,
   temporizador. La IA puede crear widgets propios en HTML dentro de un marco aislado. Los widgets nacen anclados al
   borde derecho —conservan su zona aunque cambie el tamaño de la pantalla— y los iconos nunca quedan debajo de ellos;
-  el pin del marco los suelta o los vuelve a anclar.
+  el pin del marco los suelta o los vuelve a anclar. Se agregan desde el botón Widgets de la barra —una galería con
+  los siete tipos y la puerta a pedirle a Sky uno a medida—, con clic derecho en el escritorio o escribiendo «widget» en
+  la barra.
 - Fondo con gradientes, colinas y luz que deriva; modo claro y noche, cinco acentos y cinco fondos. El de fábrica,
   «Según la hora», vive: los colores siguen la hora real —una mañana en el campo, un mediodía más azul, la tarde
   dorada, el ocaso, la hora azul, la luz de luna— y la luz cálida recorre el cielo como el sol. Entre una hora y otra
