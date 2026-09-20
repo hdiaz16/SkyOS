@@ -159,7 +159,7 @@ export function WindowFrame({ win, active, children }: Props) {
       onAnimationComplete={() => {
         if (win.settling) useWindows.getState().settled(win.id)
       }}
-      className={cn('glass group/window absolute flex flex-col overflow-hidden', win.maximized ? 'rounded-2xl' : 'rounded-2xl', active ? 'shadow-win' : 'shadow-soft')}
+      className={cn('glass group/window absolute flex select-text flex-col overflow-hidden', win.maximized ? 'rounded-2xl' : 'rounded-2xl', active ? 'shadow-win' : 'shadow-soft')}
       onPointerDownCapture={() => {
         if (!active) useWindows.getState().focus(win.id)
       }}

@@ -60,7 +60,7 @@ function Dialog({ request }: { request: PromptRequest }) {
         role="dialog"
         aria-modal="true"
         aria-label={request.title}
-        className="glass relative w-[460px] max-w-full rounded-2xl p-5 shadow-win"
+        className="glass relative w-[460px] max-w-full select-text rounded-2xl p-5 shadow-win"
       >
         <h2 className="text-[15px] font-medium text-ink">{request.title}</h2>
         {request.description && <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-ink-2">{request.description}</p>}
