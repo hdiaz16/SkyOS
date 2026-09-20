@@ -553,3 +553,14 @@ blanco → `npx vite --mode shot --port 4183` arranca SkyOS con cuentas apagadas
 crea un perfil local, sin tocar producción ni cuentas de nadie. Chrome sin ventana con `--remote-debugging-port` y
 un cliente del protocolo de DevTools escrito a mano (Node 22 ya trae WebSocket) hace la bienvenida, pulsa, escribe
 y captura a 2× de resolución. Los scripts viven en el scratchpad de la sesión.
+
+- **La llave de Groq, comprobada de punta a punta** (20 de septiembre, tras preguntarlo Hector). Dónde se ve y
+  dónde no: el paquete publicado no lleva ninguna cadena `gsk_…` (los cuatro chunks revisados en vivo), el
+  historial del repositorio tampoco —`git log -S 'gsk_'` marca seis commits y ninguno contiene una llave real,
+  solo el `startsWith('gsk_')` del código y los `gsk_…` de los marcadores de posición—, y los campos de llave de
+  la interfaz son todos `type="password"` y solo contienen la llave de cada persona: la incluida se resuelve al
+  hacer la petición (`resolveKey`) y nunca entra ni al estado ni a localStorage. Lo que sí era legible: la
+  variable `GROQ_API_KEY` en Vercel no estaba marcada como sensible, así que el panel y `vercel env pull` la
+  devolvían en claro. Ya está guardada con `--sensitive`, como los secretos de las apps, y al descargarla vuelve
+  vacía. Queda legible, por fuerza, la de `.env.local` en la máquina de desarrollo: `npm run dev` no tiene
+  servidor donde esconderla.

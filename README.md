@@ -203,6 +203,7 @@ que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la m
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | puestas | Encienden las cuentas (correo + contraseña). En Supabase, «Confirm email» debe estar **apagado** mientras no haya SMTP propio; si está encendido, SkyOS lo detecta y sigue con perfiles locales hasta que se apague. |
 | `VITE_ACCOUNTS_MAIL` | vacía | Ponla en `1` cuando Supabase tenga SMTP propio y la plantilla `supabase/templates/magic-link.html`: entrar pasa a ser correo + código de seis dígitos. |
 | `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID`, `VITE_BOX_CLIENT_ID` | opcional | El alta de SkyOS como aplicación en cada servicio; con el id puesto, cada persona conecta su propia cuenta con un clic. Públicos por diseño. |
+| `GROQ_API_KEY` | recomendada | La llave del modelo incluido, **solo en el servidor**: `/api/ai` la añade a cada petición y el navegador nunca la ve. Guárdala como variable sensible (`vercel env add GROQ_API_KEY production --sensitive`). |
 | `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `SPOTIFY_CLIENT_SECRET`, `SLACK_CLIENT_SECRET`, `BOX_CLIENT_SECRET` | opcional | Sin `VITE_`: se quedan en el servidor y `/api/oauth/proxy` los añade al canje del código. El navegador nunca los tiene. En Vercel, guárdalos como variables sensibles (`--sensitive`). |
 | `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |
 

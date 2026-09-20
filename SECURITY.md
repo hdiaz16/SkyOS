@@ -103,6 +103,13 @@ Esto importa tanto como lo anterior.
   acceso al navegador y a sus herramientas puede seguir abriendo la base de cualquier perfil de ese equipo. El
   día que algo se guarde fuera del dispositivo, esa pieza tendrá que verificar identidad y pertenencia en cada
   operación.
+- **La llave incluida no se puede leer, ni desde dentro ni desde fuera.** No viaja al navegador: `npm run build`
+  la deja fuera del paquete y las peticiones salen por `/api/ai`, que la añade en el servidor (comprobado: el
+  paquete publicado no contiene ninguna cadena `gsk_…` y el historial del repositorio tampoco). En Vercel está
+  guardada como variable **sensible**, así que ni el panel ni `vercel env pull` la devuelven. La única copia
+  legible es la de `.env.local` en la máquina de quien desarrolla, que es la que usa `npm run dev` porque ahí no
+  hay servidor que la guarde; esa conviene tratarla como una llave de pruebas. Quien prefiera la suya la pega en
+  Ajustes › Inteligencia y no pasa por aquí.
 - **La llave incluida es gastable.** El sitio es público y la llave vive en el servidor. La puerta de mismo
   origen aparta a quien pasa por ahí, y el presupuesto por IP pone un techo, pero esas cabeceras se pueden
   falsificar y el contador vive en la memoria de cada instancia del borde. Es un freno, no una cerradura: quien
