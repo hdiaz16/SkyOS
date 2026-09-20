@@ -10,8 +10,8 @@ const TYPE_HELP = [
   'clock → { zones: [{ label, timeZone }] } con zonas IANA como "America/Bogota".',
   'todo → { items: [{ text, done }] }.',
   'note → { text }.',
-  'timer → { seconds, label }.',
-  'html → { html }: documento HTML completo y autocontenido (CSS y JS inline, sin recursos externos) mostrado en un marco aislado. Puede usar las variables CSS --ink, --ink-2, --ink-3, --accent, --accent-soft, --surface, --line. Úsalo solo cuando ningún tipo propio sirva (una gráfica, un contador específico, un tablero).',
+  'timer → { seconds, label }: cuenta atrás de una duración fija (pomodoro, cocina, una pausa). No cuenta el tiempo que falta hasta una fecha.',
+  'html → { html }: documento HTML completo y autocontenido (CSS y JS inline, sin recursos externos) mostrado en un marco aislado. Puede usar las variables CSS --ink, --ink-2, --ink-3, --accent, --accent-soft, --surface, --line. Úsalo siempre que ningún tipo propio haga exactamente lo que piden: una cuenta regresiva hasta una fecha, una gráfica, un marcador, un tablero. Es preferible escribir el HTML a poner un tipo parecido que haga otra cosa. Cierra cada <style> y cada <script>, escribe el contenido dentro de <body> y, si algo cambia con el tiempo, calcúlalo en un <script> con new Date() y refréscalo con setInterval; un documento sin contenido visible se rechaza. El marco mide 380×300 px menos la cabecera, así que escribe para una tarjeta pequeña: sin márgenes grandes, letra de 12 a 34 px, lo importante arriba y fondo transparente para que se vea la tarjeta. No repitas el título dentro del HTML —la tarjeta ya lo enseña en su cabecera— y usa ese espacio para el dato. Si de verdad necesita más sitio, pide w y h.',
 ].join(' ')
 
 const isString = (v: unknown): v is string => typeof v === 'string'
@@ -80,6 +80,29 @@ function configProblem(type: WidgetType, config: WidgetConfig | undefined): stri
 }
 export { configProblem }
 
+/**
+ * Un widget html que no pinta nada es una caja blanca en el escritorio, y nadie sabe por qué. Pasó con la
+ * primera cuenta regresiva que pedí: el modelo dejó un <style> sin cerrar, el navegador se tragó el resto como
+ * CSS y el widget salió vacío, con Sky diciendo que estaba listo. Aquí se rechaza y el modelo lo vuelve a
+ * escribir, que es justo lo que hace cuando una herramienta le contesta qué está mal.
+ */
+function htmlProblem(html: string): string | null {
+  const count = (re: RegExp) => (html.match(re) ?? []).length
+  if (count(/<style\b/gi) !== count(/<\/style\s*>/gi)) return 'El HTML deja una etiqueta <style> sin cerrar: el navegador se traga el resto del documento como CSS y el widget sale en blanco. Ciérrala con </style>.'
+  if (count(/<script\b/gi) !== count(/<\/script\s*>/gi)) return 'El HTML deja una etiqueta <script> sin cerrar: nada de lo que va después se pinta. Ciérrala con </script>.'
+  const body = html
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<style[\s\S]*?<\/style\s*>/gi, '')
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<head[\s\S]*?<\/head\s*>/gi, '')
+  const hasText = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().length > 0
+  const hasElement = /<(?!\/?(?:html|head|body|meta|title|link|base|br|hr)\b)[a-z][a-z0-9-]*\b/i.test(body)
+  const hasScript = /<script\b/i.test(html)
+  if (!hasText && !hasElement && !hasScript) return 'El HTML no pinta nada: fuera de <style> no hay ni texto ni elementos. Escribe el contenido dentro de <body>.'
+  return null
+}
+export { htmlProblem }
+
 function summarize(w: Widget) {
   const c = w.config
   let detail: unknown
@@ -121,7 +144,7 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
   risk: 'write',
   keywords: WIDGET_WORDS,
   title: 'Añadir widget',
-  description: `Coloca un widget en el escritorio. ${TYPE_HELP}`,
+  description: `Coloca un widget en el escritorio. Si ningún tipo propio hace lo que piden, escríbelo con type "html"; no pongas un tipo parecido ni digas que hace algo que no hace. ${TYPE_HELP}`,
   params: {
     type: { type: 'string', description: 'Tipo de widget.', enum: WIDGET_TYPES, required: true },
     title: { type: 'string', description: 'Título visible.' },
@@ -135,6 +158,10 @@ registerCommand<{ type: WidgetType; title?: string; config?: WidgetConfig; x?: n
   async run({ type, ...opts }) {
     if (!WIDGET_TYPES.includes(type)) throw new Error(`Tipo de widget desconocido: ${type}`)
     if (type === 'html' && typeof opts.config?.html !== 'string') throw new Error('Un widget html necesita config.html')
+    if (type === 'html') {
+      const broken = htmlProblem(opts.config?.html as string)
+      if (broken) throw new Error(broken)
+    }
     const problem = configProblem(type, opts.config)
     if (problem) throw new Error(problem)
     const widget = await widgets.create(type, opts)
@@ -160,6 +187,10 @@ registerCommand<{ id: string; title?: string; config?: WidgetConfig }, Widget>({
   async run({ id, title, config }) {
     const before = await widgets.get(id)
     if (!before) throw new Error('El widget ya no existe')
+    if (before.type === 'html' && typeof config?.html === 'string') {
+      const broken = htmlProblem(config.html)
+      if (broken) throw new Error(broken)
+    }
     const problem = configProblem(before.type, config)
     if (problem) throw new Error(problem)
     const after = await widgets.update(id, { title, config })

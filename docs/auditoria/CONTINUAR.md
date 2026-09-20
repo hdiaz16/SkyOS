@@ -520,3 +520,36 @@ quién está del otro lado.
   `http://localhost:5173/api/mcp/spotify`, que Vite no sirve. Para probarlo en local, `vercel dev` o montar el mismo
   módulo en el puente. La comprobación de punta a punta con una cuenta real la hace Hector (dueño de la app, ya dado
   de alta); desde aquí se comprobó con un token de aplicación (`client_credentials`) contra producción.
+
+## Tanda del 20 de septiembre de 2026 (segunda): lo que salió mal al preparar la imagen de lanzamiento
+
+Preparando una captura del escritorio le pedí a Sky dos cosas normales y las dos salieron mal. Los cuatro fallos y
+su arreglo, todos comprobados en vivo con un perfil local de prueba y la llave de Groq de desarrollo:
+
+- **«¿Qué tiempo hará mañana?» → «no dispongo de datos meteorológicos»**, con el clima puesto en el escritorio.
+  No existía ninguna herramienta de clima: el widget consulta Open-Meteo por su cuenta y Sky no tenía por dónde.
+  Nuevo `kernel/commands/weather.ts` (`weather.forecast`), con el mismo Open-Meteo y la misma caché que el widget,
+  para el lugar del perfil, el que digan o el de la red. Cada día llega con su nombre resuelto —«hoy», «mañana»,
+  «el jueves»— porque el modelo no sabe qué día es hoy; `dayLabel` tiene pruebas, incluido el cruce de mes y año.
+  Ahora contesta «mañana habrá tormenta con temperaturas entre 22 °C y 30 °C», que es lo que dice el widget.
+- **«Crea un widget con la cuenta regresiva para el fin de año» → un pomodoro de 25 minutos**, y Sky diciendo que
+  contaba hasta el fin de año. El propio catálogo llamaba al temporizador «cuenta regresiva con avisos», así que el
+  modelo hacía lo que le decíamos. `WIDGET_META.timer` ahora dice lo que hace («una duración que corre hacia
+  abajo»), y la ayuda de tipos manda escribir `html` cuando ningún tipo propio hace exactamente lo que piden.
+- **El widget html llegaba en blanco.** El modelo dejó un `<style>` sin cerrar y el navegador se tragó el documento
+  entero como CSS; el escritorio se quedó con una caja blanca y Sky dijo «listo». `htmlProblem()` en
+  `commands/widgets.ts` rechaza el `<style>` o el `<script>` sin cerrar y el documento que no pinta nada, tanto al
+  crear como al actualizar; el modelo recibe el porqué y lo vuelve a escribir bien. Con pruebas del caso real.
+- **La cuenta regresiva salía sin números.** El documento era correcto, pero con el `<script>` antes del
+  `<p id="count">`: `getElementById` daba null, `update()` tiraba y el `setInterval` de la línea siguiente ya no se
+  registraba. `lib/sandboxHtml.ts` (`scriptsLast`) lleva los scripts al final del `<body>` antes de pintar —mover
+  la etiqueta conserva el ámbito global, envolverlos en DOMContentLoaded rompería un `onclick` del HTML—. Arregla
+  también los widgets ya guardados, sin tocar lo que el modelo escribió: el que estaba mudo empezó a contar.
+- De paso, el marco del sandbox trae tamaños de tarjeta (títulos a 1.25em, `overflow:auto`) y la ayuda dice el
+  tamaño real del marco (380×300 menos la cabecera) y que no repita el título, que la cabecera ya lo enseña.
+
+Cómo se probó, por si hace falta repetirlo: `.env.shot.local` (ignorado por git) con las variables de Supabase en
+blanco → `npx vite --mode shot --port 4183` arranca SkyOS con cuentas apagadas, así que entra por la bienvenida y
+crea un perfil local, sin tocar producción ni cuentas de nadie. Chrome sin ventana con `--remote-debugging-port` y
+un cliente del protocolo de DevTools escrito a mano (Node 22 ya trae WebSocket) hace la bienvenida, pulsa, escribe
+y captura a 2× de resolución. Los scripts viven en el scratchpad de la sesión.

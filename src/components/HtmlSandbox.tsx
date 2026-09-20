@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useSettings } from '../state/settings'
+import { scriptsLast } from '../lib/sandboxHtml'
 import { cn } from '../lib/utils'
 
 const THEME_VARS = ['--ink', '--ink-2', '--ink-3', '--accent', '--accent-soft', '--surface', '--surface-2', '--surface-solid', '--line', '--line-2', '--danger']
@@ -10,8 +11,10 @@ function themeCss(): string {
   const vars = THEME_VARS.map((v) => `${v}: ${cs.getPropertyValue(v).trim()};`).join(' ')
   return `:root { ${vars} color-scheme: ${document.documentElement.classList.contains('dark') ? 'dark' : 'light'}; }
 html, body { margin: 0; height: 100%; }
-body { font-family: "Nunito Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: transparent; font-size: 13px; }
-* { box-sizing: border-box; }`
+body { font-family: "Nunito Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: transparent; font-size: 13px; overflow: auto; }
+* { box-sizing: border-box; }
+h1, h2, h3 { font-size: 1.25em; line-height: 1.2; margin: 0 0 0.35em; font-weight: 600; }
+p, ul, ol { margin: 0 0 0.5em; }`
 }
 
 /**
@@ -41,10 +44,13 @@ export function HtmlSandbox({ html, title, className }: { html: string; title: s
 
   const srcDoc = useMemo(() => {
     const base = `<meta http-equiv="Content-Security-Policy" content="${CSP}"><style>${themeCss()}</style>`
-    if (/<html[\s>]/i.test(html)) {
-      return /<head[\s>]/i.test(html) ? html.replace(/<head([^>]*)>/i, `<head$1>${base}`) : html.replace(/<html([^>]*)>/i, `<html$1><head>${base}</head>`)
+    // Los scripts, después del contenido: escritos arriba buscaban elementos que aún no existían y el widget
+    // se quedaba mudo. Ver lib/sandboxHtml.ts.
+    const ready = scriptsLast(html)
+    if (/<html[\s>]/i.test(ready)) {
+      return /<head[\s>]/i.test(ready) ? ready.replace(/<head([^>]*)>/i, `<head$1>${base}`) : ready.replace(/<html([^>]*)>/i, `<html$1><head>${base}</head>`)
     }
-    return `<!doctype html><html><head><meta charset="utf-8">${base}</head><body>${html}</body></html>`
+    return `<!doctype html><html><head><meta charset="utf-8">${base}</head><body>${ready}</body></html>`
     // The palette is read through the DOM, so re-run when the colour on screen changes — including when the
     // system flips to dark while the setting stays on «Sistema».
     // eslint-disable-next-line react-hooks/exhaustive-deps
