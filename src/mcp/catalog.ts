@@ -70,11 +70,23 @@ export interface Registrar {
   secret: boolean
   /** Where the deployer creates the client. */
   console: string
+  /** What the company itself will not allow even with a client registered, said before anyone tries. */
+  limit?: string
 }
 
 export const REGISTRARS: Record<RegistrarKey, Registrar> = {
   google: { key: 'google', name: 'Google', env: 'VITE_GOOGLE_CLIENT_ID', secret: false, console: 'https://console.cloud.google.com/apis/credentials' },
-  spotify: { key: 'spotify', name: 'Spotify', env: 'VITE_SPOTIFY_CLIENT_ID', secret: false, console: 'https://developer.spotify.com/dashboard' },
+  spotify: {
+    key: 'spotify',
+    name: 'Spotify',
+    env: 'VITE_SPOTIFY_CLIENT_ID',
+    secret: false,
+    console: 'https://developer.spotify.com/dashboard',
+    // Spotify for Developers, 6 February 2026 («Update on Developer Access and Platform Security»), in force since
+    // 11 February: Development Mode needs a Premium account, one client per developer, up to five authorized people
+    // and fewer endpoints; the extended quota only goes to organizations with at least 250 000 monthly users.
+    limit: 'Spotify solo deja que un cliente en modo desarrollo lo usen hasta cinco personas autorizadas a mano, y exige una cuenta Premium para crearlo; abrirlo a más gente está reservado a empresas con 250 000 usuarios al mes.',
+  },
   github: { key: 'github', name: 'GitHub', env: 'VITE_GITHUB_CLIENT_ID', secret: true, console: 'https://github.com/settings/developers' },
   slack: { key: 'slack', name: 'Slack', env: 'VITE_SLACK_CLIENT_ID', secret: true, console: 'https://api.slack.com/apps' },
   box: { key: 'box', name: 'Box', env: 'VITE_BOX_CLIENT_ID', secret: true, console: 'https://app.box.com/developers/console' },

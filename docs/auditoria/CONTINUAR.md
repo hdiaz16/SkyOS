@@ -428,3 +428,9 @@ publicar. Lo que hay:
   con el papel aún claro para la tinta; el tema oscuro también gana contraste por hora. `daylight.test.ts` sigue
   fijando la mañana en el campo. **Verificado** a las 19:58 en `localhost:5173`: el escritorio en lavanda e índigo.
 - Hector: el SMTP se deja por ahora y las cuentas siguen por registro con contraseña.
+- **Spotify cambió las reglas** (aviso del 6 de febrero de 2026, vigente desde el 11): un cliente en modo desarrollo
+  exige cuenta Premium, es uno por desarrollador, admite hasta cinco personas autorizadas a mano y menos endpoints
+  (búsqueda con límite 10, listas, biblioteca unificada, reproducción, perfil y top; se fueron los «varios»,
+  novedades, categorías y seguir); la cuota extendida es solo para empresas con 250 000 usuarios al mes. `REGISTRARS`
+  lo declara en `limit` y la tarjeta y el diálogo de Spotify ya no dicen «para todo el mundo». Para SkyOS, Spotify solo
+  puede ser un conector personal (Hector y cuatro más) mientras Spotify no cambie eso.

@@ -196,7 +196,7 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
     const secret = registrar.secret ? ` y su secreto en ${registrar.env.replace('_ID', '_SECRET')}` : ''
     const open = await useDialog.getState().confirm({
       title: `Falta registrar la conexión con ${registrar.name}`,
-      description: `${registrar.name} no deja que Sky se registre solo. Quien administra este SkyOS crea un cliente OAuth en la consola de ${registrar.name}, con la URL de retorno ${window.location.origin}/oauth/callback, y pone su id en ${registrar.env}${secret} en Vercel. Desde entonces, para todo el mundo, conectar es un clic.\n\nSi ya tienes tu propio cliente, pégalo en Avanzado.`,
+      description: `${registrar.name} no deja que Sky se registre solo. Quien administra este SkyOS crea un cliente OAuth en la consola de ${registrar.name}, con la URL de retorno ${window.location.origin}/oauth/callback, y pone su id en ${registrar.env}${secret} en Vercel. Desde entonces conectar es un clic${registrar.limit ? ' para quien ese cliente admita' : ' para todo el mundo'}.${registrar.limit ? `\n\n${registrar.limit}` : ''}\n\nSi ya tienes tu propio cliente, pégalo en Avanzado.`,
       confirmLabel: `Abrir la consola de ${registrar.name}`,
     })
     if (open) window.open(registrar.console, '_blank', 'noopener')
@@ -282,7 +282,8 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
           {!connected && gap && (
             <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
               {gap.name} no deja que Sky se registre solo: quien administra esta instalación registra la conexión una vez ({gap.env}) y desde entonces
-              aquí es un clic. Si tienes tu propio cliente de {gap.name}, pégalo en Avanzado.
+              aquí es un clic{gap.limit ? ' para las personas que ese cliente admita' : ''}. Si tienes tu propio cliente de {gap.name}, pégalo en Avanzado.
+              {gap.limit ? ` ${gap.limit}` : ''}
             </p>
           )}
           {busy && (
