@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { play } from './sound'
 import { sessionSuffix } from './session'
+import { useAuth } from './auth'
 
 /**
  * Background work the desktop keeps track of: reading documents, indexing, AI tasks that finish while the
@@ -161,7 +162,9 @@ export const useJobs = create<JobsState>((set, get) => ({
     if (!quiet) play(status === 'error' ? 'error' : 'done')
     // What the notifications permission was asked for at entry: the tab in the background would otherwise
     // miss the chime and the card both. Clicking brings the desktop back and opens what the job made.
-    if (!quiet && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    // …and only while the switch in Ajustes › Cuenta is on: the browser may allow it, the person decides.
+    const wanted = useAuth.getState().current?.profile.permissions?.notifications !== false
+    if (!quiet && wanted && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
         const note = new Notification(finished.title, {
           body: status === 'error' ? finished.detail ?? 'Algo no salió bien' : finished.detail ?? 'Terminado',

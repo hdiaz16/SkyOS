@@ -12,6 +12,16 @@ export interface UserLocation {
 
 export type Permission = 'granted' | 'denied' | 'skipped'
 
+/**
+ * What the person lets Sky use on this device, one switch each. The browser owns the real grants; these say
+ * whether Sky asks for each one and uses it. Absent means never decided: Sky follows what the browser granted.
+ */
+export interface Permissions {
+  microphone: boolean
+  location: boolean
+  notifications: boolean
+}
+
 /** Answers from the onboarding. They shape how Sky talks and how far it acts on its own. */
 export interface UserProfile {
   tone: Tone
@@ -24,6 +34,8 @@ export interface UserProfile {
   voice?: boolean
   /** Whether the after-entry permission offer already happened; the browser owns the real permissions. */
   permissionsOffered?: boolean
+  /** The switches: on means ask once and use; off means leave it alone even where the browser would allow it. */
+  permissions?: Partial<Permissions>
 }
 
 export interface UserRow {

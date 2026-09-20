@@ -102,8 +102,23 @@ export const users = {
 
   touch: (id: string) => systemDb.users.update(id, { lastLoginAt: Date.now() }),
 
-  updateProfile: (id: string, profile: Partial<UserProfile>, current: UserProfile) =>
-    systemDb.users.update(id, { profile: { ...current, ...profile } }),
+  /**
+   * Changes the given profile fields and nothing else, reading the row inside its own transaction. It used to
+   * merge the caller's snapshot and write the whole profile back, so two writers at the same moment — the
+   * weather widget saving the place while the permission switches saved an answer — erased each other's field.
+   */
+  updateProfile: (id: string, patch: Partial<UserProfile>) =>
+    systemDb.transaction('rw', systemDb.users, async () => {
+      const row = await systemDb.users.get(id)
+      if (!row) return
+      const next: Record<string, unknown> = { ...row.profile }
+      // An explicit undefined means «forget it», so the key goes instead of lingering with nothing in it.
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined) delete next[key]
+        else next[key] = value
+      }
+      await systemDb.users.update(id, { profile: next as unknown as UserProfile })
+    }),
 
   markSetupDone: (id: string) => systemDb.users.update(id, { setupPending: false }),
 

@@ -54,6 +54,7 @@ import { users } from '../../system/users'
 import type { Autonomy, Purpose, Tone, UserProfile } from '../../system/db'
 import { useDialog } from '../../state/dialog'
 import { changePassword } from '../../system/account'
+import { PermissionSwitches } from '../system/PermissionSwitches'
 import { MIN_PASSWORD, passwordProblem } from '../../lib/password'
 import { cn, formatBytes } from '../../lib/utils'
 import { Avatar } from '../system/Login'
@@ -500,7 +501,7 @@ function AccountSection() {
   if (!user) return null
 
   const setProfile = async (patch: Partial<UserProfile>) => {
-    await users.updateProfile(user.id, patch, user.profile)
+    await users.updateProfile(user.id, patch)
     await useAuth.getState().refreshCurrent()
   }
 
@@ -578,7 +579,7 @@ function AccountSection() {
         type="button"
         title={user.profile.voice === false ? 'Activar la voz de Sky' : 'Silenciar la voz de Sky'}
         onClick={async () => {
-          await users.updateProfile(user.id, { voice: user.profile.voice === false }, user.profile)
+          await users.updateProfile(user.id, { voice: user.profile.voice === false })
           await useAuth.getState().refreshCurrent()
         }}
         className={cn('flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] transition hover:bg-surface-2', user.profile.voice === false ? 'text-ink-3' : 'text-ink-2 hover:text-ink')}
@@ -614,6 +615,17 @@ function AccountSection() {
       <PreferenceRow label="Te habla" options={TONE_OPTIONS} value={user.profile.tone} onChange={(tone) => void setProfile({ tone })} />
       <PreferenceRow label="Sobre todo para" options={PURPOSE_OPTIONS} value={user.profile.purpose} onChange={(purpose) => void setProfile({ purpose })} />
       <PreferenceRow label="Con tus archivos" options={AUTONOMY_OPTIONS} value={user.profile.autonomy} onChange={(autonomy) => void setProfile({ autonomy })} />
+    </div>
+
+    <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
+      <div>
+        <p className="text-[13px] font-medium text-ink">Permisos</p>
+        <p className="mt-0.5 text-[12px] leading-relaxed text-ink-3">
+          Lo que Sky puede usar en esta computadora, uno por uno o todos. Apagar uno hace que Sky deje de usarlo; el navegador conserva lo que ya concedió, y eso
+          se cambia desde el candado de la barra de direcciones.
+        </p>
+      </div>
+      <PermissionSwitches />
     </div>
     </div>
   )

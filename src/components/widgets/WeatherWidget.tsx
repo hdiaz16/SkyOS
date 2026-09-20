@@ -4,7 +4,7 @@ import { widgets, type Widget } from '../../kernel/widgets'
 import { useDialog } from '../../state/dialog'
 import { useAuth } from '../../system/auth'
 import { users } from '../../system/users'
-import { approximateLocation, currentPosition, describeCode, fetchWeather, geocode, reverseGeocode, type Weather, type WeatherKind } from '../../lib/weather'
+import { GeoError, approximateLocation, currentPosition, describeCode, fetchWeather, geocode, reverseGeocode, type Weather, type WeatherKind } from '../../lib/weather'
 import { rememberSun } from '../../lib/daylight'
 import { cn } from '../../lib/utils'
 
@@ -33,6 +33,8 @@ const dayName = (iso: string, i: number) => (i === 0 ? 'Hoy' : new Date(`${iso}T
 export function WeatherWidget({ widget }: { widget: Widget }) {
   // The person's own place, captured at onboarding, is the default when the widget has none of its own.
   const home = useAuth((s) => s.current?.profile.location)
+  /** Off in Ajustes › Cuenta: the widget never asks the browser for the position, even where it would say yes. */
+  const preciseAllowed = useAuth((s) => s.current?.profile.permissions?.location !== false)
   const own = typeof widget.config.place === 'string' && widget.config.place.length > 0
   const place = own ? (widget.config.place as string) : home?.place ?? ''
   const lat = typeof widget.config.lat === 'number' ? widget.config.lat : own ? undefined : home?.lat
@@ -54,13 +56,16 @@ export function WeatherWidget({ widget }: { widget: Widget }) {
         }
         if (!coords) {
           try {
+            // The switch is Sky's promise: with it off, a browser that would still answer is not even asked, and
+            // the place it once saved is not written back behind the person's back.
+            if (!preciseAllowed) throw new GeoError('denied', 'La ubicación exacta está apagada en Ajustes.')
             coords = await currentPosition()
             const name = await reverseGeocode(coords.lat, coords.lon)
             label = label || name
             // The browser knows where the person is; keep it in the profile so Sky and the other widgets know too.
             const user = useAuth.getState().current
             if (user && !user.profile.location) {
-              await users.updateProfile(user.id, { location: { lat: coords.lat, lon: coords.lon, place: name } }, user.profile)
+              await users.updateProfile(user.id, { location: { lat: coords.lat, lon: coords.lon, place: name } })
               await useAuth.getState().refreshCurrent()
             }
           } catch {
@@ -95,7 +100,7 @@ export function WeatherWidget({ widget }: { widget: Widget }) {
       alive = false
       window.clearInterval(id)
     }
-  }, [widget.id, place, lat, lon])
+  }, [widget.id, place, lat, lon, preciseAllowed])
 
   const choosePlace = async () => {
     const answer = await useDialog.getState().ask({

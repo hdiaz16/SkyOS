@@ -9,7 +9,7 @@ import type { UserLocation } from '../../system/db'
 async function saveLocation(location: UserLocation | undefined): Promise<void> {
   const user = useAuth.getState().current
   if (!user) throw new Error('No hay nadie con sesión iniciada.')
-  await users.updateProfile(user.id, { location }, user.profile)
+  await users.updateProfile(user.id, { location })
   await useAuth.getState().refreshCurrent()
 }
 
