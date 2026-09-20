@@ -428,6 +428,35 @@ publicar. Lo que hay:
   con el papel aún claro para la tinta; el tema oscuro también gana contraste por hora. `daylight.test.ts` sigue
   fijando la mañana en el campo. **Verificado** a las 19:58 en `localhost:5173`: el escritorio en lavanda e índigo.
 - Hector: el SMTP se deja por ahora y las cuentas siguen por registro con contraseña.
+
+## Tanda del 19 de septiembre de 2026 (séptima): el alta de las apps sin mostrarle nada a nadie
+
+- **Nadie ve client id, secreto ni URL del MCP.** Hector vio esos campos en Avanzado y los leyó como algo que cada
+  persona tendría que hacer. Avanzado existe ahora solo para los servidores agregados por URL (su dirección y quitarlo);
+  las apps del catálogo no tienen Avanzado. La tarjeta de una app sin alta dice «Todavía no está disponible aquí… cuando
+  lo esté, entrarás con tu propia cuenta»; Conectar abre un diálogo con esa misma idea y un botón «Ver los pasos» hacia
+  el README (sección Apps conectadas), donde están las instrucciones para quien administra. `manualClient` sigue en el
+  modelo (un cliente pegado antes sigue valiendo) pero ya no tiene interfaz.
+- **El secreto nunca llega al navegador.** `config.ts` ya no lee ningún `VITE_…_CLIENT_SECRET`. El relevo
+  `/api/oauth/proxy` (`withClientSecret` en `api/_lib/relay.ts`) añade el secreto del despliegue al canje del código
+  —solo para los servidores de tokens de GitHub, Slack, Box, Google y Spotify, solo si el `client_id` es el del
+  despliegue y solo si la petición no traía uno— leyendo `GITHUB_CLIENT_SECRET`, etc. (sin VITE_), y de respaldo el
+  `VITE_…_SECRET` que un despliegue anterior dejara, así que el `VITE_GOOGLE_CLIENT_SECRET` que ya está en Vercel sigue
+  sirviendo sin migrar nada. El escritorio (`auth.ts tokenRequest`) manda esos canjes por el relevo a propósito, no
+  solo cuando falla CORS. `relay.test.ts` fija cuándo se añade y cuándo no. **Pendiente**: el puente local (`bridge/`)
+  no inyecta secretos todavía; para probar GitHub en local hay que pasar por producción o añadir la misma regla a
+  `bridge/src/proxy.ts`.
+- **Spotify tras conceder el permiso**: Hector concedió el permiso y el gateway respondió 401 al primer uso (el aviso
+  «sigue pidiendo autorización aunque acabas de concedérsela»). El texto ahora incluye la razón que da el servidor
+  (`error_description`) para saber si es un cliente no admitido en el piloto, un scope o el token. Lo comprobado sin
+  cuenta: el PRM de Spotify publica ocho scopes y se piden todos; el gateway solo acepta en CORS `client-token, origin,
+  content-type, accept`, así que en producción la llamada MCP va por `/api/mcp/proxy`; con un token inválido responde
+  `error="invalid_token"`. Lo que no se pudo comprobar: si el «external pilot» acepta clientes en modo desarrollo. La
+  próxima vez que Hector lo intente, el aviso dirá la razón.
+- **Seleccionar texto**: el escritorio tenía `user-select: none` en todo el cuerpo y no se podía copiar nada, ni de un
+  diálogo ni de Ajustes. Las ventanas (`WindowFrame`) y el diálogo (`PromptDialog`) llevan `select-text`; el
+  escritorio, los iconos y la barra siguen sin selección.
+
 - **Spotify cambió las reglas** (aviso del 6 de febrero de 2026, vigente desde el 11): un cliente en modo desarrollo
   exige cuenta Premium, es uno por desarrollador, admite hasta cinco personas autorizadas a mano y menos endpoints
   (búsqueda con límite 10, listas, biblioteca unificada, reproducción, perfil y top; se fueron los «varios»,

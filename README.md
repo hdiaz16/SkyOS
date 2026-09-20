@@ -51,6 +51,8 @@ curso, con sus criterios de aceptación: [docs/pulido.md](docs/pulido.md).
   pulsarlo, dice cómo se desbloquea desde el candado de la barra de direcciones.
 - El botón Atrás del navegador —el del ratón, Alt+←, el gesto— se queda dentro de SkyOS: en el Navegador vuelve a la
   página anterior; en el resto del escritorio no hace nada, y en ningún caso saca del sitio ni lo recarga.
+- El texto dentro de las ventanas y de los diálogos se puede seleccionar y copiar; el escritorio, los iconos y la barra
+  siguen sin selección, como en un escritorio de verdad.
   Sky se presenta con lo que puedes probar ahora mismo, no con lo que ya respondiste.
 
 **Escritorio**
@@ -152,15 +154,19 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
 - Las herramientas de cada app llegan a Sky como `mcp_<app>__<herramienta>`, con su `ttlMs` respetado en caché.
 - Transporte Streamable HTTP dual: revisión 2026-07-28 (sin sesiones, `_meta` por petición, cabeceras
   `Mcp-Method`/`Mcp-Name`) con retroceso automático a las revisiones 2025 (`initialize` + `Mcp-Session-Id`).
-- Un clic, o la verdad. Dropbox, Notion, Evernote, Todoist y Zapier registran a Sky al vuelo (registro dinámico o
-  Client ID Metadata Documents): conectar es un clic. Google, Spotify, GitHub, Slack y Box no lo permiten —comprobado
-  contra los metadatos que publica cada servidor de autorización el 19 de septiembre de 2026—: quien despliega SkyOS
-  registra **una vez** un cliente OAuth en la consola de cada uno (URL de retorno `<origen>/oauth/callback`) y lo pone
-  en `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID` o
-  `VITE_BOX_CLIENT_ID` (GitHub, Slack y Box exigen además `_SECRET`; Google y Spotify aceptan clientes públicos con
-  PKCE). Desde entonces, para todo el mundo, es un clic. Mientras no esté, la tarjeta dice quién lo registra y el botón
-  no promete, en vez de pedirle a la persona un client id que no sabe dónde conseguir; en Avanzado cabe un cliente
-  propio, y en las apps que se registran solas Avanzado solo muestra la URL.
+- Cada persona entra con su propia cuenta, siempre. Dropbox, Notion, Evernote, Todoist y Zapier registran a Sky al
+  vuelo (registro dinámico o Client ID Metadata Documents): conectar es un clic sin configurar nada. Google, Spotify,
+  GitHub, Slack y Box no lo permiten —comprobado contra los metadatos que publica cada servidor de autorización el 19
+  de septiembre de 2026—: quien despliega SkyOS da de alta la aplicación **una vez** en la consola de cada uno (URL de
+  retorno `<origen>/oauth/callback`) y pone su id en `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`,
+  `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID` o `VITE_BOX_CLIENT_ID`. Ese id identifica a la aplicación, es público
+  y no da acceso a ninguna cuenta. Donde el servidor además exige un secreto (GitHub, Slack, Box, clientes web de Google),
+  el secreto va **sin** prefijo VITE_ (`GITHUB_CLIENT_SECRET`…): se queda en el servidor y el relevo `/api/oauth/proxy`
+  lo añade al canje del código; el navegador nunca lo tiene. Nadie ve ids ni secretos en pantalla: la tarjeta de una
+  app aún sin alta dice que todavía no está disponible y que cada quien entrará con su cuenta cuando lo esté; Avanzado
+  existe solo para los servidores que alguien agregó por URL (su dirección y quitarlo). Spotify, además, limita cada
+  cliente en modo desarrollo a cinco personas y exige Premium; para más gente hace falta ser una empresa con 250 000
+  usuarios al mes.
 - Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
   (p. ej. `ms-365-mcp-server`) por URL.
 - Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores.
@@ -190,8 +196,8 @@ que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la m
 | `AI_RELAY_HOSTS` | opcional | Hosts extra a los que `/api/ai/proxy` puede llevar la llave de la persona; Z.ai ya va incluido. Sin `VITE_`. |
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | puestas | Encienden las cuentas (correo + contraseña). En Supabase, «Confirm email» debe estar **apagado** mientras no haya SMTP propio; si está encendido, SkyOS lo detecta y sigue con perfiles locales hasta que se apague. |
 | `VITE_ACCOUNTS_MAIL` | vacía | Ponla en `1` cuando Supabase tenga SMTP propio y la plantilla `supabase/templates/magic-link.html`: entrar pasa a ser correo + código de seis dígitos. |
-| `VITE_GOOGLE_CLIENT_ID` / `_SECRET` | opcional | Con esto conectar Drive, Docs, Gmail y Calendar es un clic para todo el mundo. |
-| `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` / `_SECRET`, `VITE_SLACK_CLIENT_ID` / `_SECRET`, `VITE_BOX_CLIENT_ID` / `_SECRET` | opcional | Lo mismo para Spotify, GitHub, Slack y Box, que tampoco registran clientes al vuelo. Un `_SECRET` con prefijo `VITE_` viaja en el paquete: en un sitio público deja de ser secreto. |
+| `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID`, `VITE_BOX_CLIENT_ID` | opcional | El alta de SkyOS como aplicación en cada servicio; con el id puesto, cada persona conecta su propia cuenta con un clic. Públicos por diseño. |
+| `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `SLACK_CLIENT_SECRET`, `BOX_CLIENT_SECRET` | opcional | Sin `VITE_`: se quedan en el servidor y `/api/oauth/proxy` los añade al canje del código. El navegador nunca los tiene. |
 | `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |
 
 **Dominio en GoDaddy.** En Vercel: Project → Settings → Domains → añadir `sky-os.cloud` y `www.sky-os.cloud`.

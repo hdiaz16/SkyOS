@@ -78,6 +78,14 @@ y sigue con perfiles locales, con aviso: nadie queda fuera por una configuració
 manda además cabeceras de seguridad: HSTS, `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy` y una
 `Permissions-Policy` que apaga cámara, pagos, USB, serie, Bluetooth y MIDI.
 
+**Los secretos de las apps conectadas.** Para conectar Google, GitHub, Slack, Box o Spotify hace falta que SkyOS esté
+dado de alta como aplicación en cada uno. El id de ese alta es público por diseño y viaja en el paquete; el secreto,
+donde el servicio lo exige, **nunca** llega al navegador: vive en el entorno del despliegue sin prefijo `VITE_` y el
+relevo `/api/oauth/proxy` lo añade al canje del código, solo para el cliente de este despliegue y solo hacia los
+servidores de tokens de esos servicios. La pantalla no muestra ids, secretos ni direcciones de servidores MCP: una app
+sin alta dice que todavía no está disponible. Los tokens que cada persona obtiene son suyos, en su navegador; el alta
+de la aplicación no da acceso a ninguna cuenta.
+
 ## Lo que **no** protege
 
 Esto importa tanto como lo anterior.
