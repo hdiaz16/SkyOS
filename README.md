@@ -169,8 +169,10 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   existe solo para los servidores que alguien agregó por URL (su dirección y quitarlo). Spotify, además, limita cada
   cliente en modo desarrollo a cinco personas y exige Premium; para más gente hace falta ser una empresa con 250 000
   usuarios al mes. Y su servidor MCP es un piloto cerrado: el 19 de septiembre de 2026 respondía «RBAC: access denied»
-  a un token válido de esta aplicación, así que la tarjeta lo avisa antes de conectar, y el aviso de una conexión
-  rechazada dice la razón del servidor en vez de pedir que vuelvas a conectar.
+  a un token válido de esta aplicación. Por eso SkyOS lleva su propio servidor MCP para Spotify (`api/mcp/spotify`),
+  que habla con la Web API con el token de cada persona: buscar, playlists, biblioteca y reproducción, dentro de lo que
+  el modo desarrollo permite. Sky sigue hablando MCP; solo cambia quién está del otro lado. Cuando un servidor rechaza
+  la app, el aviso dice la razón del servidor en vez de pedir que vuelvas a conectar.
 - Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
   (p. ej. `ms-365-mcp-server`) por URL.
 - Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores.
@@ -201,7 +203,7 @@ que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la m
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | puestas | Encienden las cuentas (correo + contraseña). En Supabase, «Confirm email» debe estar **apagado** mientras no haya SMTP propio; si está encendido, SkyOS lo detecta y sigue con perfiles locales hasta que se apague. |
 | `VITE_ACCOUNTS_MAIL` | vacía | Ponla en `1` cuando Supabase tenga SMTP propio y la plantilla `supabase/templates/magic-link.html`: entrar pasa a ser correo + código de seis dígitos. |
 | `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID`, `VITE_BOX_CLIENT_ID` | opcional | El alta de SkyOS como aplicación en cada servicio; con el id puesto, cada persona conecta su propia cuenta con un clic. Públicos por diseño. |
-| `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `SLACK_CLIENT_SECRET`, `BOX_CLIENT_SECRET` | opcional | Sin `VITE_`: se quedan en el servidor y `/api/oauth/proxy` los añade al canje del código. El navegador nunca los tiene. En Vercel, guárdalos como variables sensibles (`--sensitive`). |
+| `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `SPOTIFY_CLIENT_SECRET`, `SLACK_CLIENT_SECRET`, `BOX_CLIENT_SECRET` | opcional | Sin `VITE_`: se quedan en el servidor y `/api/oauth/proxy` los añade al canje del código. El navegador nunca los tiene. En Vercel, guárdalos como variables sensibles (`--sensitive`). |
 | `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |
 
 **Dominio en GoDaddy.** En Vercel: Project → Settings → Domains → añadir `sky-os.cloud` y `www.sky-os.cloud`.

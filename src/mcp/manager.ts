@@ -51,7 +51,20 @@ const DEPARTURE_MS = 1100
 /* ---------- records ---------- */
 
 async function reload(): Promise<McpServerRecord[]> {
-  const servers = await mcpStore.servers.list()
+  let servers = await mcpStore.servers.list()
+  // A catalog entry may move house (Spotify went from its closed pilot gateway to the desktop's own server): the
+  // stored address follows, the tokens stay — same authorization server, same account — and the next contact
+  // reads the tools again from scratch.
+  const moved = servers.flatMap((s) => {
+    const home = s.catalogId ? catalogFor(s.catalogId)?.url : undefined
+    return home && home !== s.url ? [{ id: s.id, url: home }] : []
+  })
+  if (moved.length) {
+    for (const { id, url } of moved) {
+      await mcpStore.servers.patch(id, { url, era: undefined, protocolVersion: undefined, serverInfo: undefined, tools: undefined, toolsFetchedAt: undefined, updatedAt: Date.now() })
+    }
+    servers = await mcpStore.servers.list()
+  }
   useMcp.setState({ servers, loaded: true })
   return servers
 }

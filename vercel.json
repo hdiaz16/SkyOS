@@ -1,5 +1,8 @@
 {
-  "rewrites": [{ "source": "/oauth/callback", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/oauth/callback", "destination": "/index.html" },
+    { "source": "/.well-known/oauth-protected-resource/api/mcp/spotify", "destination": "/api/mcp/spotify?prm=1" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

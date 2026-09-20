@@ -84,7 +84,8 @@ donde el servicio lo exige, **nunca** llega al navegador: vive en el entorno del
 relevo `/api/oauth/proxy` lo añade al canje del código, solo para el cliente de este despliegue y solo hacia los
 servidores de tokens de esos servicios. La pantalla no muestra ids, secretos ni direcciones de servidores MCP: una app
 sin alta dice que todavía no está disponible. Los tokens que cada persona obtiene son suyos, en su navegador; el alta
-de la aplicación no da acceso a ninguna cuenta.
+de la aplicación no da acceso a ninguna cuenta. El servidor MCP propio para Spotify (`/api/mcp/spotify`) reenvía el token de
+cada persona solo a `api.spotify.com`, no guarda nada y no lleva secretos; el canje del código sigue pasando por el relevo.
 
 ## Lo que **no** protege
 

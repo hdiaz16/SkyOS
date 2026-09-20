@@ -1,5 +1,8 @@
-import { OAUTH_CLIENTS, type RegistrarKey, type ShippedClient } from '../config'
+import { APP_ORIGIN, OAUTH_CLIENTS, type RegistrarKey, type ShippedClient } from '../config'
 import type { Preregistered } from './auth'
+
+/** A server this deployment runs itself, next to the desktop: same origin as the page, so no CORS and no relay. */
+const ownServer = (path: string): string => `${(typeof window !== 'undefined' ? window.location.origin : APP_ORIGIN) || 'http://localhost'}${path}`
 
 /**
  * The apps Sky knows out of the box: every one is an official remote MCP server, so Sky needs nothing but
@@ -255,18 +258,21 @@ export const CATALOG: CatalogEntry[] = [
     id: 'spotify',
     name: 'Spotify',
     category: 'music',
-    tagline: 'Descubrir música y recomendaciones desde el escritorio.',
-    abilities: ['Buscar música', 'Recomendaciones', 'Playlists'],
+    tagline: 'Buscar música, tus playlists y tu biblioteca, y controlar lo que suena.',
+    abilities: ['Buscar música', 'Playlists y biblioteca', 'Reproducción'],
     color: '#1DB954',
     abbr: 'Sp',
     keywords: ['spotify', 'música', 'musica', 'canción', 'cancion', 'canciones', 'playlist', 'artista', 'álbum', 'album', 'podcast'],
     webUrl: 'https://open.spotify.com',
-    url: 'https://mcp-gateway-external-pilot.spotify.net/mcp',
+    // Spotify's own MCP server is a closed pilot: probed on 19 September 2026, it answered a valid token of this
+    // application with 403 «RBAC: access denied» while the Web API took the same token. So the desktop talks to a
+    // small MCP server of its own (`api/mcp/spotify`) that speaks Web API on the other side. The OAuth is still
+    // Spotify's, and each person still signs in with their own account.
+    url: ownServer('/api/mcp/spotify'),
     registrar: 'spotify',
-    docsUrl: 'https://mcpservers.org/remote-mcp-servers/spotify',
-    // Probed on 19 September 2026: the gateway answers a valid token of this application with 403 «RBAC: access
-    // denied» —the same token is fine for the Web API— so the pilot only serves the clients Spotify admitted.
-    notice: 'El servidor MCP de Spotify está en un piloto cerrado: hoy responde «RBAC: access denied» a esta aplicación aunque concedas el permiso, así que conectar termina en ese aviso mientras Spotify no la admita.',
+    featuredTools: ['search', 'now_playing', 'play', 'my_playlists', 'saved_tracks'],
+    docsUrl: 'https://developer.spotify.com/documentation/web-api',
+    notice: 'Spotify tiene su servidor MCP en un piloto cerrado, así que SkyOS habla con la Web API de Spotify a través de un servidor MCP propio. En modo desarrollo, Spotify admite hasta cinco personas dadas de alta por quien registró la app, y reproducir requiere Premium.',
   },
   {
     id: 'rube',

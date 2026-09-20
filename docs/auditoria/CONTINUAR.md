@@ -488,3 +488,35 @@ publicar. Lo que hay:
   navegador, para poder probar esas notas solas. De paso, el relevo solo añade el secreto a `authorization_code` y
   `refresh_token`: un `client_credentials` con nuestro id público ya no sale firmado (con Box habría dado un token de
   empresa a cualquiera que supiera el id).
+
+## Tanda del 20 de septiembre de 2026: Spotify por la Web API, con un servidor MCP propio
+
+Hector volvió con «Spotify no me funciona» y preguntó si, ya que el MCP de Spotify no sirve, se podía ir por la API
+directa. Se pudo, sin romper la regla de la casa (todo por MCP): el escritorio sigue hablando MCP; lo que cambió es
+quién está del otro lado.
+
+- **`api/mcp/spotify`** (edge, `api/_lib/spotify-mcp.ts`): un servidor MCP sin estado que traduce a la Web API. Reta
+  con 401 y `resource_metadata` como cualquier servidor remoto; los metadatos del recurso viven en
+  `/.well-known/oauth-protected-resource/api/mcp/spotify` (reescritura en `vercel.json` a `?prm=1`) y apuntan a
+  `accounts.spotify.com` con los scopes que usan las herramientas. Atiende las dos eras del transporte de Sky: la
+  moderna (sin handshake, `serverInfo` en `_meta`) y la de `initialize` (2025-03-26 … 2025-11-25). El Bearer de la
+  persona va a `api.spotify.com` y a ningún otro sitio. Un 401 de Spotify vuelve como reto `invalid_token`, para que
+  el cliente renueve; un 403 o 404 se vuelve un error de herramienta legible (Premium, sin dispositivo, persona no
+  dada de alta), nunca un HTTP 403 que la tarjeta leería como «aplicación no admitida».
+- **Herramientas** (18): search (máximo diez, límite del modo desarrollo), profile, now_playing, play, pause,
+  next_track, previous_track, queue_add, devices, my_playlists, playlist_items, create_playlist, add_to_playlist,
+  saved_tracks, save_tracks, remove_saved_tracks, top_items, recently_played. Las respuestas van resumidas (nombre,
+  artistas, álbum, duración, uri, enlace), no el JSON entero de Spotify. Ids y URIs se validan antes de salir, y se
+  aceptan enlaces de open.spotify.com. Sin recomendaciones ni novedades: Spotify las quitó del modo desarrollo.
+- **Catálogo**: la entrada de Spotify apunta a `ownServer('/api/mcp/spotify')` (mismo origen que la página: sin CORS
+  ni relevo), con `featuredTools` y un `notice` que explica el piloto cerrado y los límites (cinco personas, Premium).
+  `reload()` en `manager.ts` mueve los registros guardados cuya entrada del catálogo cambió de dirección: la URL
+  nueva, los tokens intactos (mismo servidor de autorización, misma cuenta) y las herramientas se releen. Así la
+  conexión que Hector ya tenía empieza a funcionar sin volver a pedir permiso.
+- **Pruebas**: `api/_lib/spotify-mcp.test.ts` con un `fetch` falso: metadatos, reto sin token, `invalid_token`,
+  initialize, notificación 202, tools/list, search, 204 de now_playing, 403 legible, validación de URIs y enlaces,
+  create_playlist en dos pasos. 20 archivos, 166 pruebas.
+- **Pendiente**: el puente local (`bridge/`) no monta este servidor; en desarrollo la tarjeta de Spotify apunta a
+  `http://localhost:5173/api/mcp/spotify`, que Vite no sirve. Para probarlo en local, `vercel dev` o montar el mismo
+  módulo en el puente. La comprobación de punta a punta con una cuenta real la hace Hector (dueño de la app, ya dado
+  de alta); desde aquí se comprobó con un token de aplicación (`client_credentials`) contra producción.
