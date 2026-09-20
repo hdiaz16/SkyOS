@@ -225,8 +225,12 @@ export const mcp = {
         // Right after a consent page is not the moment to open another one: a server that keeps rejecting the
         // token it just issued used to put the desktop in a redirect loop nobody inside could leave.
         if (!interactive) {
-          await markAttention(record, 'No aceptó el permiso recién concedido. Vuelve a conectar la app.').catch(() => undefined)
-          throw new McpError('auth_required', `${record.name} sigue pidiendo autorización aunque acabas de concedérsela. Vuelve a probar desde Apps conectadas.`)
+          // The server's own words travel with the message: «Invalid access token» from a gateway that does not
+          // take this client is not the same problem as a missing scope, and the person is the one who tells us.
+          const why = parseChallenge(err.challenge).errorDescription
+          const said = why ? ` (${why})` : ''
+          await markAttention(record, `No aceptó el permiso recién concedido${said}. Vuelve a conectar la app.`).catch(() => undefined)
+          throw new McpError('auth_required', `${record.name} sigue pidiendo autorización aunque acabas de concedérsela${said}. Vuelve a probar desde Apps conectadas.`)
         }
         setBusy(id, 'Esperando tu permiso…')
         const challenge = parseChallenge(err.challenge)

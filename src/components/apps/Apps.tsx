@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, ChevronDown, ExternalLink, LayoutGrid, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useToasts } from '../../kernel/commands'
-import { CATALOG, CATEGORIES, REGISTRARS, categoryFor, registrationGap, type CatalogEntry, type CategoryId, type Registrar } from '../../mcp/catalog'
+import { CATALOG, CATEGORIES, categoryFor, registrationGap, type CatalogEntry, type CategoryId, type Registrar } from '../../mcp/catalog'
 import { useDialog } from '../../state/dialog'
 import { mcp, useMcp } from '../../mcp/manager'
 import { McpError, type McpServerRecord } from '../../mcp/types'
@@ -189,17 +189,17 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
   const gap = registrationGap(item.entry, record)
 
   /**
-   * A disabled Conectar read as a broken button. Pressed, it now says what is missing and where it is done: the
-   * deployer registers one client, once — and here the person pressing is very often that deployer.
+   * A disabled Conectar read as a broken button; a dialog full of client ids and variable names read as something
+   * every person had to do. Pressed, it now says the one thing a person needs to know — not available here yet,
+   * their own account will do the day it is — and points whoever administers the site to the written steps.
    */
   const explainGap = async (registrar: Registrar) => {
-    const secret = registrar.secret ? ` y su secreto en ${registrar.env.replace('_ID', '_SECRET')}` : ''
     const open = await useDialog.getState().confirm({
-      title: `Falta dar de alta SkyOS en ${registrar.name}`,
-      description: `Cada persona entra con su propia cuenta de ${registrar.name}; nadie comparte la de nadie. Lo que ${registrar.name} pide es que la aplicación, SkyOS, esté registrada una vez: en su consola se crea un cliente OAuth con la URL de retorno ${window.location.origin}/oauth/callback y su id se pone en ${registrar.env}${secret} en Vercel. Ese id identifica a la aplicación, no a una persona, y no da acceso a ninguna cuenta. Desde entonces, cada quien conecta la suya con un clic${registrar.limit ? ', mientras ese cliente lo admita' : ''}.${registrar.limit ? `\n\n${registrar.limit}` : ''}\n\nSi ya tienes tu propio cliente, pégalo en Avanzado.`,
-      confirmLabel: `Abrir la consola de ${registrar.name}`,
+      title: `${registrar.name} todavía no está disponible aquí`,
+      description: `Cuando lo esté, entrarás con tu propia cuenta de ${registrar.name}, como en las demás apps. Lo que falta es que quien administra este sitio dé de alta a SkyOS como aplicación en ${registrar.name}, una sola vez.${registrar.limit ? `\n\n${registrar.limit}` : ''}\n\nLos pasos para quien administra están en la documentación del proyecto, en «Apps conectadas».`,
+      confirmLabel: 'Ver los pasos',
     })
-    if (open) window.open(registrar.console, '_blank', 'noopener')
+    if (open) window.open('https://github.com/hdiaz16/SkyOS#apps-conectadas-mcp', '_blank', 'noopener')
   }
 
   const connect = async () => {
@@ -281,9 +281,8 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
               own client. */}
           {!connected && gap && (
             <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-              Entrarás con tu propia cuenta de {gap.name}, como en todas las apps. Lo que falta es que SkyOS esté dado de alta como aplicación en{' '}
-              {gap.name}, una sola vez, por quien administra este sitio: {gap.name} no deja que una app se dé de alta sola. Pulsa Conectar para ver qué
-              hace falta.{gap.limit ? ` ${gap.limit}` : ''}
+              Todavía no está disponible aquí: falta que quien administra este sitio dé de alta a SkyOS en {gap.name}, una sola vez. Cuando lo esté,
+              entrarás con tu propia cuenta de {gap.name}.{gap.limit ? ` ${gap.limit}` : ''}
             </p>
           )}
           {busy && (
@@ -332,9 +331,11 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
             <ExternalLink className="h-3 w-3" />
           </a>
         )}
-        <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-[11px] text-ink-3 transition hover:text-ink">
-          Avanzado
-        </button>
+        {!item.entry && (
+          <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-[11px] text-ink-3 transition hover:text-ink">
+            Avanzado
+          </button>
+        )}
       </div>
 
       {showTools && record?.tools && (
@@ -354,24 +355,21 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
   )
 }
 
-/* ---------- advanced: url and hand-registered client ---------- */
+/* ---------- advanced: the address of a server somebody added by URL ---------- */
 
+/**
+ * Only for servers somebody added by URL: the address is theirs to correct and the entry theirs to remove. The
+ * catalog apps have nothing here — their address is the catalog's, and the registration some of them need
+ * belongs to the deployment, never to a field a person could see. Client ids and secrets used to be typed here.
+ */
 function Advanced({ item, onDone }: { item: AppItem; onDone: () => void }) {
   const [url, setUrl] = useState(item.url)
-  const [clientId, setClientId] = useState(item.record?.manualClient?.clientId ?? '')
-  const [clientSecret, setClientSecret] = useState(item.record?.manualClient?.clientSecret ?? '')
-  const custom = !item.entry
-  const registrar = item.entry?.registrar ? REGISTRARS[item.entry.registrar] : undefined
-  /** Only servers that take clients registered by hand have anything to paste; the rest register Sky on their own. */
-  const handClient = custom || !!registrar
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
     try {
-      const manual = clientId.trim() ? { clientId: clientId.trim(), clientSecret: clientSecret.trim() || undefined } : undefined
-      const changedClient = (manual?.clientId ?? '') !== (item.record?.manualClient?.clientId ?? '') || (manual?.clientSecret ?? '') !== (item.record?.manualClient?.clientSecret ?? '')
-      await mcp.update(item.id, { url: url.trim(), ...(changedClient ? { manualClient: manual } : {}) })
-      useToasts.getState().push({ message: 'Guardado. Si cambiaste algo, vuelve a conectar la app.', kind: 'info' })
+      await mcp.update(item.id, { url: url.trim() })
+      useToasts.getState().push({ message: 'Guardado. Si cambiaste la URL, vuelve a conectar la app.', kind: 'info' })
       onDone()
     } catch (err) {
       useToasts.getState().push({ message: err instanceof Error ? err.message : 'No se pudo guardar', kind: 'error' })
@@ -383,25 +381,6 @@ function Advanced({ item, onDone }: { item: AppItem; onDone: () => void }) {
       <Field label="URL del servidor MCP">
         <input value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
       </Field>
-      {handClient ? (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label={registrar ? `Client id de ${registrar.name} (opcional)` : 'Client id (opcional)'}>
-              <input value={clientId} onChange={(e) => setClientId(e.target.value)} spellCheck={false} placeholder="Solo si tienes un cliente propio" className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
-            </Field>
-            <Field label="Client secret (opcional)">
-              <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="off" className="h-8 w-full rounded-lg border border-line bg-surface-solid px-2.5 font-mono text-[12px] text-ink outline-none focus:border-accent" />
-            </Field>
-          </div>
-          <p className="text-[11px] leading-relaxed text-ink-3">
-            {registrar
-              ? `Solo si tienes tu propio cliente OAuth de ${registrar.name}. Si no sabes qué es esto, no hace falta: la conexión la registra una vez quien administra esta instalación y desde entonces es un clic.`
-              : 'Sky se identifica solo ante el servidor de autorización (Client ID Metadata Documents o registro dinámico). Estos campos son solo para servidores que exigen un cliente registrado a mano.'}
-          </p>
-        </>
-      ) : (
-        <p className="text-[11px] leading-relaxed text-ink-3">Esta app registra a Sky sola ante su servidor de autorización: no hay ningún dato que pegar, solo la URL si cambia.</p>
-      )}
       <div className="flex items-center gap-2">
         <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110">
           Guardar
@@ -410,16 +389,14 @@ function Advanced({ item, onDone }: { item: AppItem; onDone: () => void }) {
           Cancelar
         </button>
         <span className="flex-1" />
-        {custom && (
-          <button
-            type="button"
-            onClick={() => void mcp.remove(item.id).then(() => useToasts.getState().push({ message: `${item.name} eliminado`, kind: 'info' }))}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-3 transition hover:bg-danger/10 hover:text-danger"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Eliminar
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => void mcp.remove(item.id).then(() => useToasts.getState().push({ message: `${item.name} eliminado`, kind: 'info' }))}
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-3 transition hover:bg-danger/10 hover:text-danger"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Eliminar
+        </button>
       </div>
     </form>
   )
