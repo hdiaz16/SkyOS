@@ -162,7 +162,9 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID` o `VITE_BOX_CLIENT_ID`. Ese id identifica a la aplicación, es público
   y no da acceso a ninguna cuenta. Donde el servidor además exige un secreto (GitHub, Slack, Box, clientes web de Google),
   el secreto va **sin** prefijo VITE_ (`GITHUB_CLIENT_SECRET`…): se queda en el servidor y el relevo `/api/oauth/proxy`
-  lo añade al canje del código; el navegador nunca lo tiene. Nadie ve ids ni secretos en pantalla: la tarjeta de una
+  lo añade al canje del código; el navegador nunca lo tiene. En Vercel conviene guardarlo como variable **sensible**
+  (`vercel env add GITHUB_CLIENT_SECRET production --sensitive`): así ni el panel ni `vercel env pull` lo vuelven a
+  mostrar. Nadie ve ids ni secretos en pantalla: la tarjeta de una
   app aún sin alta dice que todavía no está disponible y que cada quien entrará con su cuenta cuando lo esté; Avanzado
   existe solo para los servidores que alguien agregó por URL (su dirección y quitarlo). Spotify, además, limita cada
   cliente en modo desarrollo a cinco personas y exige Premium; para más gente hace falta ser una empresa con 250 000
@@ -197,7 +199,7 @@ que un navegador solo no puede (hay una copia para desarrollo en `bridge/`, la m
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | puestas | Encienden las cuentas (correo + contraseña). En Supabase, «Confirm email» debe estar **apagado** mientras no haya SMTP propio; si está encendido, SkyOS lo detecta y sigue con perfiles locales hasta que se apague. |
 | `VITE_ACCOUNTS_MAIL` | vacía | Ponla en `1` cuando Supabase tenga SMTP propio y la plantilla `supabase/templates/magic-link.html`: entrar pasa a ser correo + código de seis dígitos. |
 | `VITE_GOOGLE_CLIENT_ID`, `VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_SLACK_CLIENT_ID`, `VITE_BOX_CLIENT_ID` | opcional | El alta de SkyOS como aplicación en cada servicio; con el id puesto, cada persona conecta su propia cuenta con un clic. Públicos por diseño. |
-| `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `SLACK_CLIENT_SECRET`, `BOX_CLIENT_SECRET` | opcional | Sin `VITE_`: se quedan en el servidor y `/api/oauth/proxy` los añade al canje del código. El navegador nunca los tiene. |
+| `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `SLACK_CLIENT_SECRET`, `BOX_CLIENT_SECRET` | opcional | Sin `VITE_`: se quedan en el servidor y `/api/oauth/proxy` los añade al canje del código. El navegador nunca los tiene. En Vercel, guárdalos como variables sensibles (`--sensitive`). |
 | `VITE_MS_CLIENT_ID` | opcional | Lo mismo para sincronizar con OneDrive. |
 
 **Dominio en GoDaddy.** En Vercel: Project → Settings → Domains → añadir `sky-os.cloud` y `www.sky-os.cloud`.

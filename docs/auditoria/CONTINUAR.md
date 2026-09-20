@@ -463,3 +463,14 @@ publicar. Lo que hay:
   novedades, categorías y seguir); la cuota extendida es solo para empresas con 250 000 usuarios al mes. `REGISTRARS`
   lo declara en `limit` y la tarjeta y el diálogo de Spotify ya no dicen «para todo el mundo». Para SkyOS, Spotify solo
   puede ser un conector personal (Hector y cuatro más) mientras Spotify no cambie eso.
+
+- **Alta hecha de Spotify y GitHub** (noche del 19 de septiembre): Hector creó las dos aplicaciones —Spotify en modo
+  desarrollo y la OAuth app «SkyOS» de GitHub, con sus URLs de retorno— y sus ids públicos están en Vercel
+  (`VITE_SPOTIFY_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`); los secretos, en `SPOTIFY_CLIENT_SECRET` y `GITHUB_CLIENT_SECRET`
+  como variables **sensibles** (`vercel env add … --sensitive`): ni el panel ni `vercel env pull` los devuelven.
+  Comprobado en vivo contra `/api/oauth/proxy`: un canje con el id del despliegue y un código inventado recibe de Spotify
+  `invalid_grant` («Invalid authorization code»: credenciales aceptadas, código inválido), y con un id ajeno recibe
+  `invalid_client` (no se añadió ningún secreto). Al revisar el paquete publicado, ojo: los valores de `import.meta.env`
+  van en el chunk `fs-*.js`, no en `index-*.js`; el commit 99657f0 («el redeploy compiló sin las variables») nació de
+  mirar solo `index-*.js`. Siguen sin alta Slack y Box; `VITE_GOOGLE_CLIENT_ID`, `VITE_MS_CLIENT_ID` y `VITE_BRIDGE_URL`
+  existen en producción pero vacías.
