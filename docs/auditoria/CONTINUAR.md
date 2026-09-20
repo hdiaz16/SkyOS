@@ -350,3 +350,19 @@ publicar. Lo que hay:
   apague «Confirm email»; en ese momento la puerta de correo y contraseña aparece sola, sin redesplegar. Primer registro
   real de prueba y su borrado: cuando eso ocurra. También quedó fuera del repo `dist-local/` (175 archivos que entraron
   con `5c31e5b`), con `dist-*/` en `.gitignore`.
+- **Hector apagó «Confirm email» esa misma noche** (`mailer_autoconfirm: true` desde entonces) y la puerta apareció sola
+  en el sitio, sin redesplegar. **Verificado en vivo**: registro real de `prueba.skyos@example.com`, medidor «Fuerte»,
+  pantalla de adopción con el perfil local de prueba del panel ofrecido, «No es mío, quiero uno nuevo», onboarding sin
+  el paso del correo, escritorio «Buenas noches, Prueba», y Ajustes › Cuenta con el correo y el botón «Contraseña». Ese
+  usuario de prueba vive en Authentication › Users del proyecto; se puede borrar cuando se quiera.
+- **La IA incluida nunca había llegado al sitio publicado** (`api/ai`): Vercel enruta `api/ai/[...path].ts` como un solo
+  segmento (`^/api/ai/([^/]+)$`, visto con `vercel build` en local), así que `/api/ai/chat/completions` y
+  `/api/ai/audio/transcriptions` devolvían el NOT_FOUND de la plataforma —la consola del sitio lo enseñaba en cada
+  carga— y el escritorio publicado solo respondía con una llave propia. El manejador vive ahora en `api/_lib/ai.ts` y
+  cada ruta real tiene su archivo de función edge (`api/ai/chat/completions.ts`, `api/ai/audio/transcriptions.ts`); el
+  catch-all sigue para `models` y `proxy`. Las URL de despliegue `*.vercel.app` piden autenticación de Vercel, así que
+  las comprobaciones en vivo van contra `www.sky-os.cloud`. **Verificado en vivo** tras `dcf8e14`: `POST
+  /api/ai/chat/completions` con `openai/gpt-oss-20b` responde 200 desde Groq (95 tokens), `audio/transcriptions` llega a
+  Groq (400 por no ser multipart, ya no NOT_FOUND), `models` 200, y sin `Origin` sigue siendo 403. Nota: la llave
+  incluida ya no tiene los modelos `llama-3.x`; el catálogo del escritorio se lee de `/api/ai/models`, así que no hay
+  nada que tocar. Los ids `llama-3.x` que quedan en `src` son solo listas de respaldo cuando `/models` no responde.
