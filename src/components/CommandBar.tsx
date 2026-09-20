@@ -33,7 +33,9 @@ import { ROOT_ID, fileKind, type FsNode } from '../kernel/types'
 import { USER_WIDGET_TYPES, WIDGET_META } from '../kernel/widgets'
 import { dispatch, undoLast, useToasts } from '../kernel/commands'
 import { useUi } from '../state/ui'
+import { useAuth } from '../system/auth'
 import { AmbientMenu } from './AmbientMenu'
+import { WidgetGallery } from './WidgetGallery'
 import { useWindows } from '../state/windows'
 import { useSession } from '../ai/session'
 import { isAiConfigured, resolveKey, useAiSettings, usesSharedKey } from '../ai/settings'
@@ -229,7 +231,9 @@ export function CommandBar() {
   const aiReady = isAiConfigured(aiSettings)
   const apps = connectedApps(useMcp((s) => s.servers))
   const canSee = aiReady && !!getProvider(aiSettings)?.capabilities.vision
-  const canDictate = dictationAvailable(aiSettings)
+  // Off in Ajustes › Cuenta means Sky leaves the microphone alone, whatever the browser would allow.
+  const micAllowed = useAuth((s) => s.current?.profile.permissions?.microphone !== false)
+  const canDictate = dictationAvailable(aiSettings) && micAllowed
   const dictation = useDictation((text) => {
     setQ((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))
     inputRef.current?.focus()
@@ -688,6 +692,12 @@ export function CommandBar() {
               <Globe className="h-5 w-5" strokeWidth={1.6} />
             </DockButton>
             <AmbientMenu />
+            <WidgetGallery
+              onAsk={(text) => {
+                setQ(text)
+                inputRef.current?.focus()
+              }}
+            />
             <DockButton label="Nueva nota" onClick={() => void createFileAndOpen(ROOT_ID, 'note')}>
               <FilePlus2 className="h-5 w-5" strokeWidth={1.6} />
             </DockButton>
