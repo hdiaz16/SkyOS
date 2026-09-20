@@ -1,6 +1,6 @@
 import { registerCommand } from '../commands'
 import { useAuth } from '../../system/auth'
-import { approximateLocation, describeCode, fetchWeather, geocode } from '../../lib/weather'
+import { approximateLocation, describeCode, fetchWeather, geocode, type Weather } from '../../lib/weather'
 
 /**
  * El escritorio enseñaba el clima en un widget y Sky, al preguntarle qué tiempo haría mañana, contestaba que no
@@ -51,10 +51,45 @@ export function dayLabel(date: string, today: Date = new Date()): string {
   return `el ${name}`
 }
 
+interface Day {
+  when: string
+  date: string
+  min: number
+  max: number
+  sky: string
+}
+
 interface Forecast {
   place: string
   now: { temperature: number; sky: string; humidity: number; wind: number }
-  days: Array<{ when: string; date: string; min: number; max: number; sky: string }>
+  /** Servidos aparte para que contestar «mañana» no dependa de contar filas: el modelo leía la de hoy. */
+  today?: Day
+  tomorrow?: Day
+  days: Day[]
+}
+
+/** Da forma a lo que devuelve Open-Meteo; separada del comando para poder probarla con un pronóstico fijo. */
+export function shapeForecast(weather: Weather, place: string, days: number, today: Date = new Date()): Forecast {
+  const wanted = Math.min(7, Math.max(1, Math.round(days)))
+  const list: Day[] = weather.days.slice(0, wanted).map((d) => ({
+    when: dayLabel(d.date, today),
+    date: d.date,
+    min: Math.round(d.min),
+    max: Math.round(d.max),
+    sky: describeCode(d.code).text,
+  }))
+  return {
+    place,
+    now: {
+      temperature: Math.round(weather.temperature),
+      sky: describeCode(weather.code).text,
+      humidity: Math.round(weather.humidity),
+      wind: Math.round(weather.wind),
+    },
+    today: list.find((d) => d.when === 'hoy'),
+    tomorrow: list.find((d) => d.when === 'mañana'),
+    days: list,
+  }
 }
 
 /** Dónde mirar: lo que pidan, si no donde vive la persona, si no lo que diga la red. */
@@ -77,7 +112,7 @@ registerCommand<{ place?: string; days?: number }, Forecast>({
   keywords: WEATHER_WORDS,
   title: 'Consultar el clima',
   description:
-    'El tiempo de ahora y el pronóstico de los próximos días, donde está la persona o en la ciudad que se indique. Temperaturas en °C, viento en km/h, humedad en %. Cada día viene con su nombre ya resuelto («hoy», «mañana», «el jueves»). Úsalo siempre que pregunten por el clima, la lluvia, la temperatura, el viento o si hace falta paraguas o abrigo: nunca lo contestes de memoria, porque el modelo no sabe qué día es hoy ni dónde está la persona.',
+    'El tiempo de ahora y el pronóstico de los próximos días, donde está la persona o en la ciudad que se indique. Temperaturas en °C, viento en km/h, humedad en %. Para no equivocarte de día, la respuesta trae «today» y «tomorrow» aparte, ya resueltos: si preguntan por mañana, contesta con «tomorrow» y no con la lista. Úsalo siempre que pregunten por el clima, la lluvia, la temperatura, el viento o si hace falta paraguas o abrigo: nunca lo contestes de memoria, porque el modelo no sabe qué día es hoy ni dónde está la persona.',
   params: {
     place: { type: 'string', description: 'Ciudad o lugar. Omítelo para el sitio donde está la persona.' },
     days: { type: 'number', description: 'Cuántos días de pronóstico devolver, de 1 a 7. Por defecto 4 (hoy y los tres siguientes).' },
@@ -85,25 +120,6 @@ registerCommand<{ place?: string; days?: number }, Forecast>({
   async run({ place, days = 4 }) {
     const spot = await where(place)
     const weather = await fetchWeather(spot.lat, spot.lon)
-    const wanted = Math.min(7, Math.max(1, Math.round(days)))
-    const today = new Date()
-    return {
-      result: {
-        place: spot.name,
-        now: {
-          temperature: Math.round(weather.temperature),
-          sky: describeCode(weather.code).text,
-          humidity: Math.round(weather.humidity),
-          wind: Math.round(weather.wind),
-        },
-        days: weather.days.slice(0, wanted).map((d) => ({
-          when: dayLabel(d.date, today),
-          date: d.date,
-          min: Math.round(d.min),
-          max: Math.round(d.max),
-          sky: describeCode(d.code).text,
-        })),
-      },
-    }
+    return { result: shapeForecast(weather, spot.name, days) }
   },
 })
