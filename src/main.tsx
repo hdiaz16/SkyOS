@@ -22,6 +22,7 @@ import { flows } from './kernel/flows'
 import { calculate } from './lib/calc'
 import { useAuth } from './system/auth'
 import { users } from './system/users'
+import { trapBack } from './system/back'
 import { mcp, useMcp } from './mcp/manager'
 import { discoverAuthorizationServer, discoverProtectedResource, obtainClient, parseChallenge } from './mcp/auth'
 
@@ -55,6 +56,8 @@ if (isCallbackPage()) {
   // Work that was still running when the last tab went away could not survive it. Reconciling that is the
   // first thing the desktop does, before anything else can start a job of its own.
   recoverJobs()
+  // The browser's Back stays inside the desktop instead of leaving or reloading it.
+  trapBack()
 
   createRoot(document.getElementById('root')!).render(
     // "Reducir movimiento" es una preferencia del sistema operativo de la persona, no un ajuste más:

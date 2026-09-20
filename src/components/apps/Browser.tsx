@@ -9,6 +9,7 @@ import { dispatch } from '../../kernel/commands'
 import { ROOT_ID, type FsNode } from '../../kernel/types'
 import { GOOGLE_HOME, titleForUrl, toNavigableUrl } from '../../lib/web'
 import { cn } from '../../lib/utils'
+import { onBack } from '../../system/back'
 import { ToolButton } from '../ToolButton'
 import { Markdown } from '../Markdown'
 
@@ -24,6 +25,9 @@ export function BrowserApp({ win }: { win: Win }) {
   const [drifted, setDrifted] = useState(false)
   const loads = useRef(0)
   const lastTarget = useRef(target)
+  /** Where this window has been, so the browser's own Back walks it: every address the bar or Sky opened here. */
+  const past = useRef<string[]>([])
+  const goingBack = useRef(false)
   const aiReady = isAiConfigured(useAiSettings())
 
   /** Point the frame at the address on record: a fresh load, so the load count starts over and whatever the
@@ -46,10 +50,31 @@ export function BrowserApp({ win }: { win: Win }) {
   // as a fresh load of a new address, not as the page wandering off on its own.
   useEffect(() => {
     if (target === lastTarget.current) return
+    if (goingBack.current) goingBack.current = false
+    else past.current.push(lastTarget.current)
     lastTarget.current = target
     setAddress(target)
     retarget()
   }, [target])
+
+  // The mouse's Back, Alt+← or the gesture: when this window is the one on top, it goes back a page here instead
+  // of taking the whole desktop away. A Navegador behind another window leaves the press alone.
+  useEffect(
+    () =>
+      onBack(() => {
+        let top: Win | undefined
+        for (const w of useWindows.getState().windows) if (!w.minimized && (!top || w.z > top.z)) top = w
+        if (top?.id !== win.id) return false
+        const previous = past.current.pop()
+        if (!previous) return false
+        goingBack.current = true
+        const wm = useWindows.getState()
+        wm.setProps(win.id, { url: previous })
+        wm.setTitle(win.id, titleForUrl(previous))
+        return true
+      }),
+    [win.id],
+  )
 
   const navigate = (raw: string) => {
     const url = toNavigableUrl(raw)
