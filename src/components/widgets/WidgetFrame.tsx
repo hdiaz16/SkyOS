@@ -19,14 +19,19 @@ type Geometry = Pick<Widget, 'x' | 'y' | 'w' | 'h'>
 /** Title bar height: whatever else happens, this much of the widget stays where it can be grabbed. */
 const GRAB = 36
 
+interface Viewport {
+  w: number
+  h: number
+}
+
 /**
- * Inside the screen it wakes up on. Only the lower bounds were ever checked, so a smaller screen than last
+ * Inside the screen it is shown on. Only the lower bounds were ever checked, so a smaller screen than last
  * time — or a widget Sky placed at x: 2000 — left it outside the visible area for good: you cannot drag what
  * you cannot see.
  */
-function inside(g: Geometry): Geometry {
-  const maxX = Math.max(0, window.innerWidth - GRAB * 2)
-  const maxY = Math.max(44, window.innerHeight - GRAB)
+function inside(g: Geometry, viewport: Viewport): Geometry {
+  const maxX = Math.max(0, viewport.w - GRAB * 2)
+  const maxY = Math.max(44, viewport.h - GRAB)
   return { ...g, x: Math.min(Math.max(0, g.x), maxX), y: Math.min(Math.max(44, g.y), maxY) }
 }
 
@@ -42,22 +47,25 @@ function placed(widget: Widget, viewportWidth: number): Geometry {
   return { ...base, x: Math.max(0, viewportWidth - widget.anchorRight - widget.w) }
 }
 
-/** The viewport width, kept fresh so pinned widgets can follow the edge while the window is resized. */
-function useViewportWidth(): number {
-  const [width, setWidth] = useState(window.innerWidth)
+/** The viewport, kept fresh so pinned widgets follow the edge and every widget stays in view while the window is resized. */
+function useViewport(): Viewport {
+  const [size, setSize] = useState<Viewport>({ w: window.innerWidth, h: window.innerHeight })
   useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth)
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  return width
+  return size
 }
 
 /** Draggable, resizable tile that hosts a widget on the desktop. Geometry persists on release. */
 export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
-  const viewportWidth = useViewportWidth()
+  const viewport = useViewport()
   const pinned = widget.anchorRight !== undefined && widget.anchorRight !== null
-  const stored: Geometry = placed(widget, viewportWidth)
+  // What is stored, shown where this screen can show it. The clamp is only for the eyes: a smaller window pushes a
+  // widget into view and a bigger one lets it back where it was, and nothing is written for either. Before, the
+  // clamped place was saved on every resize, so shrinking the window moved the widgets for good.
+  const stored: Geometry = inside(placed(widget, viewport.w), viewport)
   // While dragging we render the live geometry; once the stored one catches up we fall back to it.
   const [dragGeo, setDragGeo] = useState<Geometry | null>(null)
   const [interacting, setInteracting] = useState(false)
@@ -71,23 +79,7 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   useEffect(() => {
     if (!interacting) setDragGeo(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widget.x, widget.y, widget.w, widget.h, widget.anchorRight, viewportWidth])
-
-  // On arrival, and whenever the window changes size, anything left outside is brought back within reach —
-  // the same courtesy the desk already does for windows. A pinned widget only needs its height checked: its
-  // horizontal place is computed from the edge every time.
-  useEffect(() => {
-    const fit = () => {
-      const current = placed(widget, window.innerWidth)
-      const next = inside(current)
-      if (next.y !== current.y) void widgetService.place(widget.id, { y: next.y })
-      if (!pinned && next.x !== current.x) void widgetService.place(widget.id, { x: next.x })
-    }
-    fit()
-    window.addEventListener('resize', fit)
-    return () => window.removeEventListener('resize', fit)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widget.id, widget.x, widget.y, widget.w, widget.anchorRight])
+  }, [widget.x, widget.y, widget.w, widget.h, widget.anchorRight, viewport.w, viewport.h])
 
   /** Pinned: keeps its distance to the right edge. Free: keeps its x and drifts with the width. */
   const togglePin = () => void dispatch('widgets.place', { id: widget.id, pinned: !pinned })
@@ -120,7 +112,7 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         setInteracting(false)
-        live.current = inside(live.current)
+        live.current = inside(live.current, viewport)
         setDragGeo(live.current)
         const change = persist(live.current)
         // A pinned widget that was dragged keeps its pin: the new place is remembered as a new distance to the
