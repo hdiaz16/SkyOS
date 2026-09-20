@@ -16,8 +16,6 @@ interface Props {
 
 type Geometry = Pick<Widget, 'x' | 'y' | 'w' | 'h'>
 
-const same = (a: Geometry, b: Geometry) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
-
 /** Title bar height: whatever else happens, this much of the widget stays where it can be grabbed. */
 const GRAB = 36
 
@@ -64,7 +62,16 @@ export function WidgetFrame({ widget, icon: Icon, children, flush }: Props) {
   const [dragGeo, setDragGeo] = useState<Geometry | null>(null)
   const [interacting, setInteracting] = useState(false)
   const live = useRef<Geometry>(stored)
-  const geo = dragGeo && !same(dragGeo, stored) ? dragGeo : stored
+  const geo = dragGeo ?? stored
+
+  // The live geometry is only an override while the stored one catches up with the last drag. It goes as soon as
+  // the widget row changes, or the window is resized with nobody dragging. Before, it stayed on until the stored
+  // geometry happened to equal it exactly — which, for a pinned widget, a resize made impossible — so a widget
+  // that had been dragged once snapped back to that old place on every resize instead of following the edge.
+  useEffect(() => {
+    if (!interacting) setDragGeo(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widget.x, widget.y, widget.w, widget.h, widget.anchorRight, viewportWidth])
 
   // On arrival, and whenever the window changes size, anything left outside is brought back within reach —
   // the same courtesy the desk already does for windows. A pinned widget only needs its height checked: its
