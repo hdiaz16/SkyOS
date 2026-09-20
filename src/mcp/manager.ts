@@ -18,6 +18,7 @@ import {
   type Preregistered,
 } from './auth'
 import { readPending, takeRedirectResult } from './popup'
+import { describeRefusal } from './refusal'
 import { mcpStore } from './store'
 import { StreamableHttp, type TransportState } from './transport'
 import { McpError, type CallToolResult, type ListToolsResult, type McpServerRecord, type McpTool, type OAuthTokens } from './types'
@@ -225,12 +226,12 @@ export const mcp = {
         // Right after a consent page is not the moment to open another one: a server that keeps rejecting the
         // token it just issued used to put the desktop in a redirect loop nobody inside could leave.
         if (!interactive) {
-          // The server's own words travel with the message: «Invalid access token» from a gateway that does not
-          // take this client is not the same problem as a missing scope, and the person is the one who tells us.
-          const why = parseChallenge(err.challenge).errorDescription
-          const said = why ? ` (${why})` : ''
-          await markAttention(record, `No aceptó el permiso recién concedido${said}. Vuelve a conectar la app.`).catch(() => undefined)
-          throw new McpError('auth_required', `${record.name} sigue pidiendo autorización aunque acabas de concedérsela${said}. Vuelve a probar desde Apps conectadas.`)
+          // The server's own words travel with the message, and a 403 is not a 401: a gateway that turns this
+          // application away («RBAC: access denied», Spotify's pilot) does it again after every consent page, so
+          // the note says so instead of sending the person back to the same page.
+          const refusal = describeRefusal(record.name, err, 'connect')
+          await markAttention(record, refusal.attention).catch(() => undefined)
+          throw new McpError(err.code, refusal.message, { status: err.status, challenge: err.challenge, detail: err.detail })
         }
         setBusy(id, 'Esperando tu permiso…')
         const challenge = parseChallenge(err.challenge)
@@ -329,15 +330,10 @@ export const mcp = {
         token = (await renew(record)).accessToken
         return run(token)
       }
-      if (err.code === 'auth_required') {
-        await markAttention(record, 'La sesión ya no es válida. Vuelve a conectar la app.')
-        throw new McpError('auth_required', `La sesión de ${record.name} caducó. Pide a la persona que la vuelva a conectar en Apps conectadas.`)
-      }
-      if (err.code === 'forbidden') {
-        const challenge = parseChallenge(err.challenge)
-        const needed = challenge.scope ? ` Permisos necesarios: ${challenge.scope}.` : ''
-        await markAttention(record, `Necesita más permisos.${needed} Vuelve a conectar la app para concederlos.`)
-        throw new McpError('forbidden', `${record.name} necesita más permisos para eso.${needed} La persona debe reconectar la app en Apps conectadas.`)
+      if (err.code === 'auth_required' || err.code === 'forbidden') {
+        const refusal = describeRefusal(record.name, err)
+        await markAttention(record, refusal.attention)
+        throw new McpError(err.code, refusal.message, { status: err.status, challenge: err.challenge, detail: err.detail })
       }
       throw err
     }
@@ -433,7 +429,7 @@ async function keepAlive(): Promise<void> {
     // "Conectada" for good: the token is still stored and looks valid, and only the server knows it is not.
     await mcp.refreshTools(s.id).catch(async (err: unknown) => {
       if (err instanceof McpError && (err.code === 'auth_required' || err.code === 'forbidden')) {
-        await markAttention(s, `Ya no tengo permiso en ${s.name}. Vuelve a conectarla.`).catch(() => undefined)
+        await markAttention(s, describeRefusal(s.name, err).attention).catch(() => undefined)
       }
       // Anything else — the server down, the network gone — is not the person's problem to solve right now.
     })

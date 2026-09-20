@@ -47,6 +47,8 @@ export interface CatalogEntry {
   preferredScopes?: string[]
   /** Whose authorization server only takes clients registered by hand (see REGISTRARS). Absent: the server registers Sky on its own. */
   registrar?: RegistrarKey
+  /** What the company itself does today, said on the card before anyone clicks: a pilot that turns this application away, for one. */
+  notice?: string
   /** Vendor documentation. */
   docsUrl?: string
   /** Words in a request that point at this app; its tools travel to the model only then (keeps requests small). */
@@ -262,6 +264,9 @@ export const CATALOG: CatalogEntry[] = [
     url: 'https://mcp-gateway-external-pilot.spotify.net/mcp',
     registrar: 'spotify',
     docsUrl: 'https://mcpservers.org/remote-mcp-servers/spotify',
+    // Probed on 19 September 2026: the gateway answers a valid token of this application with 403 «RBAC: access
+    // denied» —the same token is fine for the Web API— so the pilot only serves the clients Spotify admitted.
+    notice: 'El servidor MCP de Spotify está en un piloto cerrado: hoy responde «RBAC: access denied» a esta aplicación aunque concedas el permiso, así que conectar termina en ese aviso mientras Spotify no la admita.',
   },
   {
     id: 'rube',

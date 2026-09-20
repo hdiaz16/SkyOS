@@ -168,7 +168,9 @@ renueva los tokens en segundo plano; la sesión vive en su cuenta de este navega
   app aún sin alta dice que todavía no está disponible y que cada quien entrará con su cuenta cuando lo esté; Avanzado
   existe solo para los servidores que alguien agregó por URL (su dirección y quitarlo). Spotify, además, limita cada
   cliente en modo desarrollo a cinco personas y exige Premium; para más gente hace falta ser una empresa con 250 000
-  usuarios al mes.
+  usuarios al mes. Y su servidor MCP es un piloto cerrado: el 19 de septiembre de 2026 respondía «RBAC: access denied»
+  a un token válido de esta aplicación, así que la tarjeta lo avisa antes de conectar, y el aviso de una conexión
+  rechazada dice la razón del servidor en vez de pedir que vuelvas a conectar.
 - Outlook/Hotmail: Microsoft aún no publica un servidor MCP para cuentas personales; se puede agregar uno propio
   (p. ej. `ms-365-mcp-server`) por URL.
 - Puente opcional (`bridge/`): relevo CORS sin estado para servidores MCP u OAuth que no aceptan navegadores.

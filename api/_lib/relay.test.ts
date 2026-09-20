@@ -14,7 +14,7 @@ describe('el secreto que el navegador nunca tiene', () => {
   })
 
   it('acepta el secreto con prefijo VITE_ que dejó un despliegue anterior', () => {
-    const out = withClientSecret(new URL('https://oauth2.googleapis.com/token'), form('client_id=gid&code=x'), FORM, { VITE_GOOGLE_CLIENT_SECRET: 'g', VITE_GOOGLE_CLIENT_ID: 'gid' })
+    const out = withClientSecret(new URL('https://oauth2.googleapis.com/token'), form('grant_type=authorization_code&client_id=gid&code=x'), FORM, { VITE_GOOGLE_CLIENT_SECRET: 'g', VITE_GOOGLE_CLIENT_ID: 'gid' })
     expect(fields(out).get('client_secret')).toBe('g')
   })
 
@@ -27,6 +27,19 @@ describe('el secreto que el navegador nunca tiene', () => {
     expect(withClientSecret(new URL('https://example.com/token'), body, FORM, { GITHUB_CLIENT_SECRET: 's3' })).toBe(body)
     expect(withClientSecret(github, body, 'application/json', { GITHUB_CLIENT_SECRET: 's3' })).toBe(body)
     expect(withClientSecret(github, undefined, FORM, { GITHUB_CLIENT_SECRET: 's3' })).toBeUndefined()
+  })
+
+  it('no firma un grant sin persona detrás: client_credentials se queda como llegó', () => {
+    const env = { SPOTIFY_CLIENT_SECRET: 's3', VITE_SPOTIFY_CLIENT_ID: 'sid', BOX_CLIENT_SECRET: 'b', VITE_BOX_CLIENT_ID: 'bid' }
+    const spotify = new URL('https://accounts.spotify.com/api/token')
+    const app = form('grant_type=client_credentials&client_id=sid')
+    expect(withClientSecret(spotify, app, FORM, env)).toBe(app)
+    const box = form('grant_type=client_credentials&client_id=bid&box_subject_type=enterprise&box_subject_id=1')
+    expect(withClientSecret(new URL('https://api.box.com/oauth2/token'), box, FORM, env)).toBe(box)
+    const renew = form('grant_type=refresh_token&refresh_token=r&client_id=sid')
+    expect(fields(withClientSecret(spotify, renew, FORM, env)).get('client_secret')).toBe('s3')
+    const noGrant = form('client_id=sid&code=x')
+    expect(withClientSecret(spotify, noGrant, FORM, env)).toBe(noGrant)
   })
 })
 

@@ -172,14 +172,17 @@ export class McpError extends Error {
   readonly status?: number
   /** Raw WWW-Authenticate header, when the server challenged us. */
   readonly challenge?: string
+  /** The server's own words from a refusal body («RBAC: access denied»), when it sent any. */
+  readonly detail?: string
   readonly rpc?: JsonRpcError
 
-  constructor(code: McpErrorCode, message: string, extra: { status?: number; challenge?: string; rpc?: JsonRpcError } = {}) {
+  constructor(code: McpErrorCode, message: string, extra: { status?: number; challenge?: string; detail?: string; rpc?: JsonRpcError } = {}) {
     super(message)
     this.name = 'McpError'
     this.code = code
     this.status = extra.status
     this.challenge = extra.challenge
+    this.detail = extra.detail
     this.rpc = extra.rpc
   }
 }

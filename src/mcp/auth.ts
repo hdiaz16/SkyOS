@@ -2,6 +2,7 @@ import { APP_ORIGIN, BRIDGE_URL, hasBridge } from '../config'
 import { mcpStore } from './store'
 import { authorizeInBrowser, clearPending, redirectUri, savePending, type CallbackParams, type PendingFlow } from './popup'
 import { McpError, type OAuthClient, type OAuthTokens } from './types'
+import { parseChallenge, type Challenge } from './challenge'
 
 /**
  * MCP authorization (spec 2026-07-28, "Authorization"): OAuth 2.1 for public clients.
@@ -40,20 +41,8 @@ const SERVER_SECRET_HOSTS: ReadonlySet<string> = new Set(['github.com', 'slack.c
 
 /* ---------- challenge ---------- */
 
-export interface Challenge {
-  resourceMetadata?: string
-  scope?: string
-  error?: string
-  errorDescription?: string
-}
-
-/** Parses `WWW-Authenticate: Bearer a="b", c="d"` into its parameters. */
-export function parseChallenge(header: string | null | undefined): Challenge {
-  if (!header) return {}
-  const out: Record<string, string> = {}
-  for (const m of header.matchAll(/([a-zA-Z_]+)\s*=\s*(?:"([^"]*)"|([^,\s]+))/g)) out[m[1]] = m[2] ?? m[3]
-  return { resourceMetadata: out.resource_metadata, scope: out.scope, error: out.error, errorDescription: out.error_description }
-}
+// The parser lives in its own module, with nothing of the browser in it, so the notes on a refusal can be tested alone.
+export { parseChallenge, type Challenge }
 
 /* ---------- discovery ---------- */
 

@@ -268,6 +268,13 @@ const SECRET_ENDPOINTS: Array<{ host: string; path: RegExp; env: string; id: str
   { host: 'accounts.spotify.com', path: /^\/api\/token$/, env: 'SPOTIFY_CLIENT_SECRET', id: 'VITE_SPOTIFY_CLIENT_ID' },
 ]
 
+/**
+ * Grants that carry a person's consent: the code from the authorization page or the refresh token it produced.
+ * A `client_credentials` grant carries nobody's, and a relay that signed it would hand the deployment's own token
+ * —an enterprise token, with Box— to whoever names the public client id.
+ */
+const CONSENT_GRANTS: ReadonlySet<string> = new Set(['authorization_code', 'refresh_token'])
+
 const bytesOf = (text: string): ArrayBuffer => {
   const bytes = new TextEncoder().encode(text)
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
@@ -286,6 +293,7 @@ export function withClientSecret(url: URL, body: ArrayBuffer | undefined, conten
   if (!secret) return body
   const form = new URLSearchParams(new TextDecoder().decode(body))
   if (form.has('client_secret')) return body
+  if (!CONSENT_GRANTS.has(form.get('grant_type') ?? '')) return body
   const ours = env[rule.id]?.trim()
   if (ours && form.get('client_id') !== ours) return body
   form.set('client_secret', secret)

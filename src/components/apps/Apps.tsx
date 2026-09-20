@@ -285,6 +285,9 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
               entrarás con tu propia cuenta de {gap.name}.{gap.limit ? ` ${gap.limit}` : ''}
             </p>
           )}
+          {/* What the company itself does today, said before the click: Spotify's MCP pilot turns this application
+              away with «RBAC: access denied» right after the consent page, and nobody should learn that by going round. */}
+          {!connected && !gap && item.entry?.notice && <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">{item.entry.notice}</p>}
           {busy && (
             <p className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

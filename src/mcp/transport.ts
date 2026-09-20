@@ -1,4 +1,5 @@
 import { BRIDGE_URL, hasBridge } from '../config'
+import { serverWords } from './refusal'
 import {
   CLIENT_INFO,
   LEGACY_VERSIONS,
@@ -199,7 +200,7 @@ export class StreamableHttp {
       },
     }
     const res = await this.send(body, this.modernHeaders(method, opts), opts.signal)
-    this.throwOnAuth(res)
+    await this.throwOnAuth(res)
     if (res.status === 400) {
       const err = await this.parseError(res)
       if (err?.code === RPC.unsupportedVersion) {
@@ -252,7 +253,7 @@ export class StreamableHttp {
     const headers: Record<string, string> = {}
     if (opts.token) headers.Authorization = `Bearer ${opts.token}`
     const res = await this.send(body, headers, opts.signal)
-    this.throwOnAuth(res)
+    await this.throwOnAuth(res)
     if (!res.ok) throw await this.httpError(res)
     const session = res.headers.get('mcp-session-id')
     const msg = await this.readResponse(res, id)
@@ -274,7 +275,7 @@ export class StreamableHttp {
     }
     const id = this.nextId++
     const res = await this.send({ jsonrpc: '2.0', id, method, params }, this.legacyHeaders(opts), opts.signal)
-    this.throwOnAuth(res)
+    await this.throwOnAuth(res)
     if (res.status === 404 && !retried) {
       // The session expired server-side; start a new one and try once more.
       this.sessionId = undefined
@@ -286,9 +287,13 @@ export class StreamableHttp {
 
   /* ---------- shared ---------- */
 
-  private throwOnAuth(res: Response): void {
-    if (res.status === 401) throw new McpError('auth_required', 'El servidor pide autorización.', { status: 401, challenge: res.headers.get('www-authenticate') ?? undefined })
-    if (res.status === 403) throw new McpError('forbidden', 'El servidor no permite esta operación con los permisos actuales.', { status: 403, challenge: res.headers.get('www-authenticate') ?? undefined })
+  /** 401 and 403 leave with the challenge and the body's own words: a 403 «RBAC: access denied» carries no WWW-Authenticate at all. */
+  private async throwOnAuth(res: Response): Promise<void> {
+    if (res.status !== 401 && res.status !== 403) return
+    const challenge = res.headers.get('www-authenticate') ?? undefined
+    const detail = await serverWords(res)
+    if (res.status === 401) throw new McpError('auth_required', 'El servidor pide autorización.', { status: 401, challenge, detail })
+    throw new McpError('forbidden', 'El servidor no permite esta operación con los permisos actuales.', { status: 403, challenge, detail })
   }
 
   /** What the number means, in words. «El servidor respondió 502.» is a code, and it is read by a person. */

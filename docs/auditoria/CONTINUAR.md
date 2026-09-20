@@ -474,3 +474,17 @@ publicar. Lo que hay:
   van en el chunk `fs-*.js`, no en `index-*.js`; el commit 99657f0 («el redeploy compiló sin las variables») nació de
   mirar solo `index-*.js`. Siguen sin alta Slack y Box; `VITE_GOOGLE_CLIENT_ID`, `VITE_MS_CLIENT_ID` y `VITE_BRIDGE_URL`
   existen en producción pero vacías.
+
+- **Por qué Spotify «siempre pide volver a conectar»** (madrugada del 20 de septiembre; sondeado sin cuentas
+  personales). Un token de la propia aplicación (`client_credentials`), que la Web API acepta con 200, recibe del
+  gateway `mcp-gateway-external-pilot.spotify.net/mcp` un **403 «RBAC: access denied»** en texto plano y sin
+  WWW-Authenticate; un token inventado recibe 401 `invalid_token`. Es decir: el gateway valida el token y después
+  rechaza a la aplicación —el piloto solo sirve a los clientes que Spotify admitió—. No es el canje (comprobado en
+  vivo) ni la cuenta. Lo nuestro era el mensaje: `keepAlive` y la vuelta del consentimiento trataban 401 y 403 igual
+  («vuelve a conectarla») y la persona daba vueltas. Ahora `McpError.detail` lleva el cuerpo del rechazo
+  (`serverWords`, en `mcp/refusal.ts`), `describeRefusal` distingue sesión caducada, scopes insuficientes y
+  aplicación no admitida, con las palabras del servidor, y la tarjeta de Spotify lo avisa antes del clic (`notice` en
+  el catálogo; quítalo el día que Spotify admita la app). `parseChallenge` vive en `mcp/challenge.ts`, sin nada del
+  navegador, para poder probar esas notas solas. De paso, el relevo solo añade el secreto a `authorization_code` y
+  `refresh_token`: un `client_credentials` con nuestro id público ya no sale firmado (con Box habría dado un token de
+  empresa a cualquiera que supiera el id).
