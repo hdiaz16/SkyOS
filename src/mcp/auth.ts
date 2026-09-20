@@ -12,6 +12,14 @@ import { McpError, type OAuthClient, type OAuthTokens } from './types'
 
 /* ---------- fetch that can lean on the bridge when a server has no CORS ---------- */
 
+async function relayFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${BRIDGE_URL}/oauth/proxy?target=${encodeURIComponent(url)}`, init)
+  } catch {
+    throw new McpError('network', `No hay conexión con el puente de Sky (${BRIDGE_URL}).`)
+  }
+}
+
 async function oauthFetch(url: string, init: RequestInit = {}): Promise<Response> {
   try {
     return await fetch(url, init)
@@ -20,13 +28,15 @@ async function oauthFetch(url: string, init: RequestInit = {}): Promise<Response
     if (!hasBridge) {
       throw new McpError('network', 'El navegador no pudo hablar con el servidor de autorización (CORS o red). Configura el puente de Sky para estos casos.')
     }
-    try {
-      return await fetch(`${BRIDGE_URL}/oauth/proxy?target=${encodeURIComponent(url)}`, init)
-    } catch {
-      throw new McpError('network', `No hay conexión con el puente de Sky (${BRIDGE_URL}).`)
-    }
+    return relayFetch(url, init)
   }
 }
+
+/**
+ * Token endpoints whose owners want a client secret with the code exchange. The desktop never holds one: for
+ * these the exchange goes through the relay on purpose, and the relay adds the deployment's secret on the way.
+ */
+const SERVER_SECRET_HOSTS: ReadonlySet<string> = new Set(['github.com', 'slack.com', 'api.box.com', 'oauth2.googleapis.com', 'accounts.spotify.com'])
 
 /* ---------- challenge ---------- */
 
@@ -238,11 +248,13 @@ function tokensFrom(t: TokenResponse, previous?: OAuthTokens): OAuthTokens {
 async function tokenRequest(endpoint: string, fields: Record<string, string>, client: Pick<OAuthClient, 'clientId' | 'clientSecret'>): Promise<TokenResponse> {
   const body = new URLSearchParams({ ...fields, client_id: client.clientId })
   if (client.clientSecret) body.set('client_secret', client.clientSecret)
-  const res = await oauthFetch(endpoint, {
+  const init: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: body.toString(),
-  })
+  }
+  const viaRelay = !client.clientSecret && hasBridge && SERVER_SECRET_HOSTS.has(new URL(endpoint).hostname)
+  const res = viaRelay ? await relayFetch(endpoint, init) : await oauthFetch(endpoint, init)
   const data = (await res.json().catch(() => ({}))) as TokenResponse
   if (!res.ok || !data.access_token) {
     const code = data.error === 'invalid_grant' || res.status === 401 ? 'auth_required' : 'protocol'

@@ -252,7 +252,50 @@ export const errorResponse = (request: Request, status: number, message: string)
  * Repeats the browser's request against `?target=` and streams the answer back. `targetAllowed` narrows the
  * destinations further than "any public https server" for the routes that carry a person's own key.
  */
-export async function relay(request: Request, policy: RelayPolicy, targetAllowed?: (url: URL) => boolean): Promise<Response> {
+/* ---------- the secrets the browser never holds ---------- */
+
+/**
+ * Token endpoints whose owners refuse public clients and want a client secret with the code exchange. The
+ * desktop knows only the client id; the secret lives here, in the deployment's environment, and is added to the
+ * request on its way through — so nobody can read it from the page, which is where a VITE_ variable would put
+ * it. Only for the deployment's own client: a request naming another client id travels as it came.
+ */
+const SECRET_ENDPOINTS: Array<{ host: string; path: RegExp; env: string; id: string }> = [
+  { host: 'github.com', path: /^\/login\/oauth\/access_token$/, env: 'GITHUB_CLIENT_SECRET', id: 'VITE_GITHUB_CLIENT_ID' },
+  { host: 'slack.com', path: /^\/api\/oauth\.v2\.(?:user\.)?access$/, env: 'SLACK_CLIENT_SECRET', id: 'VITE_SLACK_CLIENT_ID' },
+  { host: 'api.box.com', path: /^\/oauth2\/token$/, env: 'BOX_CLIENT_SECRET', id: 'VITE_BOX_CLIENT_ID' },
+  { host: 'oauth2.googleapis.com', path: /^\/token$/, env: 'GOOGLE_CLIENT_SECRET', id: 'VITE_GOOGLE_CLIENT_ID' },
+  { host: 'accounts.spotify.com', path: /^\/api\/token$/, env: 'SPOTIFY_CLIENT_SECRET', id: 'VITE_SPOTIFY_CLIENT_ID' },
+]
+
+const bytesOf = (text: string): ArrayBuffer => {
+  const bytes = new TextEncoder().encode(text)
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
+/**
+ * Adds the deployment's client secret to a code exchange that lacks one. `GITHUB_CLIENT_SECRET` and the like,
+ * without the VITE_ prefix; a `VITE_…_SECRET` left over from an earlier deployment still counts, so nothing
+ * breaks the day the prefix goes.
+ */
+export function withClientSecret(url: URL, body: ArrayBuffer | undefined, contentType: string | null, env: Record<string, string | undefined> = process.env): ArrayBuffer | undefined {
+  if (!body || !/application\/x-www-form-urlencoded/i.test(contentType ?? '')) return body
+  const rule = SECRET_ENDPOINTS.find((r) => r.host === url.hostname && r.path.test(url.pathname))
+  if (!rule) return body
+  const secret = env[rule.env]?.trim() || env[`VITE_${rule.env}`]?.trim()
+  if (!secret) return body
+  const form = new URLSearchParams(new TextDecoder().decode(body))
+  if (form.has('client_secret')) return body
+  const ours = env[rule.id]?.trim()
+  if (ours && form.get('client_id') !== ours) return body
+  form.set('client_secret', secret)
+  return bytesOf(form.toString())
+}
+
+/** Changes the body on its way through — the OAuth relay uses it to add a secret the browser never had. */
+export type BodyRewrite = (url: URL, body: ArrayBuffer | undefined, contentType: string | null) => ArrayBuffer | undefined
+
+export async function relay(request: Request, policy: RelayPolicy, targetAllowed?: (url: URL) => boolean, rewrite?: BodyRewrite): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, policy.exposeHeaders) })
   if (!originAllowed(request)) return errorResponse(request, 403, 'Esta ruta solo atiende al escritorio de este sitio.')
   try {
@@ -265,9 +308,10 @@ export async function relay(request: Request, policy: RelayPolicy, targetAllowed
     headers.set('User-Agent', USER_AGENT)
     const body = BODYLESS.has(method) ? undefined : await request.arrayBuffer().then((b) => (b.byteLength ? b : undefined))
     if (body && body.byteLength > MAX_RELAY_BYTES) throw new RelayError(413, 'La petición es demasiado grande.')
+    const sent = rewrite ? rewrite(url, body, headers.get('Content-Type')) : body
 
     const signal = policy.timeoutMs === undefined ? request.signal : AbortSignal.any([request.signal, AbortSignal.timeout(policy.timeoutMs)])
-    const upstream = await send({ url, method, headers, body }, signal, policy.label)
+    const upstream = await send({ url, method, headers, body: sent }, signal, policy.label)
 
     const out = corsHeaders(request, policy.exposeHeaders)
     for (const [name, value] of pick(upstream.headers, policy.responseHeaders)) out.set(name, value)

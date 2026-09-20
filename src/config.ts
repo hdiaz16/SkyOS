@@ -70,9 +70,10 @@ export const MS_OAUTH = {
  * Authorization servers that will not register a client on their own — checked against the metadata each one
  * publishes, 19 September 2026: Google, Spotify, GitHub, Slack and Box have no registration endpoint and take
  * no Client ID Metadata Documents. For them, whoever deploys SkyOS registers one OAuth client, once, and from
- * then on connecting is a click for everybody; without it the card says so instead of asking the person for a
- * client id. A secret only where the server refuses public clients (GitHub, Slack, Box). Anything with the
- * VITE_ prefix ends up in the browser bundle, so on a public site it is public — prefer client types that need none.
+ * then on every person connects their own account with a click; without it the card says so. Only the client id
+ * comes here — it identifies the application and is public by design. Where a server also wants a secret
+ * (GitHub, Slack, Box, Google web clients), the secret lives in the deployment's environment without the VITE_
+ * prefix and the relay adds it to the code exchange (api/oauth): the browser never holds it.
  */
 export type RegistrarKey = 'google' | 'spotify' | 'github' | 'slack' | 'box'
 
@@ -81,15 +82,15 @@ export interface ShippedClient {
   clientSecret?: string
 }
 
-const shipped = (id: string | undefined, secret?: string): ShippedClient | undefined => {
+const shipped = (id: string | undefined): ShippedClient | undefined => {
   const clientId = id?.trim() ?? ''
-  return clientId ? { clientId, clientSecret: secret?.trim() || undefined } : undefined
+  return clientId ? { clientId } : undefined
 }
 
 export const OAUTH_CLIENTS: Record<RegistrarKey, ShippedClient | undefined> = {
-  google: shipped(env.VITE_GOOGLE_CLIENT_ID, env.VITE_GOOGLE_CLIENT_SECRET),
+  google: shipped(env.VITE_GOOGLE_CLIENT_ID),
   spotify: shipped(env.VITE_SPOTIFY_CLIENT_ID),
-  github: shipped(env.VITE_GITHUB_CLIENT_ID, env.VITE_GITHUB_CLIENT_SECRET),
-  slack: shipped(env.VITE_SLACK_CLIENT_ID, env.VITE_SLACK_CLIENT_SECRET),
-  box: shipped(env.VITE_BOX_CLIENT_ID, env.VITE_BOX_CLIENT_SECRET),
+  github: shipped(env.VITE_GITHUB_CLIENT_ID),
+  slack: shipped(env.VITE_SLACK_CLIENT_ID),
+  box: shipped(env.VITE_BOX_CLIENT_ID),
 }

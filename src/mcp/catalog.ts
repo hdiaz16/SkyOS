@@ -66,7 +66,7 @@ export interface Registrar {
   name: string
   /** The variable the deployment reads the client id from. */
   env: string
-  /** Whether the server refuses public clients, so a secret has to travel too. */
+  /** Whether the server also wants a client secret with the code exchange; the relay keeps it, the browser never does. */
   secret: boolean
   /** Where the deployer creates the client. */
   console: string

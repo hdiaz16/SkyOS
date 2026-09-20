@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest'
-import { aiTargetAllowed, isPrivateHost, originAllowed, resolveTarget, RelayError } from './relay.js'
+import { aiTargetAllowed, isPrivateHost, originAllowed, resolveTarget, RelayError, withClientSecret } from './relay.js'
+
+const form = (s: string): ArrayBuffer => new TextEncoder().encode(s).buffer as ArrayBuffer
+const fields = (b: ArrayBuffer | undefined) => new URLSearchParams(b ? new TextDecoder().decode(b) : '')
+const FORM = 'application/x-www-form-urlencoded'
+const github = new URL('https://github.com/login/oauth/access_token')
+
+describe('el secreto que el navegador nunca tiene', () => {
+  it('añade el secreto del despliegue al canje de GitHub cuando el cliente es el suyo', () => {
+    const out = withClientSecret(github, form('grant_type=authorization_code&code=abc&client_id=id1'), FORM, { GITHUB_CLIENT_SECRET: 's3', VITE_GITHUB_CLIENT_ID: 'id1' })
+    expect(fields(out).get('client_secret')).toBe('s3')
+    expect(fields(out).get('code')).toBe('abc')
+  })
+
+  it('acepta el secreto con prefijo VITE_ que dejó un despliegue anterior', () => {
+    const out = withClientSecret(new URL('https://oauth2.googleapis.com/token'), form('client_id=gid&code=x'), FORM, { VITE_GOOGLE_CLIENT_SECRET: 'g', VITE_GOOGLE_CLIENT_ID: 'gid' })
+    expect(fields(out).get('client_secret')).toBe('g')
+  })
+
+  it('no toca la petición sin secreto configurado, con otro cliente, con secreto propio, hacia otro sitio o sin formulario', () => {
+    const body = form('grant_type=authorization_code&code=abc&client_id=id1')
+    expect(withClientSecret(github, body, FORM, {})).toBe(body)
+    expect(withClientSecret(github, body, FORM, { GITHUB_CLIENT_SECRET: 's3', VITE_GITHUB_CLIENT_ID: 'otro' })).toBe(body)
+    const own = form('client_id=id1&client_secret=mine')
+    expect(withClientSecret(github, own, FORM, { GITHUB_CLIENT_SECRET: 's3' })).toBe(own)
+    expect(withClientSecret(new URL('https://example.com/token'), body, FORM, { GITHUB_CLIENT_SECRET: 's3' })).toBe(body)
+    expect(withClientSecret(github, body, 'application/json', { GITHUB_CLIENT_SECRET: 's3' })).toBe(body)
+    expect(withClientSecret(github, undefined, FORM, { GITHUB_CLIENT_SECRET: 's3' })).toBeUndefined()
+  })
+})
 
 /**
  * The relay is the only part of SkyOS that runs on somebody else's machine and holds a key. Everything it
