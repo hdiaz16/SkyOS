@@ -3,7 +3,21 @@ import { BellRing, Loader2, MapPin, Mic } from 'lucide-react'
 import { useAuth } from '../../system/auth'
 import { users } from '../../system/users'
 import type { UserProfile } from '../../system/db'
-import { DENIED_NOTE, KEPT_BY_BROWSER_NOTE, PERMISSION_KEYS, askPermission, browserDecision, outcomeNote, permissionPossible, type BrowserDecision, type PermissionKey } from '../../lib/permissions'
+import { useToasts } from '../../kernel/commands'
+import {
+  ASK_TIMEOUT_MS,
+  ASK_TIMEOUT_NOTE,
+  DENIED_NOTE,
+  KEPT_BY_BROWSER_NOTE,
+  PERMISSION_KEYS,
+  askPermission,
+  browserDecision,
+  outcomeNote,
+  permissionPossible,
+  type BrowserDecision,
+  type LocationOutcome,
+  type PermissionKey,
+} from '../../lib/permissions'
 import { Switch } from '../Switch'
 
 /**
@@ -65,7 +79,12 @@ export function PermissionSwitches({ onAllOn }: { onAllOn?: () => void }) {
     setAsking((a) => ({ ...a, [k]: true }))
     setNotes((n) => ({ ...n, [k]: undefined }))
     try {
-      const outcome = await askPermission(k)
+      // A prompt the browser never shows would leave the switch spinning forever; after a while the row says
+      // where the quiet prompt hides instead.
+      const outcome = await Promise.race([
+        askPermission(k),
+        new Promise<LocationOutcome>((resolve) => setTimeout(() => resolve({ status: 'failed', note: ASK_TIMEOUT_NOTE }), ASK_TIMEOUT_MS)),
+      ])
       if (outcome.status === 'granted') {
         const permissions = { ...(useAuth.getState().current?.profile.permissions ?? {}), [k]: true }
         await save({ permissions, ...(k === 'location' && outcome.location ? { location: outcome.location } : {}) })
@@ -87,8 +106,17 @@ export function PermissionSwitches({ onAllOn }: { onAllOn?: () => void }) {
     setNotes((n) => ({ ...n, [k]: decided[k] === 'granted' ? KEPT_BY_BROWSER_NOTE : undefined }))
   }
 
+  const isBlocked = (k: PermissionKey): boolean => decided[k] === 'denied' && !isOn(k)
+  const titleOf = (k: PermissionKey): string => ROWS.find((r) => r.key === k)?.title ?? k
+
   const toggle = async (k: PermissionKey, next: boolean) => {
     if (!next) return turnOff(k)
+    // A switch the browser has blocked still answers when pressed: a dead control looks like a bug, and the
+    // answer is the way out.
+    if (isBlocked(k)) {
+      useToasts.getState().push({ message: `${titleOf(k)}: ${DENIED_NOTE}`, kind: 'error' })
+      return
+    }
     const ok = await turnOn(k)
     if (ok && keys.every((other) => other === k || isOn(other))) onAllOn?.()
   }
@@ -100,13 +128,20 @@ export function PermissionSwitches({ onAllOn }: { onAllOn?: () => void }) {
     }
     // One browser question after another, never two prompts at once.
     let all = true
+    const blocked: PermissionKey[] = []
     for (const k of keys) {
       if (isOn(k)) continue
-      if (decided[k] === 'denied') {
+      if (isBlocked(k)) {
         all = false
+        blocked.push(k)
         continue
       }
       if (!(await turnOn(k))) all = false
+    }
+    if (blocked.length) {
+      const names = blocked.map(titleOf)
+      const said = names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}` : names[0]
+      useToasts.getState().push({ message: `El navegador tiene bloqueado ${said}: se cambia desde el candado de la barra de direcciones.`, kind: 'error' })
     }
     if (all) onAllOn?.()
   }
@@ -122,7 +157,7 @@ export function PermissionSwitches({ onAllOn }: { onAllOn?: () => void }) {
       </div>
       <ul className="flex flex-col gap-2.5">
         {ROWS.filter((r) => keys.includes(r.key)).map(({ key, icon: Icon, title, why }) => {
-          const blocked = decided[key] === 'denied' && !isOn(key)
+          const blocked = isBlocked(key)
           const note = notes[key] ?? (blocked ? DENIED_NOTE : undefined)
           return (
             <li key={key} className="flex items-start gap-2.5">
@@ -135,7 +170,7 @@ export function PermissionSwitches({ onAllOn }: { onAllOn?: () => void }) {
               {asking[key] ? (
                 <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-ink-3" />
               ) : (
-                <Switch checked={isOn(key)} disabled={blocked || busy} onChange={(v) => void toggle(key, v)} label={title} />
+                <Switch checked={isOn(key)} disabled={busy} onChange={(v) => void toggle(key, v)} label={title} />
               )}
             </li>
           )

@@ -20,6 +20,9 @@ export const DENIED_NOTE = 'El navegador lo tiene bloqueado; se cambia desde el 
 export const DISMISSED_NOTE = 'Cerraste la pregunta sin responder; cuando quieras, vuelve a intentarlo.'
 /** Off on Sky's side while the browser would still allow it: a page cannot take a grant back. */
 export const KEPT_BY_BROWSER_NOTE = 'El navegador lo sigue permitiendo; Sky no lo usará.'
+/** The browser never showed its question: Chrome quiets prompts on sites where they were dismissed before. */
+export const ASK_TIMEOUT_NOTE = 'El navegador no mostró la pregunta. Si tiene silenciadas las preguntas de este sitio, pulsa el icono junto a la dirección y permítelo desde ahí.'
+export const ASK_TIMEOUT_MS = 25_000
 
 /** Whether each permission can be asked for at all in this browser. */
 export function permissionPossible(key: PermissionKey): boolean {
