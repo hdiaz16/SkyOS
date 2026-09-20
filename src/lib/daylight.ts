@@ -49,33 +49,37 @@ type Look = Omit<Palette, 'sunX' | 'sunY'>
 
 const look = (bgA: string, bgB: string, bgC: string, blob1: string, blob2: string, blob3: string, hill1: string, hill2: string): Look => ({ bgA, bgB, bgC, blob1, blob2, blob3, hill1, hill2 })
 
-/** The light theme, one palette per anchor. Every one keeps the paper light enough for the dark ink. */
+/**
+ * The light theme, one palette per anchor. The paper stays light enough for the dark ink at every hour; the light,
+ * the sky and the hills are where the hour shows — a first version kept them so close to the morning that at dusk
+ * the desk read as plain light grey, and nobody could tell a sunset from a Tuesday noon.
+ */
 const LIGHT: Record<Phase, Look> = {
-  // Mist, lilac and the first peach on the horizon.
-  alba: look('#e9e7ee', '#f4ebe6', '#e0e1ec', '#cdbfda', '#f1cfbd', '#f7e6cc', '#dedce6', '#d1d1dd'),
+  // Dawn: rose low in the sky, peach where the sun is about to be, lilac above.
+  alba: look('#f3e4e8', '#fbeedd', '#e6def0', '#e9a6b6', '#f7c185', '#c2b0e6', '#dcc0c9', '#c9adb8'),
   // A morning in the field: the palette Sky was born with (the stylesheet's own values).
   mañana: look('#e8eee8', '#f1eee6', '#dfe9e6', '#b9d4b3', '#cfe1ea', '#f3e2c4', '#dbe5db', '#cfdccf'),
-  // The sky opens: bluer, brighter, the green of the hills a touch cooler.
-  mediodía: look('#e6eef0', '#f2f1ea', '#d9e8f0', '#b4d5c3', '#badcf0', '#f8edd2', '#d7e4dc', '#c9d9d0'),
+  // The sky opens: a real blue overhead, the green of the hills cooler, the sun white.
+  mediodía: look('#e2edf5', '#f4f2e8', '#cde2f3', '#9dd0b3', '#86c3ef', '#fbf0cc', '#cbdfd2', '#b7cfc0'),
   // Gold comes in low over the grass.
-  tarde: look('#efeadf', '#f5eee2', '#e9e3d3', '#cdd4a6', '#dcd7e6', '#f6d9ae', '#e3ddcb', '#d6cfbb'),
-  // Sunset: sand, apricot, a little violet.
-  ocaso: look('#f0e9e2', '#f4eee6', '#ecdfd6', '#ead2b8', '#f0c8b3', '#d9c9d8', '#e6d9cf', '#dccbc0'),
-  // The blue hour.
-  anochecer: look('#e1e3ea', '#e9e6ec', '#d5d9e6', '#b3bdd6', '#c9bfdc', '#e7d6c9', '#d3d6e0', '#c6cad8'),
-  // Moonlight: slate, a cool lavender, silver.
-  noche: look('#dde1e8', '#e5e4ea', '#d0d6e2', '#a9b6cf', '#bcb8d6', '#dcdad4', '#cfd3dd', '#c1c6d3'),
+  tarde: look('#f5e9d6', '#f8efdf', '#f0dfc2', '#d8c46a', '#e6c79a', '#f6c15f', '#dcc89f', '#cbb384'),
+  // Sunset: orange on the horizon, pink above it, the first violet.
+  ocaso: look('#f5dcd0', '#f7e4d4', '#eec8c6', '#f2965e', '#ea8aa2', '#af8ccb', '#d9a58b', '#c28a75'),
+  // The blue hour: indigo and violet, the last warmth going out.
+  anochecer: look('#d9d8ea', '#e1ddec', '#cbcce6', '#7a86c8', '#a389cf', '#e9b49a', '#b4b7d4', '#9ea3c4'),
+  // Night: slate under moonlight, still paper enough for the ink.
+  noche: look('#d0d6e3', '#d8dae6', '#c2cadf', '#657aae', '#8580bd', '#d4dbe2', '#a9b2c8', '#939db6'),
 }
 
-/** The dark theme: the same hours in the depth of the night forest the stylesheet already had. */
+/** The dark theme: the same hours in the depth of the night forest the stylesheet already had, each with its own light. */
 const DARK: Record<Phase, Look> = {
-  alba: look('#13121a', '#1a1519', '#141420', '#3a2a46', '#4a3034', '#3e3a2c', '#111017', '#0d0c12'),
+  alba: look('#15121b', '#1d1618', '#161424', '#5a3452', '#6e4436', '#4a4a30', '#141118', '#0f0c13'),
   mañana: look('#0e1512', '#121b17', '#101a1c', '#1e3b30', '#1a2538', '#2b3a33', '#0d1411', '#0a100e'),
-  mediodía: look('#0e1517', '#12191c', '#0f1a20', '#1c3a33', '#1c2f45', '#2d3b36', '#0d1315', '#0a0f11'),
-  tarde: look('#141410', '#1a1813', '#161512', '#33361f', '#2c2838', '#3d3520', '#12110d', '#0e0d0a'),
-  ocaso: look('#16110f', '#1c1512', '#1a1412', '#3d2a22', '#45301f', '#2e2530', '#141010', '#100d0c'),
-  anochecer: look('#0f1219', '#14151d', '#0f1420', '#1d2742', '#2a2440', '#2a2a30', '#0d0f15', '#0a0b10'),
-  noche: look('#0b0f16', '#0f131a', '#0b1019', '#172235', '#1b1b30', '#23282d', '#0a0d12', '#07090d'),
+  mediodía: look('#0e161a', '#121a1e', '#0f1c25', '#1f4a3c', '#1f3f63', '#3a4a44', '#0d1417', '#0a1013'),
+  tarde: look('#16150f', '#1c1a12', '#1a1710', '#4a4a1f', '#3a3040', '#5a4a1c', '#14120c', '#100e09'),
+  ocaso: look('#1a110e', '#211512', '#1e1412', '#6b3a22', '#6e2f3a', '#3d2a52', '#1a1010', '#140d0c'),
+  anochecer: look('#0f121e', '#141624', '#0f1526', '#243a7a', '#3a2e66', '#3a2e34', '#0e1019', '#0a0c13'),
+  noche: look('#0a0e18', '#0e121c', '#0a101c', '#182a55', '#241f44', '#2a3038', '#0a0d14', '#07090e'),
 }
 
 /** Where the warm light sits at each anchor: it rises on the left, crosses high, sets on the right; the moon keeps the night high on the right. */
