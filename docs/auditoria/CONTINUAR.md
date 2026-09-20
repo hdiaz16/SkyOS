@@ -365,4 +365,4 @@ publicar. Lo que hay:
   /api/ai/chat/completions` con `openai/gpt-oss-20b` responde 200 desde Groq (95 tokens), `audio/transcriptions` llega a
   Groq (400 por no ser multipart, ya no NOT_FOUND), `models` 200, y sin `Origin` sigue siendo 403. Nota: la llave
   incluida ya no tiene los modelos `llama-3.x`; el catálogo del escritorio se lee de `/api/ai/models`, así que no hay
-  nada que tocar. Los ids `llama-3.x` que quedan en `src` son solo listas de respaldo cuando `/models` no responde.
+  nada que tocar.
