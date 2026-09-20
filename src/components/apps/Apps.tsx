@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, ChevronDown, ExternalLink, LayoutGrid, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useToasts } from '../../kernel/commands'
-import { CATALOG, CATEGORIES, REGISTRARS, categoryFor, registrationGap, type CatalogEntry, type CategoryId } from '../../mcp/catalog'
+import { CATALOG, CATEGORIES, REGISTRARS, categoryFor, registrationGap, type CatalogEntry, type CategoryId, type Registrar } from '../../mcp/catalog'
+import { useDialog } from '../../state/dialog'
 import { mcp, useMcp } from '../../mcp/manager'
 import { McpError, type McpServerRecord } from '../../mcp/types'
 import { cn } from '../../lib/utils'
@@ -187,6 +188,20 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
 
   const gap = registrationGap(item.entry, record)
 
+  /**
+   * A disabled Conectar read as a broken button. Pressed, it now says what is missing and where it is done: the
+   * deployer registers one client, once — and here the person pressing is very often that deployer.
+   */
+  const explainGap = async (registrar: Registrar) => {
+    const secret = registrar.secret ? ` y su secreto en ${registrar.env.replace('_ID', '_SECRET')}` : ''
+    const open = await useDialog.getState().confirm({
+      title: `Falta registrar la conexión con ${registrar.name}`,
+      description: `${registrar.name} no deja que Sky se registre solo. Quien administra este SkyOS crea un cliente OAuth en la consola de ${registrar.name}, con la URL de retorno ${window.location.origin}/oauth/callback, y pone su id en ${registrar.env}${secret} en Vercel. Desde entonces, para todo el mundo, conectar es un clic.\n\nSi ya tienes tu propio cliente, pégalo en Avanzado.`,
+      confirmLabel: `Abrir la consola de ${registrar.name}`,
+    })
+    if (open) window.open(registrar.console, '_blank', 'noopener')
+  }
+
   const connect = async () => {
     try {
       const r = await mcp.connect(item.id)
@@ -301,9 +316,9 @@ function AppCard({ item, highlighted }: { item: AppItem; highlighted: boolean })
         ) : (
           <button
             type="button"
-            disabled={!!busy || !item.url || !!gap}
-            title={gap ? `Esta instalación aún no tiene registrada la conexión con ${gap.name}` : undefined}
-            onClick={() => void connect()}
+            disabled={!!busy || !item.url}
+            title={gap ? `Esta instalación aún no tiene registrada la conexión con ${gap.name}: pulsa para ver qué falta` : undefined}
+            onClick={() => void (gap ? explainGap(gap) : connect())}
             className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white shadow-soft transition hover:brightness-110 disabled:opacity-40"
           >
             Conectar
